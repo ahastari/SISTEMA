@@ -4,7 +4,7 @@
 
 <div class="card shadow">
     <div class="card-header text-center">
-        <h3>Sistema de Rentas</h3>
+        <h3>Sistema</h3>
     </div>
 
     <div class="card-body">
