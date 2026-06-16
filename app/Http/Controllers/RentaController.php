@@ -77,6 +77,7 @@ class RentaController extends Controller
             $renta = Renta::create([
                 'folio' => Renta::generarFolio(),
                 'cliente_id' => $request->cliente_id,
+                'obra_id' => $request->obra_id,
                 'fecha_inicio' => $request->fecha_inicio,
                 'fecha_fin' => $request->fecha_fin,
                 'dias_totales' => $diasTotales,
@@ -166,7 +167,7 @@ class RentaController extends Controller
     // Generar contrato PDF
     public function contrato(Renta $renta)
     {
-        $renta->load('cliente', 'detalles.equipo');
+        $renta->load('cliente', 'detalles.equipo', 'obra');  // ← Agrega 'obra'
         
         $pdf = Pdf::loadView('rentas.pdf_contrato', compact('renta'));
         $pdf->setPaper('letter', 'portrait');

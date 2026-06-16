@@ -111,7 +111,12 @@
 <div>
     <!-- Encabezado con logo -->
     <div class="header">
-        <img src="{{ public_path('images/logo.jpeg') }}" class="logo" alt="Logo">
+        @php
+            $logoPath = public_path('images/logo.jpeg');
+        @endphp
+        @if(file_exists($logoPath))
+            <img src="{{ $logoPath }}" class="logo" alt="Logo">
+        @endif
         <div class="company-name">ANDAMIOS Y MADERA VIRAMONTES</div>
         <div class="company-address">MARCO ANTONIO VIRAMONTES MATURINO - VIMM9103023K7</div>
         <div class="company-address">AVE. DEL CIPRES #314 COL. MASIE DURANGO, DGO. C.P. 34217</div>
@@ -169,6 +174,33 @@
         </tr>
     </table>
 
+    <!-- DATOS DE LA OBRA (si tiene obra asociada) -->
+    @if($renta->obra_id && $renta->obra)
+    <div class="section-title">DATOS DE LA OBRA</div>
+    <table class="data-table">
+        <tr>
+            <th style="width: 25%;">NOMBRE DE LA OBRA</th>
+            <td colspan="3">{{ $renta->obra->nombre }}</td>
+        </tr>
+        <tr>
+            <th>DIRECCIÓN</th>
+            <td colspan="3">{{ $renta->obra->direccion }}</td>
+        </tr>
+        <tr>
+            <th>COLONIA</th>
+            <td style="width: 25%;">{{ $renta->obra->colonia ?? 'No especificada' }}</td>
+            <th style="width: 25%;">CIUDAD</th>
+            <td style="width: 25%;">{{ $renta->obra->ciudad ?? 'Durango' }}</td>
+        </tr>
+        <tr>
+            <th>CONTACTO</th>
+            <td>{{ $renta->obra->contacto_obra ?? 'No especificado' }}</td>
+            <th>TELÉFONO OBRA</th>
+            <td>{{ $renta->obra->telefono_obra ?? 'No especificado' }}</td>
+        </tr>
+    </table>
+    @endif
+
     <!-- EQUIPO RENTADO -->
     <div class="section-title">EQUIPO RENTADO</div>
     <table class="data-table">
@@ -177,57 +209,98 @@
                 <th>CANTIDAD</th>
                 <th>DESCRIPCIÓN</th>
                 <th>PRECIO/DÍA</th>
+                <th>DÍAS</th>
                 <th>SUBTOTAL</th>
             </tr>
         </thead>
         <tbody>
             @foreach($renta->detalles as $detalle)
             <tr>
-                <td>{{ $detalle->cantidad }} x {{ $detalle->dias }} días</td>
+                <td class="text-center">{{ $detalle->cantidad }}</td>
                 <td>{{ $detalle->equipo->nombre }} ({{ $detalle->equipo->codigo }})</td>
                 <td class="text-right">${{ number_format($detalle->precio_dia, 2) }}</td>
+                <td class="text-center">{{ $detalle->dias }}</td>
                 <td class="text-right">${{ number_format($detalle->subtotal, 2) }}</td>
             </tr>
             @endforeach
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="3" class="text-right bold">Subtotal:</td>
+                <td colspan="4" class="text-right bold">Subtotal:</td>
                 <td class="text-right">${{ number_format($renta->subtotal, 2) }}</td>
             </tr>
             <tr>
-                <td colspan="3" class="text-right bold">IVA (16%):</td>
+                <td colspan="4" class="text-right bold">IVA (16%):</td>
                 <td class="text-right">${{ number_format($renta->iva, 2) }}</td>
             </tr>
             <tr>
-                <td colspan="3" class="text-right bold">TOTAL:</td>
+                <td colspan="4" class="text-right bold">TOTAL:</td>
                 <td class="text-right bold">${{ number_format($renta->total, 2) }}</td>
             </tr>
+            @if($renta->deposito > 0)
+            <tr>
+                <td colspan="4" class="text-right bold">DEPÓSITO:</td>
+                <td class="text-right">${{ number_format($renta->deposito, 2) }}</td>
+            </tr>
+            <tr>
+                <td colspan="4" class="text-right bold">SALDO A PAGAR:</td>
+                <td class="text-right bold">${{ number_format($renta->total - $renta->deposito, 2) }}</td>
+            </tr>
+            @endif
         </tfoot>
     </table>
 
-    <!-- DATOS DE LA OBRA -->
-    <div class="section-title">DATOS DE LA OBRA</div>
+    <!-- PERIODO DE RENTA -->
+    <div class="section-title">PERIODO DE RENTA</div>
     <table class="data-table">
         <tr>
-            <th style="width: 25%;">NOMBRE</th>
-            <td style="width: 25%;">{{ $renta->observaciones ?? 'No especificado' }}</td>
-            <th style="width: 25%;">DIRECCIÓN</th>
-            <td style="width: 25%;">{{ $renta->cliente->direccion ?? 'No especificada' }}</td>
+            <th style="width: 25%;">FECHA INICIO</th>
+            <td style="width: 25%;">{{ \Carbon\Carbon::parse($renta->fecha_inicio)->format('d/m/Y') }}</td>
+            <th style="width: 25%;">FECHA FIN</th>
+            <td style="width: 25%;">{{ \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') }}</td>
         </tr>
         <tr>
-            <th>COLONIA</th>
-            <td>{{ $renta->cliente->colonia ?? 'No especificada' }}</td>
-            <th>CIUDAD</th>
-            <td>{{ $renta->cliente->ciudad ?? 'Durango' }}</td>
-        </tr>
-        <tr>
-            <th>TELÉFONO</th>
-            <td>{{ $renta->cliente->telefono }}</td>
-            <th>FECHA</th>
-            <td>{{ \Carbon\Carbon::now()->format('d/m/Y') }}</td>
-        </tr>
+            <th>DÍAS TOTALES</th>
+            <td>{{ $renta->dias_totales }} días</td>
+            <th>ESTADO</th>
+            <td>
+                @if($renta->estado == 'activa')
+                    <span style="background: #28a745; color: white; padding: 2px 8px;">ACTIVA</span>
+                @else
+                    FINALIZADA
+                @endif
+            </td>
+         </tr>
     </table>
+
+    @if($renta->observaciones)
+    <div class="section-title">OBSERVACIONES</div>
+    <div style="border: 1px solid #000; padding: 10px;">
+        {{ $renta->observaciones }}
+    </div>
+    @endif
+
+    <!-- FIRMAS -->
+    <div class="signature">
+        <div style="width: 45%; float: left; text-align: center;">
+            <div class="signature-line"></div>
+            <strong>{{ $renta->cliente->nombre_completo }}</strong><br>
+            <small>Nombre y firma del cliente</small>
+        </div>
+        <div style="width: 10%; float: left;"></div>
+        <div style="width: 45%; float: left; text-align: center;">
+            <div class="signature-line"></div>
+            <strong>ING. GODOFREDO VIRAMONTES MEDINA</strong><br>
+            <small>Nombre y firma del prestador</small>
+        </div>
+        <div style="clear: both;"></div>
+    </div>
+
+    <div class="footer">
+        Durango, Dgo. a {{ \Carbon\Carbon::parse($renta->created_at)->format('d') }} de 
+        {{ \Carbon\Carbon::parse($renta->created_at)->locale('es')->monthName }} de 
+        {{ \Carbon\Carbon::parse($renta->created_at)->format('Y') }}
+    </div>
 </div>
 
 <!-- SEGUNDA PÁGINA - PAGARÉ -->
@@ -242,7 +315,8 @@
         <p>DEBO (EMOS) Y PAGARÉ (EMOS) INCONDICIONALMENTE POR ESTE PAGARÉ A LA ORDEN DEL <strong>ING. GODOFREDO VIRAMONTES MEDINA</strong> EN DURANGO, DGO. EL DÍA <strong>{{ \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') }}</strong> LA CANTIDAD DE <strong>${{ number_format($renta->total - ($renta->deposito ?? 0), 2) }}</strong> VALOR RECIBIDO A MI (NUESTRA) ENTERA SATISFACCIÓN, EN CASO DE DEMORA PARCIALMENTE INSOLUTO SIN QUE POR ELLO SE CONSIDERE PRORROGADO EL PLAZO FIJADO.</p>
     </div>
 
-    <table class="data-table" style="margin-top: 40px;">
+    <div class="section-title">DATOS DEL ACEPTANTE</div>
+    <table class="data-table">
         <tr>
             <th style="width: 25%;">NOMBRE</th>
             <td style="width: 25%;">{{ $renta->cliente->nombre_completo }}</td>
@@ -254,84 +328,45 @@
             <td>{{ $renta->cliente->colonia ?? 'No especificada' }}</td>
             <th>CIUDAD</th>
             <td>{{ $renta->cliente->ciudad ?? 'Durango' }}</td>
-        </tr>
+         </tr>
         <tr>
             <th>TELÉFONO</th>
             <td colspan="3">{{ $renta->cliente->telefono }}</td>
-        </tr>
+         </tr>
     </table>
 
-    <div class="signature">
-        <div class="signature-line"></div>
-        <div class="signature-text">ACEPTAMOS</div>
-        <div class="signature-text" style="margin-top: 10px;"><strong>{{ $renta->cliente->nombre_completo }}</strong></div>
-    </div>
-
-    <div class="footer">
-        Gracias por su preferencia
-    </div>
-</div>
-
-<!-- TERCERA PÁGINA - NOTA DE REMISIÓN (opcional) -->
-<div class="page-break">
-    <div class="title">NOTA DE REMISIÓN</div>
-    
-    <div style="margin: 20px 0;">
-        <p><strong>FECHA:</strong> {{ \Carbon\Carbon::now()->format('d/m/Y') }}</p>
-        <p><strong>PARA:</strong> {{ $renta->cliente->nombre_completo }}</p>
-    </div>
-
+    @if($renta->obra_id && $renta->obra)
+    <div class="section-title">DATOS DE LA OBRA (REFERENCIA)</div>
     <table class="data-table">
-        <thead>
-            <tr>
-                <th>DESCRIPCIÓN</th>
-                <th>CANTIDAD</th>
-                <th>COSTO UNITARIO</th>
-                <th>IMPORTE</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($renta->detalles as $detalle)
-            <tr>
-                <td>{{ $detalle->equipo->nombre }}</td>
-                <td>{{ $detalle->cantidad }}</td>
-                <td class="text-right">${{ number_format($detalle->precio_dia, 2) }}</td>
-                <td class="text-right">${{ number_format($detalle->subtotal, 2) }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="3" class="text-right bold">SUBTOTAL:</td>
-                <td class="text-right">${{ number_format($renta->subtotal, 2) }}</td>
-            </tr>
-            <tr>
-                <td colspan="3" class="text-right bold">IVA (16%):</td>
-                <td class="text-right">${{ number_format($renta->iva, 2) }}</td>
-            </tr>
-            <tr>
-                <td colspan="3" class="text-right bold">TOTAL:</td>
-                <td class="text-right bold">${{ number_format($renta->total, 2) }}</td>
-            </tr>
-        </tfoot>
+        <tr>
+            <th style="width: 25%;">NOMBRE DE LA OBRA</th>
+            <td colspan="3">{{ $renta->obra->nombre }}</td>
+         </tr>
+        <tr>
+            <th>DIRECCIÓN</th>
+            <td colspan="3">{{ $renta->obra->direccion }}</td>
+         </tr>
     </table>
-
-    <div style="margin-top: 30px;">
-        <p>Quedo enterado que al momento de terminar de usar el equipo en renta avisaré a "Andamios y Madera Viramontes" pasar por este mismo (andamios, revolvedora, cimbra, vibrador de concreto).</p>
-        <p><strong>(Si no se avisa seguirá corriendo la renta en cuestión y se cobrará los días extras que se generen hasta que se dé aviso "Andamios y Madera Viramontes")</strong></p>
-    </div>
+    @endif
 
     <div class="signature">
-        <div class="signature-line"></div>
-        <div class="signature-text"><strong>{{ $renta->cliente->nombre_completo }}</strong></div>
-        <div class="signature-text">FIRMA</div>
+        <div style="width: 45%; float: left; text-align: center;">
+            <div class="signature-line"></div>
+            <strong>NOMBRE Y FIRMA</strong><br>
+            <small>Aceptamos</small>
+        </div>
+        <div style="width: 10%; float: left;"></div>
+        <div style="width: 45%; float: left; text-align: center;">
+            <div class="signature-line"></div>
+            <strong>ING. GODOFREDO VIRAMONTES MEDINA</strong><br>
+            <small>Nombre y firma del prestador</small>
+        </div>
+        <div style="clear: both;"></div>
     </div>
 
     <div class="footer">
-        Sin otro particular a que hacer referencia y esperando vemos favorecidos con sus apreciables ordenes nos es grato quedar de usted como sus amigos y S.S.<br><br>
-        <strong>GRACIAS POR SU PREFERENCIA</strong>
+        Este pagaré se expide en DURANGO, DGO. a {{ \Carbon\Carbon::now()->format('d/m/Y') }}
     </div>
 </div>
-
 </body>
 </html>

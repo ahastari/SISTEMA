@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Renta extends Model
 {
     protected $fillable = [
-        'folio', 'cliente_id', 'fecha_inicio', 'fecha_fin', 'dias_totales',
+        'folio', 'cliente_id', 'obra_id', 'fecha_inicio', 'fecha_fin', 'dias_totales',
         'subtotal', 'iva', 'total', 'deposito', 'estado', 'observaciones', 'fecha_devolucion'
     ];
 
@@ -22,12 +22,16 @@ class Renta extends Model
         return $this->belongsTo(Cliente::class);
     }
 
+    public function obra()  // ← Verifica que esta relación exista
+    {
+        return $this->belongsTo(Obra::class);
+    }
+
     public function detalles()
     {
         return $this->hasMany(DetalleRenta::class);
     }
 
-    // Generar folio automático
     public static function generarFolio()
     {
         $year = date('Y');
@@ -43,12 +47,11 @@ class Renta extends Model
         return 'R-' . $year . '-' . $nuevoNumero;
     }
 
-    // Calcular días entre fechas (incluyendo día inicio y fin)
     public static function calcularDias($fechaInicio, $fechaFin)
     {
         $inicio = new \DateTime($fechaInicio);
         $fin = new \DateTime($fechaFin);
         $diferencia = $inicio->diff($fin);
-        return $diferencia->days + 1; // +1 para incluir ambos días
+        return $diferencia->days + 1;
     }
 }

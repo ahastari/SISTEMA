@@ -84,6 +84,13 @@
             </li>
 
             <li class="nav-item mb-2">
+                <a href="{{ route('obras.index') }}" class="nav-link text-white">
+                    <i class="bi bi-building me-2"></i>
+                    Obras
+                </a>
+            </li>
+
+            <li class="nav-item mb-2">
 
                 <a
                     href="#"

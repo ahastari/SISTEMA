@@ -51,7 +51,7 @@
                     
                     <div class="mb-3">
                         <label>Cliente *</label>
-                        <select name="cliente_id" class="form-select @error('cliente_id') is-invalid @enderror" required>
+                        <select name="cliente_id" id="clienteSelect" class="form-select @error('cliente_id') is-invalid @enderror" required>
                             <option value="">Seleccionar cliente...</option>
                             @foreach($clientes as $cliente)
                                 <option value="{{ $cliente->id }}" {{ old('cliente_id') == $cliente->id ? 'selected' : '' }}>
@@ -62,6 +62,14 @@
                         @error('cliente_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label>Obra / Proyecto</label>
+                        <select name="obra_id" class="form-select" id="obraSelect">
+                            <option value="">Seleccionar obra (opcional)...</option>
+                        </select>
+                        <small class="text-muted">Si no aparece la obra, <a href="{{ route('obras.create') }}" target="_blank">regístrala aquí</a></small>
                     </div>
                     
                     <div class="row">
@@ -241,10 +249,9 @@ function agregarEquipo() {
         return;
     }
     
-    // Verificar si ya existe
     const existe = equipos.find(e => e.id == equipoId);
     if (existe) {
-        alert('Este equipo ya fue agregado. Elimina el actual y vuelve a agregar si necesitas más cantidad');
+        alert('Este equipo ya fue agregado');
         return;
     }
     
@@ -262,20 +269,17 @@ function agregarEquipo() {
     document.getElementById('cantidadEquipo').value = '';
 }
 
-// Eliminar equipo
 function eliminarEquipo(index) {
     equipos.splice(index, 1);
     renderizarEquipos();
     actualizarResumen();
 }
 
-// Renderizar lista de equipos
 function renderizarEquipos() {
     const container = document.getElementById('equiposLista');
-    const listaVacia = document.getElementById('listaVacia');
     
     if (equipos.length === 0) {
-        container.innerHTML = '<div class="alert alert-info" id="listaVacia"><i class="bi bi-info-circle"></i> No hay equipos agregados</div>';
+        container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No hay equipos agregados</div>';
         return;
     }
     
@@ -303,7 +307,46 @@ function renderizarEquipos() {
     container.innerHTML = html;
 }
 
-// Event listeners
+// ========== CARGAR OBRAS ==========
+// Evento cuando cambia el cliente
+document.getElementById('clienteSelect').addEventListener('change', function() {
+    const clienteId = this.value;
+    const obraSelect = document.getElementById('obraSelect');
+    
+    if (clienteId) {
+        obraSelect.innerHTML = '<option value="">Cargando obras...</option>';
+        
+        fetch(`/get-obras/${clienteId}`)
+            .then(response => response.json())
+            .then(data => {
+                obraSelect.innerHTML = '<option value="">Seleccionar obra (opcional)...</option>';
+                if (data.length === 0) {
+                    obraSelect.innerHTML += '<option value="" disabled>No hay obras para este cliente</option>';
+                } else {
+                    data.forEach(obra => {
+                        obraSelect.innerHTML += `<option value="${obra.id}">${obra.nombre} - ${obra.direccion}</option>`;
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                obraSelect.innerHTML = '<option value="">Error al cargar obras</option>';
+            });
+    } else {
+        obraSelect.innerHTML = '<option value="">Seleccionar obra (opcional)...</option>';
+    }
+});
+
+// Al cargar la página, si ya hay un cliente seleccionado, cargar sus obras
+document.addEventListener('DOMContentLoaded', function() {
+    const clienteSelect = document.getElementById('clienteSelect');
+    if (clienteSelect && clienteSelect.value) {
+        // Disparar el evento change manualmente
+        clienteSelect.dispatchEvent(new Event('change'));
+    }
+});
+
+// Event listeners para fechas y depósito
 document.getElementById('fecha_inicio').addEventListener('change', actualizarResumen);
 document.getElementById('fecha_fin').addEventListener('change', actualizarResumen);
 document.getElementById('deposito').addEventListener('input', actualizarResumen);
