@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\EquipoController;
+use App\Http\Controllers\RentaController;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -19,15 +20,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::middleware('auth')->group(function () {
-
-    Route::view('/rentas', 'rentas.index')
-        ->name('rentas.index');
-
-    Route::view('/rentas/nueva', 'rentas.create')
-        ->name('rentas.create');
-
-});
 
 Route::middleware('auth')->group(function () {
     // Clientes:
@@ -38,6 +30,14 @@ Route::middleware('auth')->group(function () {
     Route::resource('inventario', EquipoController::class);
 
     
+});
+
+Route::middleware('auth')->group(function () {
+    // Rentas
+    Route::resource('rentas', RentaController::class);
+    Route::get('/rentas/{renta}/finalizar', [RentaController::class, 'finalizar'])->name('rentas.finalizar');
+    Route::get('/rentas/{renta}/contrato', [RentaController::class, 'contrato'])->name('rentas.contrato');
+    Route::get('/rentas/{renta}/pagare', [RentaController::class, 'pagare'])->name('rentas.pagare');
 });
 
 require __DIR__.'/auth.php';
