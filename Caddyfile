@@ -2,16 +2,20 @@
     admin off
 }
 
+# Railway inyecta de forma automática la variable PORT
 :{$PORT} {
     root * /app/public
 
-    # Servir archivos estáticos primero
-    file_server
+    # Codificar respuestas para mayor velocidad (Gzip/Zstd)
+    encode zstd gzip
 
-    # Procesar PHP con FrankenPHP
+    # Procesar archivos PHP con el motor interno de FrankenPHP
     php_server
 
-    # Cachear assets de Vite
+    # Servir archivos estáticos del build de Vite
+    file_server
+
+    # Cachear assets de Vite de forma agresiva
     @assets {
         path /build/* /css/* /js/* /images/*
     }
