@@ -1,8 +1,10 @@
 # Imagen base con PHP y FrankenPHP
 FROM dunglas/frankenphp:php8.3-bookworm
 
-# Instalar extensiones de PHP necesarias Y además Node.js + NPM
-RUN apt-get update && apt-get install -y unzip nodejs npm \
+# Instalar dependencias, agregar repositorio de Node.js 22 y compilar extensiones PHP
+RUN apt-get update && apt-get install -y unzip curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
     && install-php-extensions bcmath pdo_mysql mbstring exif pcntl gd zip
 
 # Copiar Composer desde imagen oficial
@@ -17,7 +19,7 @@ COPY . .
 # Instalar dependencias de PHP
 RUN composer install --no-dev --optimize-autoloader
 
-# Compilar assets de Vite (CSS/JS) ahora que NPM sí está instalado
+# Compilar assets de Vite (CSS/JS)
 RUN npm install && npm run build
 
 # Comando de arranque correcto para usar FrankenPHP con tu Caddyfile customizado
