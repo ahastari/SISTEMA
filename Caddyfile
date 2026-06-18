@@ -1,10 +1,19 @@
 {
-    # Configuración global
     admin off
 }
 
 :{$PORT} {
     root * /app/public
-    php_server
+
+    # Servir archivos estáticos (CSS, JS, imágenes)
     file_server
+
+    # Manejar PHP con FrankenPHP
+    php_server
+
+    # Cacheo básico de assets
+    @assets {
+        path /build/* /css/* /js/* /images/*
+    }
+    header @assets Cache-Control "public, max-age=31536000, immutable"
 }
