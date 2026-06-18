@@ -1,7 +1,8 @@
 FROM dunglas/frankenphp:php8.3-bookworm
 
-# Instalar extensiones comunes de Laravel
-RUN install-php-extensions bcmath pdo_mysql mbstring exif pcntl gd
+# Instalar extensiones comunes de Laravel + zip
+RUN apt-get update && apt-get install -y unzip \
+    && install-php-extensions bcmath pdo_mysql mbstring exif pcntl gd zip
 
 # Instalar Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
