@@ -5,13 +5,13 @@
 :{$PORT} {
     root * /app/public
 
-    # Servir archivos estáticos (CSS, JS, imágenes)
+    # Servir archivos estáticos primero
     file_server
 
-    # Manejar PHP con FrankenPHP
+    # Procesar PHP con FrankenPHP
     php_server
 
-    # Cacheo básico de assets
+    # Cachear assets de Vite
     @assets {
         path /build/* /css/* /js/* /images/*
     }
