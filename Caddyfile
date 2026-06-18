@@ -1,0 +1,10 @@
+{
+    # Configuración global
+    admin off
+}
+
+:{$PORT} {
+    root * /app/public
+    php_server
+    file_server
+}
