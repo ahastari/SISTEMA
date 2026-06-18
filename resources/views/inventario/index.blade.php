@@ -35,11 +35,11 @@
                 <form method="GET" action="{{ route('inventario.index') }}">
                     <select name="categoria" class="form-select" onchange="this.form.submit()">
                         <option value="">Todas las categorías</option>
-                        <option value="Andamios" {{ request('categoria') == 'Andamios' ? 'selected' : '' }}>Andamios</option>
-                        <option value="Ruedas" {{ request('categoria') == 'Ruedas' ? 'selected' : '' }}>Ruedas</option>
-                        <option value="Flete" {{ request('categoria') == 'Flete' ? 'selected' : '' }}>Flete</option>
-                        <option value="Madera" {{ request('categoria') == 'Madera' ? 'selected' : '' }}>Madera</option>
-                        <option value="Herramientas" {{ request('categoria') == 'Herramientas' ? 'selected' : '' }}>Herramientas</option>
+                        @foreach($categorias as $categoria)
+                            <option value="{{ $categoria->nombre }}" {{ request('categoria') == $categoria->nombre ? 'selected' : '' }}>
+                                {{ $categoria->nombre }}
+                            </option>
+                        @endforeach
                     </select>
                 </form>
             </div>
@@ -53,6 +53,7 @@
                         <th>Código</th>
                         <th>Nombre</th>
                         <th>Categoría</th>
+                        <th>Unidad</th>
                         <th>Precio día</th>
                         <th>Stock</th>
                         <th>Estado</th>
@@ -64,14 +65,29 @@
                     <tr>
                         <td class="text-center">
                             @if($equipo->imagen && Storage::disk('public')->exists($equipo->imagen))
-                                <img src="{{ asset('storage/' . $equipo->imagen) }}" alt="{{ $equipo->nombre }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">
+                                <img src="{{ Storage::url($equipo->imagen) }}" alt="{{ $equipo->nombre }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">
                             @else
                                 <i class="bi bi-image" style="font-size: 30px; color: #999;"></i>
                             @endif
                         </td>
                         <td>{{ $equipo->codigo }}</td>
                         <td>{{ $equipo->nombre }}</td>
-                        <td>{{ $equipo->categoria }}</td>
+                        <td>
+                            @if($equipo->categoria)
+                                <span class="badge" style="background-color: {{ $equipo->categoria->color ?? '#6c757d' }}; color: white;">
+                                    {{ $equipo->categoria->nombre }}
+                                </span>
+                            @else
+                                <span class="text-muted">N/A</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($equipo->unidadMedida)
+                                {{ $equipo->unidadMedida->abreviatura }}
+                            @else
+                                <span class="text-muted">N/A</span>
+                            @endif
+                        </td>
                         <td>${{ number_format($equipo->precio_dia, 2) }}</td>
                         <td>
                             @if($equipo->stock <= 5 && $equipo->stock > 0)
@@ -90,9 +106,9 @@
                             @endif
                         </td>
                         <td>
-                            <a href="{{ route('inventario.show', $equipo) }}" class="btn btn-info btn-sm">Ver</a>
-                            <a href="{{ route('inventario.edit', $equipo) }}" class="btn btn-warning btn-sm">Editar</a>
-                            <form action="{{ route('inventario.destroy', $equipo) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar este equipo?')">
+                            <a href="{{ route('inventario.show', $equipo->id) }}" class="btn btn-info btn-sm">Ver</a>
+                            <a href="{{ route('inventario.edit', $equipo->id) }}" class="btn btn-warning btn-sm">Editar</a>
+                            <form action="{{ route('inventario.destroy', $equipo->id) }}" method="POST" class="d-inline">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
@@ -101,7 +117,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="text-center">No hay equipos registrados</td>
+                        <td colspan="9" class="text-center">No hay equipos registrados</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -111,19 +127,4 @@
         {{ $equipos->appends(request()->query())->links() }}
     </div>
 </div>
-
-<script>
-// Mantener la categoría al buscar
-document.querySelector('form .input-group button').addEventListener('click', function(e) {
-    let categoriaSelect = document.querySelector('select[name="categoria"]');
-    if (categoriaSelect && categoriaSelect.value) {
-        let form = this.closest('form');
-        let hiddenInput = document.createElement('input');
-        hiddenInput.type = 'hidden';
-        hiddenInput.name = 'categoria';
-        hiddenInput.value = categoriaSelect.value;
-        form.appendChild(hiddenInput);
-    }
-});
-</script>
 @endsection

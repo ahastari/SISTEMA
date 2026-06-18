@@ -69,6 +69,10 @@
         font-size: 12px;
         font-weight: bold;
     }
+    .dias-restantes {
+        font-size: 14px;
+        font-weight: bold;
+    }
     .filtro-input {
         border-radius: 10px;
         border: 1px solid #e0e0e0;
@@ -173,7 +177,7 @@
     @forelse($rentas as $renta)
     <div class="renta-card" data-estado="{{ $renta->estado }}" data-fecha="{{ $renta->fecha_inicio->format('Y-m-d') }}">
         <div class="row align-items-center">
-            <div class="col-lg-4">
+            <div class="col-lg-3">
                 <div class="d-flex align-items-center gap-3">
                     <div class="folio-badge">
                         <i class="bi bi-file-text me-1"></i> {{ $renta->folio }}
@@ -201,12 +205,29 @@
                 </div>
             </div>
             <div class="col-lg-2">
-                <div class="text-end">
-                    <small class="text-muted d-block">Monto total</small>
-                    <div class="total-amount">${{ number_format($renta->total, 0) }}</div>
-                    @if($renta->deposito > 0)
-                        <small class="text-success">Depósito: ${{ number_format($renta->deposito, 0) }}</small>
+                <div class="text-center">
+                    <small class="text-muted d-block">Días restantes</small>
+                    @if($renta->estado == 'activa')
+                        @if($renta->dias_restantes > 0)
+                            <span class="dias-restantes 
+                                @if($renta->dias_restantes <= 3) text-danger 
+                                @elseif($renta->dias_restantes <= 7) text-warning 
+                                @else text-success 
+                                @endif">
+                                {{ $renta->dias_restantes }} días
+                            </span>
+                        @else
+                            <span class="text-danger fw-bold">¡Vencida!</span>
+                        @endif
+                    @else
+                        <span class="text-muted">—</span>
                     @endif
+                </div>
+            </div>
+            <div class="col-lg-1">
+                <div class="text-end">
+                    <small class="text-muted d-block">Total</small>
+                    <div class="total-amount">${{ number_format($renta->total, 0) }}</div>
                 </div>
             </div>
             <div class="col-lg-2">
@@ -224,6 +245,11 @@
                                     <i class="bi bi-eye me-2"></i> Ver contrato
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('rentas.contrato', $renta) }}" target="_blank">
+                                    <i class="bi bi-file-pdf me-2 text-danger"></i> Ver PDF
+                                </a>
+                            </li>
                             @if($renta->estado == 'activa')
                             <li>
                                 <a class="dropdown-item" href="{{ route('rentas.finalizar', $renta) }}" onclick="return confirm('¿Finalizar esta renta?')">
@@ -233,7 +259,7 @@
                             @endif
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item text-danger" href="{{ route('rentas.destroy', $renta) }}" onclick="event.preventDefault(); if(confirm('¿Eliminar esta renta?')) document.getElementById('delete-form-{{ $renta->id }}').submit();">
+                                <a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); if(confirm('¿Eliminar esta renta?')) document.getElementById('delete-form-{{ $renta->id }}').submit();">
                                     <i class="bi bi-trash me-2"></i> Eliminar
                                 </a>
                                 <form id="delete-form-{{ $renta->id }}" action="{{ route('rentas.destroy', $renta) }}" method="POST" class="d-none">
@@ -276,7 +302,6 @@ function filtrarRentas() {
     rentas.forEach(renta => {
         let mostrar = true;
         
-        // Filtro por búsqueda (folio o cliente)
         if (busqueda) {
             const texto = renta.innerText.toLowerCase();
             if (!texto.includes(busqueda)) {
@@ -284,14 +309,12 @@ function filtrarRentas() {
             }
         }
         
-        // Filtro por estado
         if (mostrar && estado) {
             if (renta.dataset.estado !== estado) {
                 mostrar = false;
             }
         }
         
-        // Filtro por fecha
         if (mostrar && fecha) {
             if (renta.dataset.fecha !== fecha) {
                 mostrar = false;
@@ -302,7 +325,6 @@ function filtrarRentas() {
     });
 }
 
-// Limpiar filtros
 document.getElementById('limpiarFiltros').addEventListener('click', () => {
     document.getElementById('buscarInput').value = '';
     document.getElementById('estadoSelect').value = '';
@@ -310,7 +332,6 @@ document.getElementById('limpiarFiltros').addEventListener('click', () => {
     filtrarRentas();
 });
 
-// Event listeners
 document.getElementById('buscarInput').addEventListener('keyup', filtrarRentas);
 document.getElementById('estadoSelect').addEventListener('change', filtrarRentas);
 document.getElementById('fechaFilter').addEventListener('change', filtrarRentas);

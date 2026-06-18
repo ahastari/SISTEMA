@@ -18,8 +18,14 @@ class Cliente extends Model
         return $this->hasMany(Renta::class);
     }
     
+    public function obras()
+    {
+        return $this->hasMany(Obra::class);
+    }
+    
     public function ventas()
     {
         return $this->hasMany(Venta::class);
     }
+
 }

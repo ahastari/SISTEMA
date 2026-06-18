@@ -3,22 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\Equipo;
+use App\Models\Categoria;
+use App\Models\UnidadMedida;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class EquipoController extends Controller
 {
-    private function generarCodigo($categoria)
+    private function generarCodigo($categoriaId)
     {
+        $categoria = Categoria::find($categoriaId);
         $prefijos = [
             'Andamios' => 'AND',
             'Ruedas' => 'RUE',
             'Flete' => 'FLE',
             'Madera' => 'MAD',
-            'Herramientas' => 'HER'
+            'Herramientas' => 'HER',
+            'Equipo de Seguridad' => 'SEG',
+            'Maquinaria' => 'MAQ'
         ];
         
-        $prefijo = $prefijos[$categoria] ?? 'GEN';
+        $prefijo = $prefijos[$categoria->nombre] ?? 'GEN';
         
         $ultimoEquipo = Equipo::where('codigo', 'like', $prefijo . '-%')
             ->orderBy('codigo', 'desc')
@@ -38,7 +43,7 @@ class EquipoController extends Controller
 
     public function index(Request $request)
     {
-        $query = Equipo::query();
+        $query = Equipo::with(['categoria', 'unidadMedida']);
         
         if ($request->has('search') && $request->search) {
             $query->where('nombre', 'like', '%' . $request->search . '%')
@@ -46,24 +51,30 @@ class EquipoController extends Controller
         }
         
         if ($request->has('categoria') && $request->categoria) {
-            $query->where('categoria', $request->categoria);
+            $query->whereHas('categoria', function($q) use ($request) {
+                $q->where('nombre', $request->categoria);
+            });
         }
         
         $equipos = $query->latest()->paginate(10);
+        $categorias = Categoria::where('activa', true)->get();
         
-        return view('inventario.index', compact('equipos'));
+        return view('inventario.index', compact('equipos', 'categorias'));
     }
 
     public function create()
     {
-        return view('inventario.create');
+        $categorias = Categoria::where('activa', true)->get();
+        $unidades = UnidadMedida::where('activa', true)->get();
+        return view('inventario.create', compact('categorias', 'unidades'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
-            'categoria' => 'required|string|max:100',
+            'categoria_id' => 'required|exists:categorias,id',
+            'unidad_medida_id' => 'required|exists:unidades_medida,id',
             'precio_dia' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'imagen' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
@@ -71,12 +82,13 @@ class EquipoController extends Controller
             'activo' => 'nullable'
         ]);
 
-        $codigo = $this->generarCodigo($request->categoria);
+        $codigo = $this->generarCodigo($request->categoria_id);
         
         $equipo = new Equipo();
         $equipo->codigo = $codigo;
         $equipo->nombre = $request->nombre;
-        $equipo->categoria = $request->categoria;
+        $equipo->categoria_id = $request->categoria_id;
+        $equipo->unidad_medida_id = $request->unidad_medida_id;
         $equipo->precio_dia = $request->precio_dia;
         $equipo->stock = $request->stock;
         $equipo->descripcion = $request->descripcion;
@@ -93,24 +105,28 @@ class EquipoController extends Controller
             ->with('success', 'Equipo creado exitosamente. Código: ' . $codigo);
     }
 
-    // CAMBIADO: Equipo $inventario en lugar de Equipo $equipo
-    public function show(Equipo $inventario)
+    // CORREGIDO - Usa Equipo $equipo en lugar de $inventario
+    public function show(Equipo $equipo)
     {
-        return view('inventario.show', compact('inventario'));
+        $equipo->load(['categoria', 'unidadMedida']);
+        return view('inventario.show', compact('equipo'));
     }
 
-    // CAMBIADO: Equipo $inventario en lugar de Equipo $equipo
-    public function edit(Equipo $inventario)
+    // CORREGIDO
+    public function edit(Equipo $equipo)
     {
-        return view('inventario.edit', compact('inventario'));
+        $categorias = Categoria::where('activa', true)->get();
+        $unidades = UnidadMedida::where('activa', true)->get();
+        return view('inventario.edit', compact('equipo', 'categorias', 'unidades'));
     }
 
-    // CAMBIADO: Equipo $inventario en lugar de Equipo $equipo
-    public function update(Request $request, Equipo $inventario)
+    // CORREGIDO
+    public function update(Request $request, Equipo $equipo)
     {
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
-            'categoria' => 'required|string|max:100',
+            'categoria_id' => 'required|exists:categorias,id',
+            'unidad_medida_id' => 'required|exists:unidades_medida,id',
             'precio_dia' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'imagen' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
@@ -118,35 +134,36 @@ class EquipoController extends Controller
             'activo' => 'nullable'
         ]);
 
-        $inventario->nombre = $request->nombre;
-        $inventario->categoria = $request->categoria;
-        $inventario->precio_dia = $request->precio_dia;
-        $inventario->stock = $request->stock;
-        $inventario->descripcion = $request->descripcion;
-        $inventario->activo = $request->has('activo');
+        $equipo->nombre = $request->nombre;
+        $equipo->categoria_id = $request->categoria_id;
+        $equipo->unidad_medida_id = $request->unidad_medida_id;
+        $equipo->precio_dia = $request->precio_dia;
+        $equipo->stock = $request->stock;
+        $equipo->descripcion = $request->descripcion;
+        $equipo->activo = $request->has('activo');
 
         if ($request->hasFile('imagen')) {
-            if ($inventario->imagen && Storage::disk('public')->exists($inventario->imagen)) {
-                Storage::disk('public')->delete($inventario->imagen);
+            if ($equipo->imagen && Storage::disk('public')->exists($equipo->imagen)) {
+                Storage::disk('public')->delete($equipo->imagen);
             }
             $path = $request->file('imagen')->store('equipos', 'public');
-            $inventario->imagen = $path;
+            $equipo->imagen = $path;
         }
 
-        $inventario->save();
+        $equipo->save();
 
-        return redirect()->route('inventario.show', $inventario)
+        return redirect()->route('inventario.show', $equipo)
             ->with('success', 'Equipo actualizado exitosamente');
     }
 
-    // CAMBIADO: Equipo $inventario en lugar de Equipo $equipo
-    public function destroy(Equipo $inventario)
+    // CORREGIDO
+    public function destroy(Equipo $equipo)
     {
-        if ($inventario->imagen && Storage::disk('public')->exists($inventario->imagen)) {
-            Storage::disk('public')->delete($inventario->imagen);
+        if ($equipo->imagen && Storage::disk('public')->exists($equipo->imagen)) {
+            Storage::disk('public')->delete($equipo->imagen);
         }
 
-        $inventario->delete();
+        $equipo->delete();
 
         return redirect()->route('inventario.index')
             ->with('success', 'Equipo eliminado exitosamente');
@@ -154,8 +171,7 @@ class EquipoController extends Controller
 
     public function kanban()
     {
-        $equipos = Equipo::all();
-        
+        $equipos = Equipo::with(['categoria', 'unidadMedida'])->where('activo', true)->get();
         return view('inventario.kanban', compact('equipos'));
     }
 }

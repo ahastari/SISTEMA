@@ -12,19 +12,17 @@ class Equipo extends Model
     protected $table = 'equipos';
     
     protected $fillable = [
-        'codigo',
-        'nombre',
-        'categoria',
-        'precio_dia',
-        'stock',
-        'imagen',
-        'descripcion',
-        'activo'
+        'codigo', 'nombre', 'categoria_id', 'unidad_medida_id',
+        'precio_dia', 'stock', 'imagen', 'descripcion', 'activo'
     ];
 
-    // Esto es importante - Laravel espera 'inventario' como parámetro
-    public function getRouteKeyName()
+    public function categoria()
     {
-        return 'id';
+        return $this->belongsTo(Categoria::class);
+    }
+
+    public function unidadMedida()
+    {
+        return $this->belongsTo(UnidadMedida::class);
     }
 }

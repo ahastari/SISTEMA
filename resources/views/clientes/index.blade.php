@@ -39,6 +39,7 @@
                     <th>Teléfono</th>
                     <th>RFC</th>
                     <th>Ciudad</th>
+                    <th>Empresa</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -50,6 +51,7 @@
                     <td>{{ $cliente->telefono }}</td>
                     <td>{{ $cliente->rfc ?? 'N/A' }}</td>
                     <td>{{ $cliente->ciudad ?? 'N/A' }}</td>
+                    <td>{{ $cliente->empresa ?? 'N/A' }}</td>
                     <td>
                         <a href="{{ route('clientes.show', $cliente) }}" class="btn btn-info btn-sm">
                             Ver

@@ -15,6 +15,23 @@ class RentaController extends Controller
     public function index()
     {
         $rentas = Renta::with('cliente')->latest()->paginate(10);
+        
+        // Calcular días restantes para cada renta activa
+        foreach ($rentas as $renta) {
+            if ($renta->estado == 'activa') {
+                $hoy = now()->startOfDay();
+                $fechaFin = $renta->fecha_fin->startOfDay();
+                
+                if ($hoy <= $fechaFin) {
+                    $renta->dias_restantes = $hoy->diffInDays($fechaFin) + 1;
+                } else {
+                    $renta->dias_restantes = 0;
+                }
+            } else {
+                $renta->dias_restantes = null;
+            }
+        }
+        
         return view('rentas.index', compact('rentas'));
     }
 
@@ -107,8 +124,22 @@ class RentaController extends Controller
 
     public function show(Renta $renta)
     {
-        $renta->load('cliente', 'detalles.equipo');
-        return view('rentas.show', compact('renta'));
+        $renta->load('cliente', 'detalles.equipo', 'obra');
+        
+        // Calcular días restantes
+        $diasRestantes = 0;
+        if ($renta->estado == 'activa') {
+            $hoy = now()->startOfDay();
+            $fechaFin = $renta->fecha_fin->startOfDay();
+            
+            if ($hoy <= $fechaFin) {
+                $diasRestantes = $hoy->diffInDays($fechaFin) + 1; // +1 para incluir el día actual
+            } else {
+                $diasRestantes = 0; // Ya pasó la fecha de fin
+            }
+        }
+        
+        return view('rentas.show', compact('renta', 'diasRestantes'));
     }
 
     public function edit(Renta $renta)
@@ -134,6 +165,7 @@ class RentaController extends Controller
 
     public function destroy(Renta $renta)
     {
+        // Si la renta está activa, devolver el stock antes de eliminar
         if ($renta->estado === 'activa') {
             foreach ($renta->detalles as $detalle) {
                 $equipo = $detalle->equipo;
@@ -145,13 +177,22 @@ class RentaController extends Controller
         $renta->delete();
         
         return redirect()->route('rentas.index')
-            ->with('success', 'Renta eliminada');
+            ->with('success', 'Renta eliminada correctamente');
     }
     
     public function finalizar(Renta $renta)
     {
+        $renta->load('detalles.equipo');
+         
         if ($renta->estado !== 'activa') {
             return back()->with('error', 'La renta ya está ' . $renta->estado);
+        }
+        
+        // Devolver equipos al inventario
+        foreach ($renta->detalles as $detalle) {
+            $equipo = $detalle->equipo;
+            $equipo->stock += $detalle->cantidad;
+            $equipo->save();
         }
         
         $renta->update([
@@ -160,7 +201,30 @@ class RentaController extends Controller
         ]);
         
         return redirect()->route('rentas.show', $renta)
-            ->with('success', 'Renta finalizada correctamente');
+            ->with('success', 'Renta finalizada correctamente. Los equipos han sido devueltos al inventario.');
+    }
+
+    public function cancelar(Renta $renta)
+    {
+        if ($renta->estado !== 'activa') {
+            return back()->with('error', 'La renta ya está ' . $renta->estado);
+        }
+        
+        // Devolver equipos al inventario
+        $renta->load('detalles.equipo');
+        foreach ($renta->detalles as $detalle) {
+            $equipo = $detalle->equipo;
+            $equipo->stock += $detalle->cantidad;
+            $equipo->save();
+        }
+        
+        $renta->update([
+            'estado' => 'cancelada',
+            'fecha_devolucion' => now()
+        ]);
+        
+        return redirect()->route('rentas.show', $renta)
+            ->with('success', 'Renta cancelada. Los equipos han sido devueltos al inventario.');
     }
     
 
@@ -172,7 +236,7 @@ class RentaController extends Controller
         $pdf = Pdf::loadView('rentas.pdf_contrato', compact('renta'));
         $pdf->setPaper('letter', 'portrait');
         
-        return $pdf->download('Contrato_' . $renta->folio . '.pdf');
+        return $pdf->stream('Contrato_' . $renta->folio . '.pdf');
     }
 
     // Generar pagaré PDF
@@ -189,13 +253,75 @@ class RentaController extends Controller
         $pdf = Pdf::loadView('rentas.pdf_pagare', compact('renta', 'convertirNumeroALetras'));
         $pdf->setPaper('letter', 'portrait');
         
-        return $pdf->download('Pagare_' . $renta->folio . '.pdf');
+        return $pdf->stream('Pagare_' . $renta->folio . '.pdf');
     }
 
     private function convertirNumeroALetras($numero)
     {
         $f = new \NumberFormatter("es", \NumberFormatter::SPELLOUT);
         return ucfirst($f->format($numero));
+    }
+
+    public function uploadContrato(Request $request, Renta $renta)
+    {
+        $request->validate([
+            'contrato_firmado' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'
+        ]);
+
+        if ($request->hasFile('contrato_firmado')) {
+            // Eliminar archivo anterior si existe
+            if ($renta->contrato_firmado_path && Storage::disk('public')->exists($renta->contrato_firmado_path)) {
+                Storage::disk('public')->delete($renta->contrato_firmado_path);
+            }
+            
+            $path = $request->file('contrato_firmado')->store('rentas/contratos', 'public');
+            $renta->contrato_firmado_path = $path;
+            $renta->save();
+            
+            return back()->with('success', 'Contrato firmado subido correctamente');
+        }
+        
+        return back()->with('error', 'Error al subir el contrato');
+    }
+
+    public function uploadPagare(Request $request, Renta $renta)
+    {
+        $request->validate([
+            'pagare_firmado' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'
+        ]);
+
+        if ($request->hasFile('pagare_firmado')) {
+            if ($renta->pagare_firmado_path && Storage::disk('public')->exists($renta->pagare_firmado_path)) {
+                Storage::disk('public')->delete($renta->pagare_firmado_path);
+            }
+            
+            $path = $request->file('pagare_firmado')->store('rentas/pagares', 'public');
+            $renta->pagare_firmado_path = $path;
+            $renta->save();
+            
+            return back()->with('success', 'Pagaré firmado subido correctamente');
+        }
+        
+        return back()->with('error', 'Error al subir el pagaré');
+    }
+
+    public function deleteDocumento(Renta $renta, $tipo)
+    {
+        if ($tipo === 'contrato' && $renta->contrato_firmado_path) {
+            Storage::disk('public')->delete($renta->contrato_firmado_path);
+            $renta->contrato_firmado_path = null;
+            $renta->save();
+            return back()->with('success', 'Contrato eliminado');
+        }
+        
+        if ($tipo === 'pagare' && $renta->pagare_firmado_path) {
+            Storage::disk('public')->delete($renta->pagare_firmado_path);
+            $renta->pagare_firmado_path = null;
+            $renta->save();
+            return back()->with('success', 'Pagaré eliminado');
+        }
+        
+        return back()->with('error', 'Documento no encontrado');
     }
 
 }

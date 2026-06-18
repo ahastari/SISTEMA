@@ -8,7 +8,8 @@ class Renta extends Model
 {
     protected $fillable = [
         'folio', 'cliente_id', 'obra_id', 'fecha_inicio', 'fecha_fin', 'dias_totales',
-        'subtotal', 'iva', 'total', 'deposito', 'estado', 'observaciones', 'fecha_devolucion'
+        'subtotal', 'iva', 'total', 'deposito', 'estado', 'observaciones', 
+        'fecha_devolucion', 'contrato_firmado_path', 'pagare_firmado_path'
     ];
 
     protected $casts = [

@@ -34,19 +34,19 @@ class ClienteController extends Controller
         $validated = $request->validate([
             'nombre_completo' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'rfc' => 'nullable|string|max:20',
-            'curp' => 'nullable|string|max:20',
+            'email' => 'required|email|max:255',
+            'rfc' => 'required|string|max:20',
+            'curp' => 'required|string|max:20',
             'ine_numero' => 'nullable|string|max:20',
-            'ine_documento' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'ine_documento' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'contrato_firmado' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'comprobante_deposito' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'telefono_alternativo' => 'nullable|string|max:20',
-            'empresa' => 'nullable|string|max:255',
-            'direccion' => 'nullable|string',
-            'ciudad' => 'nullable|string|max:100',
-            'estado' => 'nullable|string|max:100',
-            'codigo_postal' => 'nullable|string|max:10',
+            'empresa' => 'required|string|max:255',
+            'direccion' => 'required|string',
+            'ciudad' => 'required|string|max:100',
+            'estado' => 'required|string|max:100',
+            'codigo_postal' => 'required|string|max:10',
             'observaciones' => 'nullable|string',
         ]);
 
@@ -83,7 +83,21 @@ class ClienteController extends Controller
      */
     public function show(Cliente $cliente)
     {
-        return view('clientes.show', compact('cliente'));
+        // Cargar rentas y obras relacionadas
+        $cliente->load([
+            'rentas' => function($query) {
+                $query->latest()->with('detalles.equipo');
+            },
+            'obras'
+        ]);
+        
+        // Rentas activas
+        $rentasActivas = $cliente->rentas->where('estado', 'activa');
+        
+        // Rentas finalizadas
+        $rentasFinalizadas = $cliente->rentas->where('estado', 'finalizada');
+        
+        return view('clientes.show', compact('cliente', 'rentasActivas', 'rentasFinalizadas'));
     }
 
     /**
@@ -103,19 +117,19 @@ class ClienteController extends Controller
         $validated = $request->validate([
             'nombre_completo' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'rfc' => 'nullable|string|max:20',
-            'curp' => 'nullable|string|max:20',
+            'email' => 'required|email|max:255',
+            'rfc' => 'required|string|max:20',
+            'curp' => 'required|string|max:20',
             'ine_numero' => 'nullable|string|max:20',
             'ine_documento' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'contrato_firmado' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'comprobante_deposito' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'telefono_alternativo' => 'nullable|string|max:20',
-            'empresa' => 'nullable|string|max:255',
-            'direccion' => 'nullable|string',
-            'ciudad' => 'nullable|string|max:100',
-            'estado' => 'nullable|string|max:100',
-            'codigo_postal' => 'nullable|string|max:10',
+            'empresa' => 'required|string|max:255',
+            'direccion' => 'required|string',
+            'ciudad' => 'required|string|max:100',
+            'estado' => 'required|string|max:100',
+            'codigo_postal' => 'required|string|max:10',
             'observaciones' => 'nullable|string',
         ]);
 

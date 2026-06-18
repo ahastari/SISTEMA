@@ -16,6 +16,18 @@
         href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
     >
 
+    <style>
+        .required-asterisk {
+            color: red;
+            margin-left: 2px;
+        }
+        .required-label::after {
+            content: " *";
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+
 </head>
 
 <body class="bg-light">
