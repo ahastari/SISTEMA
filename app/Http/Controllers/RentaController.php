@@ -324,4 +324,120 @@ class RentaController extends Controller
         return back()->with('error', 'Documento no encontrado');
     }
 
+    // Ampliar días de renta
+    public function ampliarDias(Request $request, Renta $renta)
+    {
+        $request->validate([
+            'dias_extra' => 'required|integer|min:1',
+            'motivo' => 'nullable|string|max:255'
+        ]);
+        
+        if ($renta->estado !== 'activa') {
+            return back()->with('error', 'Solo se pueden ampliar rentas activas');
+        }
+        
+        // Cargar detalles con equipos
+        $renta->load('detalles.equipo');
+        
+        // Calcular nuevo subtotal por los días extra
+        $diasExtra = $request->dias_extra;
+        $nuevoSubtotal = 0;
+        
+        foreach ($renta->detalles as $detalle) {
+            $subtotalExtra = $detalle->equipo->precio_dia * $detalle->cantidad * $diasExtra;
+            $nuevoSubtotal += $subtotalExtra;
+        }
+        
+        // Actualizar fechas y días
+        $nuevaFechaFin = $renta->fecha_fin->copy()->addDays($diasExtra);
+        $renta->fecha_fin = $nuevaFechaFin;
+        $renta->dias_totales += $diasExtra;
+        $renta->dias_ampliados += $diasExtra;
+        $renta->fecha_ampliacion = now();
+        
+        // Actualizar totales
+        $renta->subtotal += $nuevoSubtotal;
+        $renta->iva = $renta->subtotal * 0.16;
+        $renta->total = $renta->subtotal + $renta->iva;
+        
+        // Registrar en observaciones
+        $renta->observaciones = ($renta->observaciones ? $renta->observaciones . "\n" : '') . 
+            "Ampliación de {$diasExtra} días. Motivo: {$request->motivo}";
+        
+        $renta->save();
+        
+        // Recalcular saldo pendiente
+        $renta->calcularSaldoPendiente();
+        
+        return redirect()->route('rentas.show', $renta)
+            ->with('success', "Renta ampliada en {$diasExtra} días. Nuevo total: $" . number_format($renta->total, 2));
+    }
+
+    // Finalizar renta con pago
+    public function finalizarConPago(Request $request, Renta $renta)
+    {
+        if ($renta->estado !== 'activa') {
+            return back()->with('error', 'La renta ya está ' . $renta->estado);
+        }
+        
+        // Cargar detalles con equipos
+        $renta->load('detalles.equipo');
+        
+        // Calcular saldo pendiente real (total - deposito - pagos)
+        $saldoPendiente = $renta->total - ($renta->deposito ?? 0) - $renta->total_pagado;
+        
+        // Registrar pago final
+        if ($request->has('monto_pago') && $request->monto_pago > 0) {
+            Pago::create([
+                'renta_id' => $renta->id,
+                'monto' => $request->monto_pago,
+                'metodo_pago' => $request->metodo_pago_final,
+                'referencia' => $request->referencia_final,
+                'fecha_pago' => now(),
+                'tipo' => 'finalizacion',
+                'observaciones' => 'Pago de finalización de renta'
+            ]);
+            
+            // Actualizar total pagado
+            $renta->total_pagado += $request->monto_pago;
+        }
+        
+        // Devolver equipos al inventario
+        foreach ($renta->detalles as $detalle) {
+            $equipo = $detalle->equipo;
+            $equipo->stock += $detalle->cantidad;
+            $equipo->save();
+        }
+        
+        // Actualizar estado
+        $renta->estado = 'finalizada';
+        $renta->fecha_devolucion = now();
+        $renta->saldo_pendiente = $renta->total - ($renta->deposito ?? 0) - $renta->total_pagado;
+        $renta->save();
+        
+        return redirect()->route('rentas.show', $renta)
+            ->with('success', 'Renta finalizada correctamente. Saldo pendiente: $' . number_format($renta->saldo_pendiente, 2));
+    }
+
+    // Método para calcular saldo pendiente (corregido)
+    public function calcularSaldoPendiente($rentaId)
+    {
+        $renta = Renta::find($rentaId);
+        if (!$renta) return 0;
+        
+        $totalPagado = $renta->pagos()->sum('monto');
+        $renta->total_pagado = $totalPagado;
+        
+        // El saldo pendiente es: total - depósito - total_pagado
+        $renta->saldo_pendiente = $renta->total - ($renta->deposito ?? 0) - $totalPagado;
+        
+        // Si el saldo es negativo, ponerlo en 0 (sobrepago)
+        if ($renta->saldo_pendiente < 0) {
+            $renta->saldo_pendiente = 0;
+        }
+        
+        $renta->save();
+        return $renta->saldo_pendiente;
+    }
+
 }

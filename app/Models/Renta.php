@@ -55,4 +55,49 @@ class Renta extends Model
         $diferencia = $inicio->diff($fin);
         return $diferencia->days + 1;
     }
+
+    public function pagos()
+    {
+        return $this->hasMany(Pago::class);
+    }
+
+    public function abonos()
+    {
+        return $this->hasMany(Abono::class);
+    }
+
+    // Método para calcular saldo pendiente
+    public function calcularSaldoPendiente()
+    {
+        $totalAbonado = $this->pagos()->sum('monto');
+        $this->total_pagado = $totalAbonado;
+        $this->saldo_pendiente = $this->total - $totalAbonado - ($this->deposito ?? 0);
+        $this->save();
+        
+        return $this->saldo_pendiente;
+    }
+
+    // Método para ampliar días
+    public function ampliarDias($diasExtra)
+    {
+        $nuevaFechaFin = $this->fecha_fin->addDays($diasExtra);
+        $this->fecha_fin = $nuevaFechaFin;
+        $this->dias_totales += $diasExtra;
+        $this->dias_ampliados += $diasExtra;
+        $this->fecha_ampliacion = now();
+        
+        // Recalcular total
+        $nuevoSubtotal = 0;
+        foreach ($this->detalles as $detalle) {
+            $nuevoSubtotal += $detalle->equipo->precio_dia * $detalle->cantidad * $diasExtra;
+        }
+        $this->subtotal += $nuevoSubtotal;
+        $this->iva = $this->subtotal * 0.16;
+        $this->total = $this->subtotal + $this->iva;
+        
+        $this->save();
+        $this->calcularSaldoPendiente();
+        
+        return $this;
+    }
 }
