@@ -9,6 +9,7 @@ use App\Http\Controllers\ObraController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\UnidadMedidaController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PuntoVentaController;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -68,4 +69,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/unidades/list', [UnidadMedidaController::class, 'list'])->name('unidades.list');
 });
 
+Route::middleware('auth')->group(function () {
+    // Punto de Venta
+    Route::get('/puntoventa', [PuntoVentaController::class, 'index'])->name('puntoventa.index');
+    Route::get('/puntoventa/buscar-productos', [PuntoVentaController::class, 'buscarProductos'])->name('puntoventa.buscar');
+    Route::post('/puntoventa/venta', [PuntoVentaController::class, 'store'])->name('puntoventa.store');
+    Route::get('/puntoventa/ticket/{venta}', [PuntoVentaController::class, 'ticket'])->name('puntoventa.ticket');
+    
+    // Cortes de caja
+    Route::get('/puntoventa/cortes', [PuntoVentaController::class, 'cortes'])->name('puntoventa.cortes');
+    Route::post('/puntoventa/abrir-caja', [PuntoVentaController::class, 'abrirCaja'])->name('puntoventa.abrirCaja');
+    Route::post('/puntoventa/cerrar-caja', [PuntoVentaController::class, 'cerrarCaja'])->name('puntoventa.cerrarCaja');
+    
+    // Reportes
+    Route::get('/puntoventa/reportes', [PuntoVentaController::class, 'reportes'])->name('puntoventa.reportes');
+    Route::post('/puntoventa/generar-reporte', [PuntoVentaController::class, 'generarReporte'])->name('puntoventa.generarReporte');
+
+    Route::post('/puntoventa/movimiento', [PuntoVentaController::class, 'movimiento'])->name('puntoventa.movimiento');
+    Route::get('/puntoventa/estado-caja', [PuntoVentaController::class, 'getEstadoCaja'])->name('puntoventa.estadoCaja');
+});
 require __DIR__.'/auth.php';

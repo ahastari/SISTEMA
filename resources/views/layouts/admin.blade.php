@@ -103,18 +103,10 @@
             </li>
 
             <li class="nav-item mb-2">
-
-                <a
-                    href="#"
-                    class="nav-link text-white"
-                >
-
+                <a href="{{ route('puntoventa.index') }}" class="nav-link text-white">
                     <i class="bi bi-cart3 me-2"></i>
-
                     Punto de Venta
-
                 </a>
-
             </li>
 
             <li class="nav-item mb-2">

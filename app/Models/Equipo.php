@@ -25,4 +25,10 @@ class Equipo extends Model
     {
         return $this->belongsTo(UnidadMedida::class);
     }
+
+    public function detallesVenta()
+    {
+        return $this->hasMany(DetalleVenta::class);
+    }
+    
 }
