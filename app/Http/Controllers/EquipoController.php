@@ -43,6 +43,18 @@ class EquipoController extends Controller
 
     public function index(Request $request)
     {
+        $sucursalId = session('activo_sucursal_id');
+
+        if ($sucursalId === 'global') {
+            // El administrador ve todo el inventario de todas las sucursales
+            $inventario = Equipo::all();
+        } else {
+            // El cajero o gerente solo ve el inventario de SU sucursal activa
+            $inventario = Equipo::where('sucursal_id', $sucursalId)->get();
+        }
+
+        return view('inventario.index', compact('inventario'));
+
         $query = Equipo::with(['categoria', 'unidadMedida']);
         
         if ($request->has('search') && $request->search) {

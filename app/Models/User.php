@@ -2,40 +2,54 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    protected $fillable = [
-        'name', 'email', 'password', 'rol',  // ← Agrega 'rol'
-    ];
-
-    public function isAdmin()
-    {
-        return $this->rol === 'admin';
-    }
-
-    public function isGerente()
-    {
-        return $this->rol === 'gerente';
-    }
-
-    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    // Campos autorizados para asignación masiva desde tu ConfiguracionController
+    protected $fillable = [
+        'name', 
+        'email', 
+        'password', 
+        'role',          // Sincronizado con el controlador ('admin', 'gerente', 'cajero')
+        'sucursal_id',    // Enlace multisucursal obligatorio
+        'status',        // 'activo' o 'baja'
+        'foto'
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    // Helpers profesionales para verificar roles en vistas o políticas de seguridad
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isGerente(): bool
+    {
+        return $this->role === 'gerente';
+    }
+
+    public function isCajero(): bool
+    {
+        return $this->role === 'cajero';
+    }
+
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Relación inversa: Un usuario pertenece a una sucursal.
      */
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
     protected function casts(): array
     {
         return [

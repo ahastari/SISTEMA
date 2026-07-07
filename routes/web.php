@@ -10,6 +10,29 @@ use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\UnidadMedidaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PuntoVentaController;
+use App\Http\Controllers\ConfiguracionController;
+use App\Models\PlantillaDocumento;
+
+Route::prefix('configuracion')->middleware('auth')->group(function () {
+    PlantillaDocumento::updateOrCreate(
+        ['tipo' => 'contrato'],
+        [
+            'titulo' => 'CONTRATO DE PRESTACIÓN DE SERVICIOS DE RENTA',
+            'contenido' => "1. - El prestador de servicios se compromete a entregar en perfectas condiciones de trabajo el equipo al cliente.\n2. - El cliente {cliente} tiene la obligación de verificar el buen estado en que recibe el equipo y entregarlo de igual forma.\n3. - Las piezas faltantes o averiadas se cobrarán en efectivo.\n4. - En la renta del equipo NO HAY CRÉDITO por lo que al devolver el equipo se deberá liquidar la renta.\n5. - El cliente está obligado a dejar un depósito por la cantidad de {deposito} que garantiza la devolución del equipo en buen estado.\n6. - El prestador de servicios {empresa} se compromete a no hacer uso de este depósito, salvo si el cliente llegara a hacer mal uso del equipo."
+        ]
+    );
+
+    PlantillaDocumento::updateOrCreate(
+        ['tipo' => 'pagare'],
+        [
+            'titulo' => 'PAGARÉ',
+            'contenido' => "DEBO (EMOS) Y PAGARÉ (EMOS) INCONDICIONALMENTE POR ESTE PAGARÉ A LA ORDEN DE {empresa} EN DURANGO, DGO. EL DÍA {fecha_fin} LA CANTIDAD DE {monto_neto} VALOR RECIBIDO A MI (NUESTRA) ENTERA SATISFACCIÓN, EN CASO DE DEMORA PARCIALMENTE INSOLUTO SIN QUE POR ELLO SE CONSIDERE PRORROGADO EL PLAZO FIJADO."
+        ]
+    );
+
+    return "Formatos cargados con éxito. Ya puedes borrar esta ruta.";
+});
+
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -88,4 +111,24 @@ Route::middleware('auth')->group(function () {
     Route::post('/puntoventa/movimiento', [PuntoVentaController::class, 'movimiento'])->name('puntoventa.movimiento');
     Route::get('/puntoventa/estado-caja', [PuntoVentaController::class, 'getEstadoCaja'])->name('puntoventa.estadoCaja');
 });
+
+Route::prefix('configuracion')->middleware('auth')->group(function () {
+    Route::get('/', [ConfiguracionController::class, 'index'])->name('configuracion.index');
+    Route::put('/plantilla/{id}', [ConfiguracionController::class, 'updatePlantilla'])->name('configuracion.plantilla.update');
+    
+    // 🛠️ CORREGIDO: Quitamos el '/configuracion' duplicado del inicio
+    Route::post('/empresa', [ConfiguracionController::class, 'updateEmpresa'])->name('configuracion.empresa.update');
+    
+    // Rutas de Sucursales
+    Route::post('/sucursal', [ConfiguracionController::class, 'storeSucursal'])->name('configuracion.sucursal.store');
+    Route::put('/sucursal/{id}', [ConfiguracionController::class, 'updateSucursal'])->name('configuracion.sucursal.update');
+    
+    // Rutas de Usuarios
+    Route::post('/usuarios', [ConfiguracionController::class, 'storeUsuario'])->name('configuracion.usuarios.store');
+    Route::put('/usuarios/{id}', [ConfiguracionController::class, 'updateUsuario'])->name('configuracion.usuarios.update');
+    Route::put('/usuarios/{id}/password', [ConfiguracionController::class, 'changePassword'])->name('configuracion.usuarios.password');
+    Route::patch('/usuarios/{id}/baja', [ConfiguracionController::class, 'bajaUsuario'])->name('configuracion.usuarios.baja');
+    Route::patch('/usuarios/{id}/alta', [ConfiguracionController::class, 'altaUsuario'])->name('configuracion.usuarios.alta');
+});
+
 require __DIR__.'/auth.php';

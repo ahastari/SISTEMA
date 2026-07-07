@@ -28,6 +28,26 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // 🛠️ LÓGICA MULTISUCURSAL PROFESIONAL INTEGRADA
+        $user = Auth::user();
+        
+        // Carga la relación 'sucursal' explícitamente para evitar problemas de memoria
+        if ($user->isAdmin()) {
+            // Si es Admin Global, por defecto tiene acceso completo a todas las sucursales
+            session(['activo_sucursal_id' => 'global']);
+            session(['activo_sucursal_nombre' => 'Consola Global Corporativa']);
+        } else {
+            // Si es Gerente o Cajero, lo amarramos estrictamente a su sucursal asignada
+            if ($user->sucursal) {
+                session(['activo_sucursal_id' => $user->sucursal_id]);
+                session(['activo_sucursal_nombre' => $user->sucursal->nombre]);
+            } else {
+                // Respaldo UX: Evita que el sistema rompa si no tiene sucursal asignada aún
+                session(['activo_sucursal_id' => null]);
+                session(['activo_sucursal_nombre' => 'Sin Sucursal Asignada']);
+            }
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

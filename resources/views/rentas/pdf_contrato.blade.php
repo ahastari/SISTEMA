@@ -111,16 +111,13 @@
 <div>
     <!-- Encabezado con logo -->
     <div class="header">
-        @php
-            $logoPath = public_path('images/logo.jpeg');
-        @endphp
-        @if(file_exists($logoPath))
-            <img src="{{ $logoPath }}" class="logo" alt="Logo">
+        @if(\App\Helpers\ContentHelper::getCompanyData('empresa_logo'))
+            <img src="{{ public_path('storage/' . \App\Helpers\ContentHelper::getCompanyData('empresa_logo')) }}" class="logo" alt="Logo">
         @endif
-        <div class="company-name">ANDAMIOS Y MADERA VIRAMONTES</div>
-        <div class="company-address">MARCO ANTONIO VIRAMONTES MATURINO - VIMM9103023K7</div>
-        <div class="company-address">AVE. DEL CIPRES #314 COL. MASIE DURANGO, DGO. C.P. 34217</div>
-        <div class="company-address">TEL. 618 455 36 71 CEL. 618 159 70 19</div>
+        <div class="company-name">{{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'ANDAMIOS Y MADERA VIRAMONTES') }}</div>
+        <div class="company-address">{{ \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'RFC CORPORATIVO') }}</div>
+        <div class="company-address">{{ \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'DIRECCIÓN MATRIZ') }}</div>
+        <div class="company-address">TEL. {{ \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TELÉFONO') }}</div>
     </div>
 
     <div class="folio">
@@ -132,21 +129,18 @@
     </div>
 
     <div style="margin: 10px 0;">
-        Que celebran por una parte el prestador de servicios <strong>ING. GODOFREDO VIRAMONTES MEDINA</strong> 
+        Que celebran por una parte el prestador de servicios <strong>{{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'LA EMPRESA') }}</strong> 
         y por otra parte el usuario denominado <strong>CLIENTE</strong>.
     </div>
 
     <!-- CLAUSULAS -->
     <div class="section-title">CLAUSULAS</div>
-    <div class="clausulas">
-        <div class="clausula"><span class="clausula-number">1.</span> - El prestador de servicios se compromete a entregar en perfectas condiciones de trabajo el equipo.</div>
-        <div class="clausula"><span class="clausula-number">2.</span> - El cliente tiene la obligación de verificar el buen estado en que recibe el equipo y entregarlo de igual forma.</div>
-        <div class="clausula"><span class="clausula-number">3.</span> - Las piezas faltantes o averiadas se cobrarán en efectivo, no siendo sustituidas por otras, pues esto es indispensable para la uniformidad y el buen estado del equipo.</div>
-        <div class="clausula"><span class="clausula-number">4.</span> - En la renta del equipo NO HAY CREDITO por lo que al devolver el equipo se deberá liquidar la renta.</div>
-        <div class="clausula"><span class="clausula-number">5.</span> - El cliente está obligado a dejar un depósito por la cantidad de <strong>${{ number_format($renta->deposito ?? 0, 2) }}</strong> que garantiza la devolución del equipo en buen estado.</div>
-        <div class="clausula"><span class="clausula-number">6.</span> - El prestador de servicios se compromete a no hacer uso de este depósito, salvo si el cliente llegara a hacer mal uso del equipo, se niegue a regresar el equipo o se niegue a pagar la renta del mismo.</div>
-        <div class="clausula"><span class="clausula-number">7.</span> - En caso de que el equipo se rente por periodos mayor a 30 días se cobrará cada 15 días.</div>
-        <div class="clausula"><span class="clausula-number">8.</span> - Se cobrará el día de salida y el día de entrada.</div>
+    <div class="clausulas" style="text-align: justify;">
+        @php
+            $plantillaContrato = \App\Models\PlantillaDocumento::where('tipo', 'contrato')->first();
+            $textoContrato = $plantillaContrato ? $plantillaContrato->contenido : 'Definir cláusulas en configuración.';
+        @endphp
+        {!! nl2br(\App\Helpers\ContentHelper::parseTemplate($textoContrato, $renta)) !!}
     </div>
 
     <!-- DATOS DEL CLIENTE -->
