@@ -52,6 +52,9 @@ Route::middleware('auth')->group(function () {
     // Clientes:
     Route::resource('clientes', ClienteController::class);
 
+    Route::get('/inventario/exportar', [EquipoController::class, 'exportExcel'])->name('inventario.exportar');
+    Route::post('/inventario/importar', [EquipoController::class, 'importExcel'])->name('inventario.importar');
+
     Route::get('/inventario/kanban', [EquipoController::class, 'kanban'])->name('inventario.kanban');
     // Inventario:
     Route::resource('inventario', EquipoController::class)->parameters(['inventario' => 'equipo']);

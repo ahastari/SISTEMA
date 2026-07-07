@@ -12,8 +12,8 @@ class Equipo extends Model
     protected $table = 'equipos';
     
     protected $fillable = [
-        'codigo', 'nombre', 'categoria_id', 'unidad_medida_id',
-        'precio_dia', 'stock', 'imagen', 'descripcion', 'activo'
+        'codigo', 'codigo_barras', 'nombre', 'categoria_id', 'unidad_medida_id', 'tipo_operacion',
+        'precio_dia', 'precio_venta', 'stock', 'stock_minimo', 'imagen', 'descripcion', 'activo'
     ];
 
     public function categoria()

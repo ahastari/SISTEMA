@@ -19,7 +19,7 @@ return new class extends Migration
             $table->decimal('iva', 10, 2);
             $table->decimal('total', 10, 2);
             $table->decimal('deposito', 10, 2)->nullable()->default(0);
-            $table->string('estado')->default('activa'); // activa, finalizada, cancelada
+            $table->string('estado')->default('activa');
             $table->text('observaciones')->nullable();
             $table->date('fecha_devolucion')->nullable();
             $table->timestamps();

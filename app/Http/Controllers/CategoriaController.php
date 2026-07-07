@@ -4,21 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\Categoria;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CategoriaController extends Controller
 {
     public function store(Request $request)
     {
         $request->validate([
-            'nombre' => 'required|string|max:255|unique:categorias,nombre',
+            'nombre' => [
+                'required', 
+                'string', 
+                'max:255', 
+                Rule::unique(Categoria::class, 'nombre')
+            ],
             'descripcion' => 'nullable|string',
-            'color' => 'nullable|string',
         ]);
 
         $categoria = Categoria::create([
             'nombre' => $request->nombre,
             'descripcion' => $request->descripcion,
-            'color' => $request->color ?? '#0d6efd',
             'activa' => true
         ]);
 

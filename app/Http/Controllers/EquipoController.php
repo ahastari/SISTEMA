@@ -7,6 +7,9 @@ use App\Models\Categoria;
 use App\Models\UnidadMedida;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use App\Exports\EquiposExport;
+use App\Imports\EquiposImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EquipoController extends Controller
 {
@@ -14,13 +17,9 @@ class EquipoController extends Controller
     {
         $categoria = Categoria::find($categoriaId);
         $prefijos = [
-            'Andamios' => 'AND',
-            'Ruedas' => 'RUE',
-            'Flete' => 'FLE',
-            'Madera' => 'MAD',
-            'Herramientas' => 'HER',
-            'Equipo de Seguridad' => 'SEG',
-            'Maquinaria' => 'MAQ'
+            'Andamios' => 'AND', 'Ruedas' => 'RUE', 'Flete' => 'FLE',
+            'Madera' => 'MAD', 'Herramientas' => 'HER', 
+            'Equipo de Seguridad' => 'SEG', 'Maquinaria' => 'MAQ'
         ];
         
         $prefijo = $prefijos[$categoria->nombre] ?? 'GEN';
@@ -43,35 +42,54 @@ class EquipoController extends Controller
 
     public function index(Request $request)
     {
+        // 🔹 Control de vista (tabla o kanban)
+        if ($request->has('view') && $request->view == 'table') {
+            session(['inventory_view' => 'table']);
+        } elseif (session('inventory_view') == 'kanban') {
+            return redirect()->route('inventario.kanban');
+        } else {
+            session(['inventory_view' => 'table']);
+        }
+
+        // 🔹 Control de sucursal activa
         $sucursalId = session('activo_sucursal_id');
 
         if ($sucursalId === 'global') {
             // El administrador ve todo el inventario de todas las sucursales
-            $inventario = Equipo::all();
+            $query = Equipo::with(['categoria', 'unidadMedida']);
         } else {
             // El cajero o gerente solo ve el inventario de SU sucursal activa
-            $inventario = Equipo::where('sucursal_id', $sucursalId)->get();
+            $query = Equipo::with(['categoria', 'unidadMedida'])
+                        ->where('sucursal_id', $sucursalId);
         }
 
-        return view('inventario.index', compact('inventario'));
-
-        $query = Equipo::with(['categoria', 'unidadMedida']);
-        
+        // 🔹 Filtros de búsqueda
         if ($request->has('search') && $request->search) {
-            $query->where('nombre', 'like', '%' . $request->search . '%')
-                ->orWhere('codigo', 'like', '%' . $request->search . '%');
+            $query->where(function($q) use ($request) {
+                $q->where('nombre', 'like', '%' . $request->search . '%')
+                ->orWhere('codigo', 'like', '%' . $request->search . '%')
+                ->orWhere('codigo_barras', 'like', '%' . $request->search . '%');
+            });
         }
-        
+
         if ($request->has('categoria') && $request->categoria) {
             $query->whereHas('categoria', function($q) use ($request) {
                 $q->where('nombre', $request->categoria);
             });
         }
-        
+
+        // 🔹 Paginación y categorías activas
         $equipos = $query->latest()->paginate(10);
         $categorias = Categoria::where('activa', true)->get();
-        
+
         return view('inventario.index', compact('equipos', 'categorias'));
+    }
+
+    public function kanban()
+    {
+        session(['inventory_view' => 'kanban']);
+        $equipos = Equipo::with(['categoria', 'unidadMedida'])->where('activo', true)->get();
+        return view('inventario.kanban', compact('equipos'));
     }
 
     public function create()
@@ -84,25 +102,37 @@ class EquipoController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'codigo_barras' => 'nullable|string|max:255|unique:equipos,codigo_barras',
             'nombre' => 'required|string|max:255',
             'categoria_id' => 'required|exists:categorias,id',
             'unidad_medida_id' => 'required|exists:unidades_medida,id',
-            'precio_dia' => 'required|numeric|min:0',
+            'operaciones' => 'required|array|min:1',
+            'operaciones.*' => 'in:renta,venta',
+            'precio_dia' => 'nullable|numeric|min:0',
+            'precio_venta' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
+            'stock_minimo' => 'required|integer|min:0',
             'imagen' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'descripcion' => 'nullable|string',
             'activo' => 'nullable'
         ]);
 
+        $ops = $request->operaciones;
+        $tipo_operacion = (count($ops) == 2) ? 'ambas' : $ops[0];
+
         $codigo = $this->generarCodigo($request->categoria_id);
         
         $equipo = new Equipo();
         $equipo->codigo = $codigo;
+        $equipo->codigo_barras = $request->codigo_barras;
         $equipo->nombre = $request->nombre;
         $equipo->categoria_id = $request->categoria_id;
         $equipo->unidad_medida_id = $request->unidad_medida_id;
+        $equipo->tipo_operacion = $tipo_operacion;
         $equipo->precio_dia = $request->precio_dia;
+        $equipo->precio_venta = $request->precio_venta;
         $equipo->stock = $request->stock;
+        $equipo->stock_minimo = $request->stock_minimo;
         $equipo->descripcion = $request->descripcion;
         $equipo->activo = $request->has('activo');
 
@@ -113,18 +143,16 @@ class EquipoController extends Controller
 
         $equipo->save();
 
-        return redirect()->route('inventario.index')
-            ->with('success', 'Equipo creado exitosamente. Código: ' . $codigo);
+        $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+        return redirect()->route($ruta)->with('success', 'Equipo creado exitosamente. Código: ' . $codigo);
     }
 
-    // CORREGIDO - Usa Equipo $equipo en lugar de $inventario
     public function show(Equipo $equipo)
     {
         $equipo->load(['categoria', 'unidadMedida']);
         return view('inventario.show', compact('equipo'));
     }
 
-    // CORREGIDO
     public function edit(Equipo $equipo)
     {
         $categorias = Categoria::where('activa', true)->get();
@@ -132,27 +160,46 @@ class EquipoController extends Controller
         return view('inventario.edit', compact('equipo', 'categorias', 'unidades'));
     }
 
-    // CORREGIDO
     public function update(Request $request, Equipo $equipo)
     {
         $validated = $request->validate([
+            'codigo_barras' => 'nullable|string|max:255|unique:equipos,codigo_barras,' . $equipo->id,
             'nombre' => 'required|string|max:255',
             'categoria_id' => 'required|exists:categorias,id',
             'unidad_medida_id' => 'required|exists:unidades_medida,id',
-            'precio_dia' => 'required|numeric|min:0',
+            'operaciones' => 'required|array|min:1',
+            'operaciones.*' => 'in:renta,venta',
+            'precio_dia' => 'nullable|numeric|min:0',
+            'precio_venta' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
+            'stock_minimo' => 'required|integer|min:0',
             'imagen' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'quitar_imagen' => 'nullable|in:0,1',
             'descripcion' => 'nullable|string',
             'activo' => 'nullable'
         ]);
 
+        $ops = $request->operaciones;
+        $tipo_operacion = (count($ops) == 2) ? 'ambas' : $ops[0];
+
+        $equipo->codigo_barras = $request->codigo_barras;
         $equipo->nombre = $request->nombre;
         $equipo->categoria_id = $request->categoria_id;
         $equipo->unidad_medida_id = $request->unidad_medida_id;
+        $equipo->tipo_operacion = $tipo_operacion;
         $equipo->precio_dia = $request->precio_dia;
+        $equipo->precio_venta = $request->precio_venta;
         $equipo->stock = $request->stock;
+        $equipo->stock_minimo = $request->stock_minimo;
         $equipo->descripcion = $request->descripcion;
         $equipo->activo = $request->has('activo');
+
+        if ($request->has('quitar_imagen') && $request->quitar_imagen == '1') {
+            if ($equipo->imagen && Storage::disk('public')->exists($equipo->imagen)) {
+                Storage::disk('public')->delete($equipo->imagen);
+            }
+            $equipo->imagen = null;
+        }
 
         if ($request->hasFile('imagen')) {
             if ($equipo->imagen && Storage::disk('public')->exists($equipo->imagen)) {
@@ -164,11 +211,10 @@ class EquipoController extends Controller
 
         $equipo->save();
 
-        return redirect()->route('inventario.show', $equipo)
-            ->with('success', 'Equipo actualizado exitosamente');
+        $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+        return redirect()->route($ruta)->with('success', 'Equipo actualizado exitosamente');
     }
 
-    // CORREGIDO
     public function destroy(Equipo $equipo)
     {
         if ($equipo->imagen && Storage::disk('public')->exists($equipo->imagen)) {
@@ -177,13 +223,28 @@ class EquipoController extends Controller
 
         $equipo->delete();
 
-        return redirect()->route('inventario.index')
-            ->with('success', 'Equipo eliminado exitosamente');
+        $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+        return redirect()->route($ruta)->with('success', 'Equipo eliminado exitosamente');
     }
 
-    public function kanban()
+    public function exportExcel()
     {
-        $equipos = Equipo::with(['categoria', 'unidadMedida'])->where('activo', true)->get();
-        return view('inventario.kanban', compact('equipos'));
+        return Excel::download(new EquiposExport, 'inventario.xlsx');
+    }
+
+    public function importExcel(Request $request)
+    {
+        $request->validate([
+            'documento_excel' => 'required|mimes:xlsx,xls,csv'
+        ]);
+
+        try {
+            Excel::import(new EquiposImport, $request->file('documento_excel'));
+            
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('success', 'Inventario importado exitosamente.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error al importar: Verifica que el formato sea correcto.');
+        }
     }
 }

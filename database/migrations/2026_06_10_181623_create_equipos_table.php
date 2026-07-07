@@ -10,14 +10,22 @@ return new class extends Migration
     {
         Schema::create('equipos', function (Blueprint $table) {
             $table->id();
-            $table->string('codigo')->unique(); // Ej: AND-001
-            $table->string('nombre'); // Ej: "Andamio Tablón"
-            $table->string('categoria'); // Ej: "Andamios", "Ruedas", "Flete"
-            $table->decimal('precio_dia', 10, 2);
+            $table->string('codigo')->unique();
+            $table->string('nombre');
+            $table->string('categoria');
+            
+            // NUEVOS CAMPOS INTEGRADOS:
+            $table->string('tipo_operacion')->default('renta'); 
+            $table->decimal('precio_dia', 10, 2)->nullable();
+            $table->decimal('precio_venta', 10, 2)->nullable(); 
+            
             $table->decimal('precio_semana', 10, 2)->nullable();
             $table->decimal('precio_mes', 10, 2)->nullable();
             $table->integer('stock')->default(0);
-            $table->string('imagen')->nullable(); // Ruta de imagen del equipo
+            
+            $table->integer('stock_minimo')->default(0); 
+            
+            $table->string('imagen')->nullable(); 
             $table->text('descripcion')->nullable();
             $table->boolean('activo')->default(true);
             $table->timestamps();
