@@ -1,4 +1,5 @@
 <?php
+// database/migrations/2026_07_07_195144_create_equipos_table.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,8 +10,8 @@ return new class extends Migration {
         Schema::create('equipos', function (Blueprint $table) {
             $table->id();
             
-            // Agregamos la columna sucursal_id
-            $table->foreignId('sucursal_id')->nullable()->constrained('sucursales')->onDelete('cascade');
+            // ❌ ELIMINAMOS sucursal_id porque usaremos la tabla pivote equipo_sucursal
+            // $table->foreignId('sucursal_id')->nullable()->constrained('sucursales')->onDelete('cascade');
             
             $table->string('codigo')->unique();
             $table->string('codigo_barras')->nullable()->unique();

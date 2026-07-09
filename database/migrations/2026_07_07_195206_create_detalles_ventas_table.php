@@ -1,4 +1,5 @@
 <?php
+// database/migrations/2026_07_07_195206_create_detalles_ventas_table.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -6,7 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        // Unificamos el nombre a 'detalles_ventas' (plural) para mantener coherencia con 'detalles_rentas'
         Schema::create('detalles_ventas', function (Blueprint $table) {
             $table->id();
             $table->foreignId('venta_id')->constrained('ventas')->onDelete('cascade');

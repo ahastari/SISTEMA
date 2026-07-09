@@ -40,9 +40,10 @@ class EquipoController extends Controller
         return $prefijo . '-' . $numeroFormateado;
     }
 
+    // En EquipoController - index
     public function index(Request $request)
     {
-        // 🔹 Control de vista (tabla o kanban)
+        // Control de vista
         if ($request->has('view') && $request->view == 'table') {
             session(['inventory_view' => 'table']);
         } elseif (session('inventory_view') == 'kanban') {
@@ -51,19 +52,20 @@ class EquipoController extends Controller
             session(['inventory_view' => 'table']);
         }
 
-        // 🔹 Control de sucursal activa
         $sucursalId = session('activo_sucursal_id');
-
+        
         if ($sucursalId === 'global') {
-            // El administrador ve todo el inventario de todas las sucursales
+            // Admin ve todo el inventario consolidado
             $query = Equipo::with(['categoria', 'unidadMedida']);
         } else {
-            // El cajero o gerente solo ve el inventario de SU sucursal activa
+            // Usuario ve solo su sucursal
             $query = Equipo::with(['categoria', 'unidadMedida'])
-                        ->where('sucursal_id', $sucursalId);
+                        ->whereHas('sucursales', function($q) use ($sucursalId) {
+                            $q->where('sucursal_id', $sucursalId);
+                        });
         }
 
-        // 🔹 Filtros de búsqueda
+        // Filtros...
         if ($request->has('search') && $request->search) {
             $query->where(function($q) use ($request) {
                 $q->where('nombre', 'like', '%' . $request->search . '%')
@@ -78,11 +80,27 @@ class EquipoController extends Controller
             });
         }
 
-        // 🔹 Paginación y categorías activas
         $equipos = $query->latest()->paginate(10);
         $categorias = Categoria::where('activa', true)->get();
 
         return view('inventario.index', compact('equipos', 'categorias'));
+    }
+
+    public function show(Equipo $equipo)
+    {
+        $equipo->load(['categoria', 'unidadMedida']);
+        
+        // Obtener stock por sucursal
+        $sucursalesConStock = [];
+        foreach ($equipo->sucursales as $sucursal) {
+            $sucursalesConStock[] = [
+                'nombre' => $sucursal->nombre,
+                'stock' => $sucursal->pivot->stock,
+                'stock_minimo' => $sucursal->pivot->stock_minimo,
+            ];
+        }
+        
+        return view('inventario.show', compact('equipo', 'sucursalesConStock'));
     }
 
     public function kanban()
@@ -145,12 +163,6 @@ class EquipoController extends Controller
 
         $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
         return redirect()->route($ruta)->with('success', 'Equipo creado exitosamente. Código: ' . $codigo);
-    }
-
-    public function show(Equipo $equipo)
-    {
-        $equipo->load(['categoria', 'unidadMedida']);
-        return view('inventario.show', compact('equipo'));
     }
 
     public function edit(Equipo $equipo)

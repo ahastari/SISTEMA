@@ -20,6 +20,27 @@
             color: red;
             font-weight: bold;
         }
+
+        /* Estilo para el botón flotante */
+        .floating-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            transition: all 0.3s ease;
+            z-index: 1050;
+        }
+        .floating-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+        }
+
+        /* Submenú activo */
+        .nav-link.active-submenu {
+            background-color: rgba(13, 110, 253, 0.15);
+            border-left: 3px solid #0d6efd;
+            color: #0d6efd !important;
+        }
     </style>
 </head>
 
@@ -27,7 +48,8 @@
 
 <div class="d-flex">
 
-    <aside class="bg-dark text-white vh-100 p-3 shadow" style="width: 260px; position: sticky; top: 0;">
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside class="bg-dark text-white vh-100 p-3 shadow" style="width: 260px; position: sticky; top: 0; overflow-y: auto;">
         
         <div class="text-center mb-3">
             @if(\App\Helpers\ContentHelper::getCompanyData('empresa_logo'))
@@ -51,6 +73,7 @@
         <hr class="text-white-50">
 
         <ul class="nav flex-column">
+            <!-- Dashboard -->
             <li class="nav-item mb-2">
                 <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-speedometer2 me-2"></i>
@@ -58,6 +81,7 @@
                 </a>
             </li>
 
+            <!-- Rentas -->
             <li class="nav-item mb-2">
                 <a href="{{ route('rentas.index') }}" class="nav-link {{ request()->routeIs('rentas.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-file-earmark-text me-2"></i>
@@ -65,6 +89,7 @@
                 </a>
             </li>
 
+            <!-- Inventario -->
             <li class="nav-item mb-2">
                 <a href="{{ route('inventario.index') }}" class="nav-link {{ request()->routeIs('inventario.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-box-seam me-2"></i>
@@ -72,6 +97,15 @@
                 </a>
             </li>
 
+            <!-- ✅ NUEVO: MOVIMIENTOS ENTRE SUCURSALES -->
+            <li class="nav-item mb-2">
+                <a href="{{ route('movimientos.index') }}" class="nav-link {{ request()->routeIs('movimientos.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                    <i class="bi bi-arrow-left-right me-2"></i>
+                    Movimientos
+                </a>
+            </li>
+
+            <!-- Obras -->
             <li class="nav-item mb-2">
                 <a href="{{ route('obras.index') }}" class="nav-link {{ request()->routeIs('obras.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-building me-2"></i>
@@ -79,6 +113,7 @@
                 </a>
             </li>
 
+            <!-- Punto de Venta -->
             <li class="nav-item mb-2">
                 <a href="{{ route('puntoventa.index') }}" class="nav-link {{ request()->routeIs('puntoventa.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-cart3 me-2"></i>
@@ -86,6 +121,7 @@
                 </a>
             </li>
 
+            <!-- Clientes -->
             <li class="nav-item mb-2">
                 <a href="{{ route('clientes.index') }}" class="nav-link {{ request()->routeIs('clientes.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-people me-2"></i>
@@ -93,6 +129,7 @@
                 </a>
             </li>
 
+            <!-- Configuración -->
             <li class="nav-item mb-2">
                 <a href="{{ route('configuracion.index') }}" class="nav-link {{ request()->routeIs('configuracion.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-sliders me-2"></i>
@@ -100,10 +137,22 @@
                 </a>
             </li>
         </ul>
+
+        <hr class="text-white-50">
+
+        <!-- Footer del sidebar -->
+        <div class="mt-auto pt-2">
+            <small class="text-white-50 d-block text-center" style="font-size: 10px;">
+                <i class="bi bi-clock me-1"></i>
+                {{ now()->format('d/m/Y H:i') }}
+            </small>
+        </div>
     </aside>
 
+    <!-- ==================== MAIN CONTENT ==================== -->
     <main class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
         
+        <!-- Navbar superior -->
         <nav class="navbar navbar-expand bg-white shadow-sm px-4 py-2 layout-navbar">
             <div class="container-fluid p-0">
                 <div>
@@ -136,12 +185,98 @@
             </div>
         </nav>
 
+        <!-- Contenido principal -->
         <div class="p-4 flex-grow-1">
             @yield('content')
         </div>
     </main>
 
 </div>
+
+<!-- ==================== BOTÓN FLOTANTE DE ACCESO RÁPIDO ==================== -->
+<div class="position-fixed bottom-0 end-0 p-4" style="z-index: 1050;">
+    <div class="dropdown">
+        <button class="btn btn-primary floating-btn d-flex align-items-center justify-content-center" 
+                type="button" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                id="floatingActionBtn">
+            <i class="bi bi-plus-lg fs-3"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-2" style="min-width: 220px;">
+            <li>
+                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('movimientos.create') }}">
+                    <span class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
+                        <i class="bi bi-arrow-left-right text-primary"></i>
+                    </span>
+                    <div>
+                        <span class="d-block fw-semibold">Nuevo Movimiento</span>
+                        <small class="text-muted">Transferir entre sucursales</small>
+                    </div>
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('movimientos.index') }}">
+                    <span class="bg-info bg-opacity-10 rounded-circle p-2 me-3">
+                        <i class="bi bi-clock-history text-info"></i>
+                    </span>
+                    <div>
+                        <span class="d-block fw-semibold">Historial</span>
+                        <small class="text-muted">Ver todos los movimientos</small>
+                    </div>
+                </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('inventario.create') }}">
+                    <span class="bg-success bg-opacity-10 rounded-circle p-2 me-3">
+                        <i class="bi bi-box-seam text-success"></i>
+                    </span>
+                    <div>
+                        <span class="d-block fw-semibold">Nuevo Producto</span>
+                        <small class="text-muted">Agregar al inventario</small>
+                    </div>
+                </a>
+            </li>
+            <li>
+                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('rentas.create') }}">
+                    <span class="bg-warning bg-opacity-10 rounded-circle p-2 me-3">
+                        <i class="bi bi-file-earmark-text text-warning"></i>
+                    </span>
+                    <div>
+                        <span class="d-block fw-semibold">Nueva Renta</span>
+                        <small class="text-muted">Registrar renta de equipo</small>
+                    </div>
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cerrar el dropdown al hacer clic fuera
+        document.addEventListener('click', function(e) {
+            const dropdown = document.querySelector('.dropdown');
+            const btn = document.getElementById('floatingActionBtn');
+            if (dropdown && btn) {
+                if (!dropdown.contains(e.target)) {
+                    const menu = dropdown.querySelector('.dropdown-menu');
+                    if (menu) {
+                        const bsDropdown = bootstrap.Dropdown.getInstance(btn);
+                        if (bsDropdown) {
+                            bsDropdown.hide();
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+<!-- Bootstrap JS (asegúrate de que esté cargado) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>

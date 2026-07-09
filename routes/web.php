@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PuntoVentaController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Models\PlantillaDocumento;
+use App\Http\Controllers\MovimientoSucursalController;
 
 Route::prefix('configuracion')->middleware('auth')->group(function () {
     PlantillaDocumento::updateOrCreate(
@@ -132,6 +133,17 @@ Route::prefix('configuracion')->middleware('auth')->group(function () {
     Route::put('/usuarios/{id}/password', [ConfiguracionController::class, 'changePassword'])->name('configuracion.usuarios.password');
     Route::patch('/usuarios/{id}/baja', [ConfiguracionController::class, 'bajaUsuario'])->name('configuracion.usuarios.baja');
     Route::patch('/usuarios/{id}/alta', [ConfiguracionController::class, 'altaUsuario'])->name('configuracion.usuarios.alta');
+});
+
+// Movimientos entre sucursales
+Route::middleware('auth')->group(function () {
+    Route::resource('movimientos', MovimientoSucursalController::class);
+    Route::get('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'cancelar'])->name('movimientos.cancelar');
+    Route::post('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'procesarCancelacion'])->name('movimientos.procesarCancelacion');
+    
+    // APIs para consultar stock
+    Route::get('/api/movimientos/stock', [MovimientoSucursalController::class, 'getStock'])->name('movimientos.stock');
+    Route::get('/api/movimientos/sucursales-disponibles', [MovimientoSucursalController::class, 'getSucursalesDisponibles'])->name('movimientos.sucursalesDisponibles');
 });
 
 require __DIR__.'/auth.php';

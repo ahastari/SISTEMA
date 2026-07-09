@@ -72,7 +72,7 @@
                         <div class="d-flex bg-light rounded p-3 align-items-center border">
                             <div class="bg-white rounded p-2 me-3 shadow-sm text-dark"><i class="bi bi-boxes fs-4"></i></div>
                             <div>
-                                <small class="text-muted d-block">Existencia Actual en Almacén</small>
+                                <small class="text-muted d-block">Existencia Total</small>
                                 <span class="fw-bold fs-5 {{ $equipo->stock <= $equipo->stock_minimo ? 'text-danger' : 'text-success' }}">
                                     {{ $equipo->stock }} <small class="text-muted fs-6">{{ $equipo->unidadMedida->abreviatura ?? 'uds' }}</small>
                                 </span>
@@ -80,6 +80,46 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- ✅ SECCIÓN NUEVA: Stock por Sucursal -->
+                <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-building me-2 text-primary"></i>Stock por Sucursal</h5>
+                
+                <div class="row g-3 mb-4">
+                    @forelse($sucursalesConStock as $sucursal)
+                    <div class="col-12 col-sm-6 col-md-4">
+                        <div class="border rounded p-3 bg-light h-100">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <span class="d-block fw-bold text-truncate" title="{{ $sucursal['nombre'] }}">
+                                    <i class="bi bi-building text-primary me-1"></i> {{ $sucursal['nombre'] }}
+                                </span>
+                                <span class="badge bg-secondary rounded-pill">{{ $sucursal['stock_minimo'] }} mín.</span>
+                            </div>
+                            <div class="mt-2">
+                                <span class="fs-2 fw-bold {{ $sucursal['stock'] <= $sucursal['stock_minimo'] ? 'text-danger' : 'text-success' }}">
+                                    {{ $sucursal['stock'] }}
+                                </span>
+                                <small class="text-muted">{{ $equipo->unidadMedida->abreviatura ?? 'uds' }}</small>
+                            </div>
+                            <div class="mt-1">
+                                @if($sucursal['stock'] <= 0)
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> Agotado</span>
+                                @elseif($sucursal['stock'] <= $sucursal['stock_minimo'])
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i> Stock Bajo</span>
+                                @else
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Disponible</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    @empty
+                    <div class="col-12">
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Este producto no tiene stock asignado en ninguna sucursal.
+                        </div>
+                    </div>
+                    @endforelse
                 </div>
 
                 <h5 class="border-bottom pb-2 mb-3"><i class="bi bi-currency-dollar me-2 text-primary"></i>Información Comercial</h5>
@@ -104,6 +144,14 @@
                         </div>
                     </div>
                     @endif
+                </div>
+
+                <!-- ✅ Botón para registrar movimiento -->
+                <div class="mt-4 pt-3 border-top">
+                    <a href="{{ route('movimientos.create') }}?equipo_id={{ $equipo->id }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-left-right me-2"></i> Registrar Movimiento
+                    </a>
+                    <small class="text-muted ms-2">Transferir o ajustar stock entre sucursales</small>
                 </div>
             </div>
         </div>
