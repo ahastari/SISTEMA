@@ -2,56 +2,69 @@
 
 @section('content')
 <style>
+    /* Soporte para modo oscuro/claro y respuesta fluida */
     .equipo-item {
-        background: #f8f9fa;
+        background: var(--bs-tertiary-bg);
+        border: 1px solid var(--bs-border-color);
         border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 10px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
     }
     .remove-equipo {
         cursor: pointer;
         color: #dc3545;
+        transition: color 0.15s ease-in-out;
     }
     .remove-equipo:hover {
-        color: #bb2d3b;
+        color: #a71d2a;
+    }
+    .card-custom-header {
+        border-bottom: 1px solid var(--bs-border-color);
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="mb-0">
-        <i class="bi bi-plus-circle me-2"></i>Nueva Renta
-    </h2>
-    <a href="{{ route('rentas.index') }}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Cancelar
+<!-- Header Responsive -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h3 class="mb-0 fw-bold text-body">
+            <i class="bi bi-plus-circle me-2 text-primary"></i>Nueva Renta
+        </h3>
+        <p class="text-secondary small mb-0">Registrar un nuevo contrato de arrendamiento</p>
+    </div>
+    <a href="{{ route('rentas.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
+        <i class="bi bi-arrow-left me-1"></i> Cancelar
     </a>
 </div>
 
 @if(session('error'))
-    <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
+    <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
 
 <form action="{{ route('rentas.store') }}" method="POST" id="formRenta">
     @csrf
     
-    <div class="row">
-        <!-- Datos principales -->
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Datos de la Renta</h5>
+    <div class="row g-3">
+        
+        <!-- COLUMNA IZQUIERDA: Datos principales -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
+                <div class="card-header bg-primary text-white py-2 px-3 rounded-top-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-info-circle me-1"></i> Datos de la Renta</h6>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-3">
+                    
                     <div class="mb-3">
-                        <label>Folio</label>
-                        <input type="text" class="form-control" value="{{ $folio }}" disabled>
-                        <small class="text-muted">Se generará automáticamente</small>
+                        <label class="form-label small fw-semibold text-body">Folio</label>
+                        <input type="text" class="form-control form-control-sm bg-body-tertiary" value="{{ $folio }}" readonly>
+                        <small class="text-secondary" style="font-size: 11px;">Identificador autogenerado</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label>Cliente *</label>
-                        <select name="cliente_id" id="clienteSelect" class="form-select @error('cliente_id') is-invalid @enderror" required>
+                        <label class="form-label small fw-semibold text-body">Cliente <span class="text-danger">*</span></label>
+                        <select name="cliente_id" id="clienteSelect" class="form-select form-select-sm bg-body @error('cliente_id') is-invalid @enderror" required>
                             <option value="">Seleccionar cliente...</option>
                             @foreach($clientes as $cliente)
                                 <option value="{{ $cliente->id }}" {{ old('cliente_id') == $cliente->id ? 'selected' : '' }}>
@@ -65,26 +78,26 @@
                     </div>
 
                     <div class="mb-3">
-                        <label>Obra / Proyecto</label>
-                        <select name="obra_id" class="form-select" id="obraSelect">
+                        <label class="form-label small fw-semibold text-body">Obra / Proyecto</label>
+                        <select name="obra_id" class="form-select form-select-sm bg-body" id="obraSelect">
                             <option value="">Seleccionar obra (opcional)...</option>
                         </select>
-                        <small class="text-muted">Si no aparece la obra, <a href="{{ route('obras.create') }}" target="_blank">regístrala aquí</a></small>
+                        <small class="text-secondary" style="font-size: 11px;">¿No existe la obra? <a href="{{ route('obras.create') }}" target="_blank" class="text-primary">Regístrala aquí</a></small>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Fecha Inicio *</label>
-                            <input type="date" name="fecha_inicio" class="form-control @error('fecha_inicio') is-invalid @enderror" 
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-semibold text-body">Fecha Inicio <span class="text-danger">*</span></label>
+                            <input type="date" name="fecha_inicio" class="form-control form-control-sm bg-body @error('fecha_inicio') is-invalid @enderror" 
                                    value="{{ old('fecha_inicio', date('Y-m-d')) }}" required id="fecha_inicio">
                             @error('fecha_inicio')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         
-                        <div class="col-md-6 mb-3">
-                            <label>Fecha Fin *</label>
-                            <input type="date" name="fecha_fin" class="form-control @error('fecha_fin') is-invalid @enderror" 
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-semibold text-body">Fecha Fin <span class="text-danger">*</span></label>
+                            <input type="date" name="fecha_fin" class="form-control form-control-sm bg-body @error('fecha_fin') is-invalid @enderror" 
                                    value="{{ old('fecha_fin', date('Y-m-d', strtotime('+1 day'))) }}" required id="fecha_fin">
                             @error('fecha_fin')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -93,95 +106,106 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label>Días Totales</label>
-                        <input type="text" class="form-control" id="dias_totales" readonly>
-                        <small class="text-muted">Se cobra día de salida y día de entrada</small>
+                        <label class="form-label small fw-semibold text-body">Días Totales</label>
+                        <input type="text" class="form-control form-control-sm bg-body-tertiary fw-bold text-primary" id="dias_totales" readonly>
+                        <small class="text-secondary" style="font-size: 11px;">Se calcula día de salida y día de entrega</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label>Depósito (opcional)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="number" name="deposito" class="form-control" step="0.01" value="{{ old('deposito', 0) }}" id="deposito">
+                        <label class="form-label small fw-semibold text-body">Depósito en Garantía</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary">$</span>
+                            <input type="number" name="deposito" class="form-control bg-body" step="0.01" value="{{ old('deposito', 0) }}" id="deposito">
                         </div>
-                        <small class="text-muted">Monto que el cliente deja en garantía</small>
+                        <small class="text-secondary" style="font-size: 11px;">Monto dejado en garantía (reembolsable o acreditable)</small>
                     </div>
                     
-                    <div class="mb-3">
-                        <label>Observaciones</label>
-                        <textarea name="observaciones" class="form-control" rows="3">{{ old('observaciones') }}</textarea>
+                    <div>
+                        <label class="form-label small fw-semibold text-body">Observaciones</label>
+                        <textarea name="observaciones" class="form-control form-control-sm bg-body" rows="2" placeholder="Detalles o condiciones del contrato...">{{ old('observaciones') }}</textarea>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Equipos -->
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="bi bi-box-seam"></i> Equipos a Rentar</h5>
+        <!-- COLUMNA DERECHA: Equipos y Resumen -->
+        <div class="col-12 col-lg-6">
+            
+            <!-- Selección de Equipos -->
+            <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
+                <div class="card-header bg-success text-white py-2 px-3 rounded-top-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-box-seam me-1"></i> Equipos a Rentar</h6>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-3">
                     <div class="mb-3">
-                        <label>Agregar equipo</label>
-                        <div class="input-group">
-                            <select class="form-select" id="selectEquipo">
-                                <option value="">Seleccionar equipo...</option>
-                                @foreach($equipos as $equipo)
-                                    <option value="{{ $equipo->id }}" data-precio="{{ $equipo->precio_dia }}" data-nombre="{{ $equipo->nombre }}" data-stock="{{ $equipo->stock }}">
-                                        {{ $equipo->codigo }} - {{ $equipo->nombre }} (${{ number_format($equipo->precio_dia, 2) }}/día) - Stock: {{ $equipo->stock }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <input type="number" id="cantidadEquipo" class="form-control" placeholder="Cantidad" style="width: 100px;" min="1">
-                            <button type="button" class="btn btn-primary" onclick="agregarEquipo()">
-                                <i class="bi bi-plus"></i> Agregar
-                            </button>
+                        <label class="form-label small fw-semibold text-body">Agregar equipo</label>
+                        <div class="row g-2">
+                            <div class="col-12 col-sm-7">
+                                <select class="form-select form-select-sm bg-body" id="selectEquipo">
+                                    <option value="">Seleccionar equipo...</option>
+                                    @foreach($equipos as $equipo)
+                                        <option value="{{ $equipo->id }}" data-precio="{{ $equipo->precio_dia }}" data-nombre="{{ $equipo->nombre }}" data-stock="{{ $equipo->stock }}">
+                                            {{ $equipo->codigo }} - {{ $equipo->nombre }} (${{ number_format($equipo->precio_dia, 2) }}/día) - Stock: {{ $equipo->stock }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-7 col-sm-3">
+                                <input type="number" id="cantidadEquipo" class="form-control form-control-sm bg-body" placeholder="Cant." min="1">
+                            </div>
+                            <div class="col-5 col-sm-2">
+                                <button type="button" class="btn btn-primary btn-sm w-100" onclick="agregarEquipo()">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
-                    <div id="equiposLista">
-                        <div class="alert alert-info" id="listaVacia">
-                            <i class="bi bi-info-circle"></i> No hay equipos agregados
+                    <div id="equiposLista" class="mt-2">
+                        <div class="alert alert-info py-2 px-3 mb-0 small" id="listaVacia">
+                            <i class="bi bi-info-circle me-1"></i> No hay equipos agregados al contrato
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Resumen -->
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="bi bi-calculator"></i> Resumen</h5>
+            <!-- Resumen Financiero -->
+            <div class="card border-0 shadow-sm rounded-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
+                <div class="card-header bg-info text-white py-2 px-3 rounded-top-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-calculator me-1"></i> Resumen de Pago</h6>
                 </div>
-                <div class="card-body">
-                    <table class="table table-borderless">
-                        <tr>
-                            <th>Subtotal:</th>
-                            <td class="text-end"><strong id="res_subtotal">$0.00</strong></td>
-                        </tr>
-                        <tr>
-                            <th>IVA (16%):</th>
-                            <td class="text-end"><strong id="res_iva">$0.00</strong></td>
-                        </tr>
-                        <tr>
-                            <th>Total:</th>
-                            <td class="text-end"><strong id="res_total" class="text-success fs-4">$0.00</strong></td>
-                        </tr>
-                        <tr>
-                            <th>Depósito:</th>
-                            <td class="text-end"><strong id="res_deposito">$0.00</strong></td>
-                        </tr>
-                        <tr>
-                            <th>Saldo a pagar:</th>
-                            <td class="text-end"><strong id="res_saldo" class="text-primary fs-4">$0.00</strong></td>
-                        </tr>
+                <div class="card-body p-3">
+                    <table class="table table-borderless align-middle mb-2" style="font-size: 13px;">
+                        <tbody>
+                            <tr>
+                                <th class="p-1 text-secondary">Subtotal:</th>
+                                <td class="p-1 text-end text-body"><strong id="res_subtotal">$0.00</strong></td>
+                            </tr>
+                            <tr>
+                                <th class="p-1 text-secondary">IVA (16%):</th>
+                                <td class="p-1 text-end text-body"><strong id="res_iva">$0.00</strong></td>
+                            </tr>
+                            <tr class="border-top">
+                                <th class="p-1 text-body">Total:</th>
+                                <td class="p-1 text-end"><strong id="res_total" class="text-success fs-5">$0.00</strong></td>
+                            </tr>
+                            <tr>
+                                <th class="p-1 text-secondary">Depósito:</th>
+                                <td class="p-1 text-end text-body"><strong id="res_deposito">$0.00</strong></td>
+                            </tr>
+                            <tr class="border-top">
+                                <th class="p-1 text-body">Saldo Final:</th>
+                                <td class="p-1 text-end"><strong id="res_saldo" class="text-primary fs-5">$0.00</strong></td>
+                            </tr>
+                        </tbody>
                     </table>
                     
-                    <button type="submit" class="btn btn-success w-100" id="btnGuardar" disabled>
-                        <i class="bi bi-save"></i> Guardar Renta
+                    <button type="submit" class="btn btn-success w-100 fw-bold py-2 mt-2" id="btnGuardar" disabled>
+                        <i class="bi bi-save me-1"></i> Guardar Renta
                     </button>
                 </div>
             </div>
+
         </div>
     </div>
 </form>
@@ -279,7 +303,7 @@ function renderizarEquipos() {
     const container = document.getElementById('equiposLista');
     
     if (equipos.length === 0) {
-        container.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No hay equipos agregados</div>';
+        container.innerHTML = '<div class="alert alert-info py-2 px-3 mb-0 small"><i class="bi bi-info-circle me-1"></i> No hay equipos agregados al contrato</div>';
         return;
     }
     
@@ -289,12 +313,12 @@ function renderizarEquipos() {
             <div class="equipo-item">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>${eq.nombre}</strong><br>
-                        <small>Cantidad: ${eq.cantidad} | Precio: $${eq.precio}/día</small>
+                        <strong class="text-body d-block small">${eq.nombre}</strong>
+                        <small class="text-secondary" style="font-size: 11px;">Cant: ${eq.cantidad} | Precio: $${eq.precio}/día</small>
                     </div>
                     <div>
-                        <span class="remove-equipo" onclick="eliminarEquipo(${index})">
-                            <i class="bi bi-trash"></i>
+                        <span class="remove-equipo" onclick="eliminarEquipo(${index})" title="Eliminar">
+                            <i class="bi bi-trash fs-6"></i>
                         </span>
                     </div>
                 </div>
@@ -307,8 +331,7 @@ function renderizarEquipos() {
     container.innerHTML = html;
 }
 
-// ========== CARGAR OBRAS ==========
-// Evento cuando cambia el cliente
+// Cargar obras AJAX
 document.getElementById('clienteSelect').addEventListener('change', function() {
     const clienteId = this.value;
     const obraSelect = document.getElementById('obraSelect');
@@ -321,7 +344,7 @@ document.getElementById('clienteSelect').addEventListener('change', function() {
             .then(data => {
                 obraSelect.innerHTML = '<option value="">Seleccionar obra (opcional)...</option>';
                 if (data.length === 0) {
-                    obraSelect.innerHTML += '<option value="" disabled>No hay obras para este cliente</option>';
+                    obraSelect.innerHTML += '<option value="" disabled>No hay obras registradas para este cliente</option>';
                 } else {
                     data.forEach(obra => {
                         obraSelect.innerHTML += `<option value="${obra.id}">${obra.nombre} - ${obra.direccion}</option>`;
@@ -337,16 +360,14 @@ document.getElementById('clienteSelect').addEventListener('change', function() {
     }
 });
 
-// Al cargar la página, si ya hay un cliente seleccionado, cargar sus obras
 document.addEventListener('DOMContentLoaded', function() {
     const clienteSelect = document.getElementById('clienteSelect');
     if (clienteSelect && clienteSelect.value) {
-        // Disparar el evento change manualmente
         clienteSelect.dispatchEvent(new Event('change'));
     }
+    actualizarResumen();
 });
 
-// Event listeners para fechas y depósito
 document.getElementById('fecha_inicio').addEventListener('change', actualizarResumen);
 document.getElementById('fecha_fin').addEventListener('change', actualizarResumen);
 document.getElementById('deposito').addEventListener('input', actualizarResumen);

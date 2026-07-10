@@ -40,33 +40,41 @@ class EquipoController extends Controller
         return $prefijo . '-' . $numeroFormateado;
     }
 
-    // En EquipoController - index
+   // En EquipoController - index
     public function index(Request $request)
     {
-        // Control de vista
-        if ($request->has('view') && $request->view == 'table') {
-            session(['inventory_view' => 'table']);
-        } elseif (session('inventory_view') == 'kanban') {
+        // 1. Control y persistencia de la vista en Sesión
+        if ($request->has('view')) {
+            session(['inventory_view' => $request->view]);
+        }
+
+        // Si la sesión dice que es Kanban y la petición no fuerza la tabla, redirigir
+        if (session('inventory_view') === 'kanban' && $request->view !== 'table') {
             return redirect()->route('inventario.kanban');
-        } else {
+        }
+
+        // Asegurar estado por defecto si no hay sesión
+        if (!session()->has('inventory_view')) {
             session(['inventory_view' => 'table']);
         }
 
+        // 2. Consulta base según la Sucursal Activa
         $sucursalId = session('activo_sucursal_id');
         
-        if ($sucursalId === 'global') {
+        // Si no hay sucursal en sesión, puedes por seguridad definir un comportamiento (por ejemplo, tomar una por defecto o tratarla como global)
+        if (empty($sucursalId) || $sucursalId === 'global') {
             // Admin ve todo el inventario consolidado
             $query = Equipo::with(['categoria', 'unidadMedida']);
         } else {
-            // Usuario ve solo su sucursal
+            // Usuario ve solo el stock que pertenece a su sucursal activa
             $query = Equipo::with(['categoria', 'unidadMedida'])
                         ->whereHas('sucursales', function($q) use ($sucursalId) {
-                            $q->where('sucursal_id', $sucursalId);
+                            $q->where('sucursales.id', $sucursalId); // Ajusta según el nombre de tu clave primaria en sucursales
                         });
         }
 
-        // Filtros...
-        if ($request->has('search') && $request->search) {
+        // 3. Aplicación de Filtros (Buscador)
+        if ($request->filled('search')) {
             $query->where(function($q) use ($request) {
                 $q->where('nombre', 'like', '%' . $request->search . '%')
                 ->orWhere('codigo', 'like', '%' . $request->search . '%')
@@ -74,12 +82,14 @@ class EquipoController extends Controller
             });
         }
 
-        if ($request->has('categoria') && $request->categoria) {
+        // Filtro por nombre de Categoría
+        if ($request->filled('categoria')) {
             $query->whereHas('categoria', function($q) use ($request) {
                 $q->where('nombre', $request->categoria);
             });
         }
 
+        // 4. Paginación y retorno a la vista de Tabla
         $equipos = $query->latest()->paginate(10);
         $categorias = Categoria::where('activa', true)->get();
 

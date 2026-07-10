@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" id="htmlElement" data-bs-theme="light">
 
 <head>
     <meta charset="UTF-8">
@@ -21,21 +21,33 @@
             font-weight: bold;
         }
 
-        /* Estilo para el botón flotante */
+        /* Botón flotante */
         .floating-btn {
-            width: 60px;
-            height: 60px;
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-            transition: all 0.3s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             z-index: 1050;
         }
         .floating-btn:hover {
-            transform: scale(1.1);
+            transform: scale(1.08);
             box-shadow: 0 6px 20px rgba(0,0,0,0.35);
         }
 
-        /* Submenú activo */
+        /* Estilos Sidebar y Layout */
+        #sidebar {
+            width: 260px;
+            transition: margin-left 0.3s ease-in-out;
+            z-index: 1040;
+        }
+
+        @media (min-width: 992px) {
+            #sidebar.collapsed {
+                margin-left: -260px;
+            }
+        }
+
         .nav-link.active-submenu {
             background-color: rgba(13, 110, 253, 0.15);
             border-left: 3px solid #0d6efd;
@@ -44,12 +56,11 @@
     </style>
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
-<div class="d-flex">
+<div class="d-flex min-vh-100 position-relative">
 
-    <!-- ==================== SIDEBAR ==================== -->
-    <aside class="bg-dark text-white vh-100 p-3 shadow" style="width: 260px; position: sticky; top: 0; overflow-y: auto;">
+    <aside id="sidebar" class="bg-dark text-white vh-100 p-3 shadow position-sticky top-0 d-flex flex-column flex-shrink-0" data-bs-theme="dark">
         
         <div class="text-center mb-3">
             @if(\App\Helpers\ContentHelper::getCompanyData('empresa_logo'))
@@ -70,139 +81,127 @@
             {{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'Configurar Empresa') }}
         </h6>
 
-        <hr class="text-white-50">
+        <hr class="text-white-50 my-2">
 
-        <ul class="nav flex-column">
-            <!-- Dashboard -->
-            <li class="nav-item mb-2">
+        <ul class="nav flex-column mb-auto overflow-y-auto">
+            <li class="nav-item mb-1">
                 <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-speedometer2 me-2"></i>
                     Dashboard
                 </a>
             </li>
 
-            <!-- Rentas -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('rentas.index') }}" class="nav-link {{ request()->routeIs('rentas.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-file-earmark-text me-2"></i>
                     Rentas
                 </a>
             </li>
 
-            <!-- Inventario -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('inventario.index') }}" class="nav-link {{ request()->routeIs('inventario.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-box-seam me-2"></i>
                     Inventario
                 </a>
             </li>
 
-            <!-- ✅ NUEVO: MOVIMIENTOS ENTRE SUCURSALES -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('movimientos.index') }}" class="nav-link {{ request()->routeIs('movimientos.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-arrow-left-right me-2"></i>
                     Movimientos
                 </a>
             </li>
 
-            <!-- Obras -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('obras.index') }}" class="nav-link {{ request()->routeIs('obras.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-building me-2"></i>
                     Obras
                 </a>
             </li>
 
-            <!-- Punto de Venta -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('puntoventa.index') }}" class="nav-link {{ request()->routeIs('puntoventa.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-cart3 me-2"></i>
                     Punto de Venta
                 </a>
             </li>
 
-            <!-- Clientes -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('clientes.index') }}" class="nav-link {{ request()->routeIs('clientes.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-people me-2"></i>
                     Clientes
                 </a>
             </li>
 
-            <!-- Configuración -->
-            <li class="nav-item mb-2">
+            <li class="nav-item mb-1">
                 <a href="{{ route('configuracion.index') }}" class="nav-link {{ request()->routeIs('configuracion.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-sliders me-2"></i>
                     Configuración
                 </a>
             </li>
         </ul>
-
-        <hr class="text-white-50">
-
-        <!-- Footer del sidebar -->
-        <div class="mt-auto pt-2">
-            <small class="text-white-50 d-block text-center" style="font-size: 10px;">
-                <i class="bi bi-clock me-1"></i>
-                {{ now()->format('d/m/Y H:i') }}
-            </small>
-        </div>
     </aside>
 
-    <!-- ==================== MAIN CONTENT ==================== -->
-    <main class="flex-grow-1 d-flex flex-column" style="min-width: 0;">
+    <main class="flex-grow-1 d-flex flex-column w-100" style="min-width: 0; overflow-x: hidden;">
         
-        <!-- Navbar superior -->
-        <nav class="navbar navbar-expand bg-white shadow-sm px-4 py-2 layout-navbar">
-            <div class="container-fluid p-0">
-                <div>
-                    <h5 class="mb-0 fw-bold text-dark" style="font-size: 16px;">
+        <nav class="navbar bg-body border-bottom shadow-sm px-2 px-md-3 py-2 sticky-top">
+            <div class="container-fluid p-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-secondary border-0 p-1 px-2" id="sidebarToggle" type="button" aria-label="Toggle Sidebar">
+                        <i class="bi bi-list fs-4"></i>
+                    </button>
+                    
+                    <h5 class="mb-0 fw-bold fs-6 text-truncate" style="max-width: 200px;">
                         @yield('page-title', 'Panel de Control')
                     </h5>
                 </div>
 
-                <div class="d-flex align-items-center">
-                    <div class="me-4 text-end d-none d-md-block border-end pe-3">
-                        <span class="text-muted d-block" style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Sucursal Activa</span>
-                        <span class="badge bg-dark bg-opacity-10 text-dark fw-bold small rounded-pill px-3">
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center" 
+                            id="themeToggle" 
+                            type="button" 
+                            style="width: 34px; height: 34px;"
+                            title="Cambiar tema">
+                        <i class="bi bi-moon-stars-fill fs-6" id="themeIcon"></i>
+                    </button>
+
+                    <div class="text-end d-none d-lg-block border-end pe-3">
+                        <span class="text-secondary d-block" style="font-size: 9px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Sucursal Activa</span>
+                        <span class="badge bg-primary bg-opacity-10 text-primary fw-bold small rounded-pill px-2 py-1">
                             <i class="bi bi-geo-alt-fill text-primary me-1"></i>
                             {{ session('activo_sucursal_nombre', 'Cargando tienda...') }}
                         </span>
                     </div>
 
-                    <div class="text-end me-3">
-                        <span class="d-block fw-semibold text-dark" style="font-size: 13px;">{{ Auth::user()->name }}</span>
-                        <span class="text-muted text-capitalize d-block" style="font-size: 11px;">{{ Auth::user()->role ?? 'Operador' }}</span>
+                    <div class="text-end d-none d-sm-block me-1">
+                        <span class="d-block fw-semibold lh-1" style="font-size: 12px;">{{ Auth::user()->name }}</span>
+                        <span class="text-secondary text-capitalize d-block" style="font-size: 10px;">{{ Auth::user()->role ?? 'Operador' }}</span>
                     </div>
 
                     <form action="{{ route('logout') }}" method="POST" class="m-0">
                         @csrf
-                        <button class="btn btn-outline-danger btn-sm rounded-3 fw-bold px-3" style="font-size: 12px;">
-                            <i class="bi bi-box-arrow-right me-1"></i> Cerrar sesión
+                        <button class="btn btn-outline-danger btn-sm rounded-3 fw-bold px-2 py-1" style="font-size: 12px;" title="Cerrar sesión">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span class="d-none d-md-inline ms-1">Salir</span>
                         </button>
                     </form>
                 </div>
             </div>
         </nav>
 
-        <!-- Contenido principal -->
-        <div class="p-4 flex-grow-1">
-            @yield('content')
+        <div class="p-2 p-sm-3 p-md-4 flex-grow-1">
+            <div class="container-fluid p-0">
+                @yield('content')
+            </div>
         </div>
     </main>
 
 </div>
 
-<!-- ==================== BOTÓN FLOTANTE DE ACCESO RÁPIDO ==================== -->
-<div class="position-fixed bottom-0 end-0 p-4" style="z-index: 1050;">
+<div class="position-fixed bottom-0 end-0 p-3 p-md-4" style="z-index: 1050;">
     <div class="dropdown">
-        <button class="btn btn-primary floating-btn d-flex align-items-center justify-content-center" 
-                type="button" 
-                data-bs-toggle="dropdown" 
-                aria-expanded="false"
-                id="floatingActionBtn">
-            <i class="bi bi-plus-lg fs-3"></i>
-        </button>
         <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-2" style="min-width: 220px;">
             <li>
                 <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('movimientos.create') }}">
@@ -253,30 +252,60 @@
     </div>
 </div>
 
-<!-- ==================== SCRIPTS ==================== -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Cerrar el dropdown al hacer clic fuera
-        document.addEventListener('click', function(e) {
-            const dropdown = document.querySelector('.dropdown');
-            const btn = document.getElementById('floatingActionBtn');
-            if (dropdown && btn) {
-                if (!dropdown.contains(e.target)) {
-                    const menu = dropdown.querySelector('.dropdown-menu');
-                    if (menu) {
-                        const bsDropdown = bootstrap.Dropdown.getInstance(btn);
-                        if (bsDropdown) {
-                            bsDropdown.hide();
-                        }
-                    }
-                }
+        // 1. Toggle Sidebar
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+
+        if (sidebarToggle && sidebar) {
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+
+        // 2. Control de Tema Oscuro / Claro
+        const htmlElement = document.getElementById('htmlElement');
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+
+        if (!themeToggleBtn || !htmlElement) return;
+
+        const getPreferredTheme = () => {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                return storedTheme;
             }
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        };
+
+        const setTheme = (theme) => {
+            htmlElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('theme', theme);
+
+            if (theme === 'dark') {
+                themeIcon.className = 'bi bi-sun-fill';
+                themeToggleBtn.classList.remove('btn-outline-secondary');
+                themeToggleBtn.classList.add('btn-outline-warning', 'text-warning');
+            } else {
+                themeIcon.className = 'bi bi-moon-stars-fill';
+                themeToggleBtn.classList.remove('btn-outline-warning', 'text-warning');
+                themeToggleBtn.classList.add('btn-outline-secondary');
+            }
+        };
+
+        // Cargar tema inicial
+        setTheme(getPreferredTheme());
+
+        // Evento Click
+        themeToggleBtn.addEventListener('click', () => {
+            const currentTheme = htmlElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
         });
     });
 </script>
-
-<!-- Bootstrap JS (asegúrate de que esté cargado) -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>

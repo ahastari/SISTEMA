@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" id="htmlElement" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
     <title>{{ $titulo }}</title>
