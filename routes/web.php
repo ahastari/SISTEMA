@@ -93,6 +93,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/puntoventa/movimiento', [PuntoVentaController::class, 'movimiento'])->name('puntoventa.movimiento');
     Route::get('/puntoventa/estado-caja', [PuntoVentaController::class, 'getEstadoCaja'])->name('puntoventa.estadoCaja');
+
+    Route::get('/puntoventa/historial', [PuntoVentaController::class, 'historial'])->name('puntoventa.historial');
+    Route::post('/puntoventa/cancelar/{id}', [PuntoVentaController::class, 'cancelar'])->name('puntoventa.cancelar');
 });
 
 Route::prefix('configuracion')->middleware('auth')->group(function () {

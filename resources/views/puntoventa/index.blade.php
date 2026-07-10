@@ -133,6 +133,13 @@
         border: 1px solid rgba(220, 53, 69, 0.25);
     }
 
+    #configDropdown::after {
+        display: none !important;
+    }
+    #configDropdown * {
+        pointer-events: none;
+    }
+
     /* Responsive */
     @media (max-width: 991.98px) {
         .pos-layout {
@@ -209,10 +216,16 @@
         @endif
 
         <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 shadow-sm" type="button" id="configDropdown" data-bs-toggle="dropdown">
+            <button class="btn btn-outline-secondary btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center dropdown-toggle" 
+                    type="button" 
+                    id="configDropdown" 
+                    data-bs-toggle="dropdown" 
+                    aria-expanded="false"
+                    style="width: 34px; height: 34px;">
                 <i class="bi bi-three-dots-vertical fs-6"></i>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+            <ul class="dropdown-menu dropdown-menu-end shadow border border-translucent mt-2" aria-labelledby="configDropdown">
+                <li><a class="dropdown-item py-2" href="{{ route('puntoventa.historial') }}"><i class="bi bi-clock-history me-2 text-secondary"></i> Historial de Ventas (Día)</a></li>
                 <li><a class="dropdown-item py-2" href="{{ route('puntoventa.cortes') }}"><i class="bi bi-cash-stack me-2 text-secondary"></i> Historial de Cortes</a></li>
                 <li><a class="dropdown-item py-2" href="{{ route('puntoventa.reportes') }}"><i class="bi bi-graph-up-arrow me-2 text-secondary"></i> Dashboard e Informes</a></li>
                 <li><hr class="dropdown-divider"></li>
@@ -254,7 +267,6 @@
             <div class="pos-products-scroll">
                 <div class="row g-2" id="listaProductos">
                     @foreach($productos as $producto)
-                        {{-- CORRECCIÓN 3: Filtrar en Blade para mostrar solo operaciones de venta o ambas --}}
                         @if(in_array($producto->tipo_operacion, ['venta', 'ambas']))
                         <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6">
                             <div class="product-card" onclick="agregarProducto({{ $producto->id }})">
@@ -410,68 +422,84 @@
     </div>
 </div>
 
-<div class="modal fade" id="modalCerrarCaja" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalCerrarCaja" tabindex="-1" aria-labelledby="modalCerrarCajaLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
-            <div class="modal-header bg-danger text-white py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-lock-fill me-1"></i> Arqueo y Cierre de Turno</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <div class="modal-content border-0 shadow-lg rounded-4" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-danger text-white border-0 py-2.5">
+                <h6 class="modal-title fw-bold" id="modalCerrarCajaLabel"><i class="bi bi-lock-fill me-2"></i> Arqueo y Cierre de Turno</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('puntoventa.cerrarCaja') }}" method="POST">
                 @csrf
-                <div class="modal-body p-3">
+                <div class="modal-body p-3 p-sm-4 bg-body-tertiary">
                     @if($corteActivo)
-                        <div class="card border mb-3" style="background: var(--bs-tertiary-bg); border-color: var(--bs-border-color) !important;">
-                            <div class="card-body p-3 small">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="text-secondary fw-semibold">Fondo de Apertura:</span>
+                        <div class="card border shadow-sm mb-3 rounded-3" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-secondary small fw-bold text-uppercase" style="font-size: 11px;">Fondo de Apertura:</span>
                                     <span class="fw-bold text-body">$<span id="m-inicial">{{ number_format($corteActivo->monto_inicial, 2) }}</span></span>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center border-top pt-2">
-                                    <span class="text-secondary fw-semibold">Total Ventas Brutas:</span>
-                                    <span class="fw-bold text-primary fs-6">$<span id="m-ventas-total">{{ number_format($corteActivo->total_ventas, 2) }}</span></span>
+                                    <span class="text-secondary small fw-bold text-uppercase" style="font-size: 11px;">Total Ventas Brutas:</span>
+                                    <span class="fw-bold text-primary fs-5">$<span id="m-ventas-total">{{ number_format($corteActivo->total_ventas, 2) }}</span></span>
                                 </div>
                             </div>
                         </div>
 
-                        <h6 class="text-secondary small fw-bold mb-2 text-uppercase tracking-wider" style="font-size: 11px;">Ventas por Método</h6>
-                        <div class="list-group mb-3 text-body" style="font-size: 12px;">
-                            <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-0 p-1">
+                        <h6 class="text-secondary small fw-bold mb-2 text-uppercase tracking-wider" style="font-size: 11px;">Ventas por Método de Pago</h6>
+                        <div class="list-group shadow-sm mb-3 rounded-3" style="border: 1px solid var(--bs-border-color);">
+                            <div class="list-group-item d-flex justify-content-between align-items-center bg-body text-body border-0">
                                 <div><i class="bi bi-cash text-success me-2"></i> Efectivo</div>
                                 <span class="fw-bold" id="m-v-efectivo">${{ number_format($corteActivo->total_efectivo, 2) }}</span>
                             </div>
-                            <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-0 p-1">
+                            <div class="list-group-item d-flex justify-content-between align-items-center bg-body text-body border-0 border-top" style="border-color: var(--bs-border-color) !important;">
                                 <div><i class="bi bi-arrow-right-short text-info me-2"></i> Transferencias</div>
                                 <span class="fw-bold" id="m-v-transferencia">${{ number_format($corteActivo->total_transferencias, 2) }}</span>
                             </div>
-                            <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-0 p-1">
+                            <div class="list-group-item d-flex justify-content-between align-items-center bg-body text-body border-0 border-top" style="border-color: var(--bs-border-color) !important;">
                                 <div><i class="bi bi-credit-card text-primary me-2"></i> Tarjetas</div>
                                 <span class="fw-bold" id="m-v-tarjeta">${{ number_format($corteActivo->total_tarjetas, 2) }}</span>
                             </div>
                         </div>
 
-                        <div class="p-2 rounded-3 bg-dark text-white text-center mb-3 shadow-sm">
-                            <span class="text-white-50 small text-uppercase d-block mb-1" style="font-size: 10px;">Efectivo Esperado en Caja</span>
+                        <h6 class="text-secondary small fw-bold mb-2 text-uppercase tracking-wider" style="font-size: 11px;">Movimientos de Efectivo</h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <div class="p-2 border rounded shadow-sm text-center bg-body" style="border-color: var(--bs-border-color) !important;">
+                                    <small class="text-secondary d-block text-uppercase fw-semibold" style="font-size: 10px;">Ingresos (+)</small>
+                                    <span class="fw-bold text-success" id="m-mov-ingresos" style="font-size: 13px;">${{ number_format($corteActivo->movimientos->where('tipo', 'ingreso')->where('metodo', 'efectivo')->sum('monto'), 2) }}</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2 border rounded shadow-sm text-center bg-body" style="border-color: var(--bs-border-color) !important;">
+                                    <small class="text-secondary d-block text-uppercase fw-semibold" style="font-size: 10px;">Egresos (-)</small>
+                                    <span class="fw-bold text-danger" id="m-mov-egresos" style="font-size: 13px;">${{ number_format($corteActivo->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto'), 2) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded-3 text-center mb-3 shadow-sm bg-dark">
+                            <span class="text-white-50 small text-uppercase d-block mb-1" style="font-size: 10px; letter-spacing: 0.3px;">Efectivo Esperado en Caja Físico</span>
                             @php
                                 $ingresosEfe = $corteActivo->movimientos->where('tipo', 'ingreso')->where('metodo', 'efectivo')->sum('monto');
                                 $egresosEfe = $corteActivo->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
                                 $efeEsperado = $corteActivo->monto_inicial + $corteActivo->total_efectivo + $ingresosEfe - $egresosEfe;
                             @endphp
-                            <h4 class="fw-bold mb-0 text-warning">$<span id="m-total-esperado">{{ number_format($efeEsperado, 2) }}</span></h4>
+                            <h3 class="fw-bold mb-0 text-warning font-monospace">$<span id="m-total-esperado">{{ number_format($efeEsperado, 2) }}</span></h3>
                         </div>
 
                         <div class="mb-2">
-                            <label class="form-label small fw-semibold text-body">Efectivo Real Contado por Cajero <span class="text-danger">*</span></label>
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-body-tertiary text-secondary fw-bold">$</span>
-                                <input type="number" name="monto_final" class="form-control bg-body text-success fw-bold fs-6" step="0.01" min="0" placeholder="0.00" required>
+                            <label class="form-label small fw-bold text-body mb-1">Efectivo Real Contado por Cajero <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm shadow-sm">
+                                <span class="input-group-text bg-body-tertiary border-end-0 fw-bold text-secondary">$</span>
+                                <input type="number" name="monto_final" class="form-control bg-body text-success fw-bold fs-6 border-start-0" step="0.01" min="0" placeholder="0.00" required>
                             </div>
                         </div>
                     @endif
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-danger fw-bold">Confirmar y Cerrar</button>
+                <div class="modal-footer border-0 p-3 bg-body">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3 rounded-3 fw-semibold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-danger px-4 fw-bold rounded-3">Confirmar y Cerrar Caja</button>
                 </div>
             </form>
         </div>
@@ -566,7 +594,7 @@ function agregarProducto(id) {
             nombre: producto.nombre,
             codigo: producto.codigo,
             precio: producto.precio_venta || producto.precio_dia,
-            cantidad: 1, // Corregido: antes decía "catidad"
+            cantidad: 1, 
             stock: producto.stock
         });
     }
@@ -620,13 +648,11 @@ function renderizarCarrito() {
         html += `
             <div class="cart-item">
                 <div style="max-width: 60%;" class="text-truncate">
-                    {{-- CORRECCIÓN 2: Se agregó la impresión del código interno justo al lado del nombre --}}
                     <div class="fw-bold text-body small text-truncate">
                         <span class="badge bg-secondary font-monospace p-1 me-1" style="font-size: 9px;">${item.codigo}</span> ${item.nombre}
                     </div>
                     <small class="text-secondary">$${parseFloat(item.precio).toFixed(2)} c/u</small>
                 </div>
-                {{-- CORRECCIÓN 1: Se cambiaron las clases "btn-light border" por variantes de delineado explícito de Bootstrap --}}
                 <div class="cart-item-qty-actions">
                     <button class="btn btn-sm btn-outline-secondary p-1 py-0 rounded text-body fw-bold" onclick="actualizarCantidad(${item.id}, ${item.cantidad - 1})">-</button>
                     <span class="text-body">${item.cantidad}</span>
@@ -732,11 +758,12 @@ function realizarVenta() {
         }
     }
 
+    // CORRECCIÓN: Forzamos el parseo booleano a entero limpio (1 o 0) para que pase sin problemas la validación de Laravel
     const data = {
         items: carrito.map(i => ({ id: i.id, cantidad: i.cantidad })),
         metodo_pago: metodoPago,
         cliente_id: clienteId || null,
-        requiere_factura: requiereFactura,
+        requiere_factura: requiereFactura ? 1 : 0, 
         rfc_cliente: requiereFactura ? rfcCliente : null
     };
 
@@ -752,9 +779,13 @@ function realizarVenta() {
         },
         body: JSON.stringify(data)
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Error en el servidor');
-        return response.json();
+    .then(async response => {
+        // CORRECCIÓN UX AUDITORÍA: Si el backend responde con un error de validación (422, 500, etc.), leemos el mensaje detallado en lugar de romper el flujo
+        const responseData = await response.json();
+        if (!response.ok) {
+            throw new Error(responseData.message || 'Error detectado en el servidor al validar la venta.');
+        }
+        return responseData;
     })
     .then(data => {
         if (data.success) {
@@ -780,7 +811,11 @@ function realizarVenta() {
             
             const elModal = document.getElementById('modalTicket');
             if (elModal) {
-                const modalTicket = new bootstrap.Modal(elModal);
+                // Intentar obtener una instancia ya existente o crear una nueva de forma segura
+                let modalTicket = bootstrap.Modal.getInstance(elModal);
+                if (!modalTicket) {
+                    modalTicket = new bootstrap.Modal(elModal);
+                }
                 modalTicket.show();
             }
 
@@ -796,7 +831,8 @@ function realizarVenta() {
         }
     })
     .catch(error => {
-        alert('Error al procesar la venta.');
+        // Ahora el alert te imprimirá el mensaje de excepción real arrojado por la BD o el validador
+        alert('Fallo en la operación: ' + error.message);
         console.error('Error:', error);
     })
     .finally(() => {

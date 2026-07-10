@@ -6,9 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class DetalleVenta extends Model
 {
-    protected $table = 'detalles_venta'; // O el nombre que tenga tu tabla de detalles
+    // ✅ CORRECCIÓN: Forzar el uso del plural correcto de tu tabla en MySQL
+    protected $table = 'detalle_ventas'; 
 
-    // Agrega este bloque para permitir el registro masivo de los campos
+    // Permite el registro masivo de los campos desde el PuntoVentaController
     protected $fillable = [
         'venta_id',
         'equipo_id',
@@ -17,7 +18,7 @@ class DetalleVenta extends Model
         'subtotal'
     ];
 
-    // Relación con la venta (Opcional, por si no la tenías agregada)
+    // Relación con la venta
     public function venta()
     {
         return $this->belongsTo(Venta::class);
@@ -26,6 +27,6 @@ class DetalleVenta extends Model
     // Relación con el equipo/producto
     public function equipo()
     {
-        return $this->belongsTo(Equipo::class);
+        return $this->belongsTo(Equipo::class, 'equipo_id');
     }
 }

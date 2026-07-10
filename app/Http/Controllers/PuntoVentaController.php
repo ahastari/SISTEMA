@@ -16,8 +16,10 @@ class PuntoVentaController extends Controller
 {
     public function index()
     {
+        // Precargar los movimientos del corte activo para que Blade pueda sumarlos en los modales sin mandar colecciones vacías
         $corteActivo = CorteCaja::where('estado', 'abierto')
             ->where('user_id', auth()->id())
+            ->with('movimientos')
             ->first();
 
         $productos = Equipo::where('activo', true)
@@ -62,14 +64,13 @@ class PuntoVentaController extends Controller
             'metodo_pago' => 'required|in:efectivo,transferencia,tarjeta,mixto',
             'cliente_id' => 'nullable|exists:clientes,id',
             'cliente_nombre' => 'nullable|string|max:255',
-            'requiere_factura' => 'nullable|boolean',
+            'requiere_factura' => 'nullable', // Flexibilizado para asimilar parseos de JS
             'rfc_cliente' => 'nullable|string|max:20',
         ]);
 
         try {
             DB::beginTransaction();
 
-            // Verificar caja abierta
             $corteActivo = CorteCaja::where('estado', 'abierto')
                 ->where('user_id', auth()->id())
                 ->first();
@@ -103,7 +104,8 @@ class PuntoVentaController extends Controller
                 $equipo->save();
             }
 
-            $requiereFactura = $request->has('requiere_factura') && $request->requiere_factura;
+            // CORRECCIÓN: Conversión limpia y segura del booleano/entero enviado por JSON
+            $requiereFactura = filter_var($request->requiere_factura, FILTER_VALIDATE_BOOLEAN);
             $iva = $requiereFactura ? $subtotal * 0.16 : 0;
             $total = $subtotal + $iva;
 
@@ -127,10 +129,8 @@ class PuntoVentaController extends Controller
                 DetalleVenta::create($item);
             }
 
-            // Actualizar totales del corte
             $corteActivo->total_ventas += $total;
             
-            // Actualizar por método de pago
             if ($request->metodo_pago == 'efectivo') {
                 $corteActivo->total_efectivo += $total;
             } elseif ($request->metodo_pago == 'transferencia') {
@@ -164,7 +164,65 @@ class PuntoVentaController extends Controller
         return view('puntoventa.ticket', compact('venta'));
     }
 
-    // ============ CORTES DE CAJA ============
+    public function historial(Request $request)
+    {
+        // 1. Capturar la fecha elegida por el usuario o tomar la fecha actual por defecto
+        $fechaFiltro = $request->get('fecha', date('Y-m-d'));
+
+        // 2. Consultar las ventas cargando relaciones, filtrando por la fecha seleccionada
+        $ventas = Venta::with(['cliente', 'detalles.equipo'])
+            ->whereDate('created_at', $fechaFiltro)
+            ->latest()
+            ->get();
+
+        return view('puntoventa.historial', compact('ventas', 'fechaFiltro'));
+    }
+
+    public function cancelar($id)
+    {
+        try {
+            DB::beginTransaction();
+
+            $venta = Venta::with('detalles')->findOrFail($id);
+
+            if ($venta->estado === 'cancelada') {
+                return back()->with('error', 'Esta transacción comercial ya fue cancelada con anterioridad.');
+            }
+
+            foreach ($venta->detalles as $detalle) {
+                $producto = Equipo::find($detalle->equipo_id);
+                if ($producto) {
+                    $producto->increment('stock', $detalle->cantidad);
+                }
+            }
+
+            $corteActivo = CorteCaja::where('estado', 'abierto')
+                ->where('user_id', auth()->id())
+                ->first();
+
+            if ($corteActivo && $venta->corte_caja_id === $corteActivo->id) {
+                $corteActivo->decrement('total_ventas', $venta->total);
+
+                if ($venta->metodo_pago === 'efectivo') {
+                    $corteActivo->decrement('total_efectivo', $venta->total);
+                } elseif ($venta->metodo_pago === 'transferencia') {
+                    $corteActivo->decrement('total_transferencias', $venta->total);
+                } elseif ($venta->metodo_pago === 'tarjeta') {
+                    $corteActivo->decrement('total_tarjetas', $venta->total);
+                }
+                $corteActivo->save();
+            }
+
+            $venta->update(['estado' => 'cancelada']);
+
+            DB::commit();
+            return back()->with('success', "Venta con Folio {$venta->folio} revocada con éxito. El inventario fue restaurado.");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error técnico al procesar cancelación: ' . $e->getMessage());
+        }
+    }
 
     public function cortes()
     {
@@ -206,7 +264,7 @@ class PuntoVentaController extends Controller
     {
         $corte = CorteCaja::where('estado', 'abierto')
             ->where('user_id', auth()->id())
-            ->with('movimientos') // Cargar movimientos de caja
+            ->with('movimientos') 
             ->first();
 
         if (!$corte) {
@@ -217,14 +275,11 @@ class PuntoVentaController extends Controller
             'monto_final' => 'required|numeric|min:0'
         ]);
 
-        // Sumar ingresos y egresos que fueron EXCLUSIVAMENTE en efectivo
         $ingresosEfectivo = $corte->movimientos->where('tipo', 'ingreso')->where('metodo', 'efectivo')->sum('monto');
         $egresosEfectivo = $corte->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
 
-        // Calcular cuánto dinero FÍSICO debe haber en el cajón
+        // CORRECCIÓN: Nombre de variable corregido de $egresosEfe a $egresosEfectivo para emparejar la resta
         $efectivoEsperado = $corte->monto_inicial + $corte->total_efectivo + $ingresosEfectivo - $egresosEfectivo;
-
-        // La diferencia es lo que el cajero contó vs lo que el sistema espera
         $diferencia = $request->monto_final - $efectivoEsperado;
 
         $corte->update([
@@ -260,8 +315,6 @@ class PuntoVentaController extends Controller
         ]);
     }
 
-    // ============ MOVIMIENTOS DE CAJA ============
-
     public function movimiento(Request $request)
     {
         $request->validate([
@@ -290,23 +343,19 @@ class PuntoVentaController extends Controller
         return back()->with('success', 'Movimiento registrado exitosamente');
     }
 
-    // ============ REPORTES ============
-
     public function reportes()
     {
-        // 1. OBTENER EL TOP REAL DE PRODUCTOS MÁS VENDIDOS DESDE LA BD
-        $topProductosData = DB::table('detalles_venta')
-            ->join('equipos', 'detalles_venta.equipo_id', '=', 'equipos.id')
-            ->select('equipos.nombre', DB::raw('SUM(detalles_venta.cantidad) as total_vendido'))
+        $topProductosData = DB::table('detalle_ventas')
+            ->join('equipos', 'detalle_ventas.equipo_id', '=', 'equipos.id')
+            ->select('equipos.nombre', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido'))
             ->groupBy('equipos.id', 'equipos.nombre')
             ->orderBy('total_vendido', 'desc')
-            ->take(6) // Tomamos los 6 productos más demandados
+            ->take(6) 
             ->get();
 
         $topProductosNombres = $topProductosData->pluck('nombre')->toArray();
         $topProductosCantidades = $topProductosData->pluck('total_vendido')->toArray();
 
-        // 2. GRÁFICA DEL DÍA: Ventas agrupadas por hora del día de hoy
         $ventasHoyData = Venta::where('estado', 'completada')
             ->whereDate('created_at', now())
             ->select(DB::raw('HOUR(created_at) as hora'), DB::raw('SUM(total) as total_monto'))
@@ -316,13 +365,12 @@ class PuntoVentaController extends Controller
 
         $horasDia = [];
         $montosDia = [];
-        for ($i = 7; $i <= 20; $i++) { // Rango estándar de tienda (7 AM a 8 PM)
+        for ($i = 7; $i <= 20; $i++) { 
             $horasDia[] = str_pad($i, 2, '0', STR_PAD_LEFT) . ':00';
             $registro = $ventasHoyData->firstWhere('hora', $i);
             $montosDia[] = $registro ? (float)$registro->total_monto : 0;
         }
 
-        // 3. GRÁFICA DEL MES: Ventas agrupadas por los meses del año actual
         $ventasMesData = Venta::where('estado', 'completada')
             ->whereYear('created_at', date('Y'))
             ->select(DB::raw('MONTH(created_at) as mes'), DB::raw('SUM(total) as total_monto'))
@@ -358,7 +406,6 @@ class PuntoVentaController extends Controller
         $inicio = \Carbon\Carbon::parse($request->fecha_inicio)->startOfDay();
         $fin = \Carbon\Carbon::parse($request->fecha_fin)->endOfDay();
 
-        // Obtener ventas del rango seleccionado con relaciones de equipos
         $ventas = Venta::with(['detalles.equipo', 'cliente'])
             ->where('estado', 'completada')
             ->whereBetween('created_at', [$inicio, $fin])
@@ -368,19 +415,15 @@ class PuntoVentaController extends Controller
         $totalItems = $ventas->sum(function($v) { return $v->detalles->sum('cantidad'); });
         $promedioVenta = $ventas->count() > 0 ? $totalVentas / $ventas->count() : 0;
 
-        // Cálculo Avanzado: Costos vs Ganancias (Margen operativo)
         $totalCostos = 0;
         foreach ($ventas as $venta) {
             foreach ($venta->detalles as $detalle) {
-                // Si manejas costo en tu tabla 'equipos' (ej. precio_compra), úsalo aquí. 
-                // De lo contrario, simulamos un costo base estimado del 60% para el reporte financiero.
                 $precioCompra = $detalle->equipo->precio_compra ?? ($detalle->precio_unitario * 0.60);
                 $totalCostos += $precioCompra * $detalle->cantidad;
             }
         }
         $gananciaNeta = $totalVentas - $totalCostos;
 
-        // Distribución por método de pago
         $pagosPorMetodo = [
             'efectivo' => $ventas->where('metodo_pago', 'efectivo')->sum('total'),
             'transferencia' => $ventas->where('metodo_pago', 'transferencia')->sum('total'),
@@ -388,7 +431,6 @@ class PuntoVentaController extends Controller
             'mixto' => $ventas->where('metodo_pago', 'mixto')->sum('total'),
         ];
 
-        // Mapeo exhaustivo del Top 10 Productos Más Vendidos
         $topProductos = [];
         foreach ($ventas as $venta) {
             foreach ($venta->detalles as $detalle) {
@@ -400,7 +442,7 @@ class PuntoVentaController extends Controller
             }
         }
         arsort($topProductos);
-        $topProductos = array_slice($topProductos, 0, 7); // Reducido a 7 para el balance visual del gráfico
+        $topProductos = array_slice($topProductos, 0, 7); 
 
         $titulo = "Informe Ejecutivo Financiero (" . $inicio->format('d/m/Y') . " - " . $fin->format('d/m/Y') . ")";
 
