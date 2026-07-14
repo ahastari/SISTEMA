@@ -95,16 +95,22 @@
 </style>
 
 <!-- Header Responsive -->
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <div>
-        <h3 class="mb-0 fw-bold text-body">
-            <i class="bi bi-journal-bookmark-fill me-2 text-primary"></i>Rentas
-        </h3>
-        <p class="text-secondary small mb-0">Gestión e historial de contratos de renta</p>
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <h2><i class="bi bi-card-list me-2"></i>Historial de Rentas</h2>
+    
+    <div class="d-flex gap-2">
+        @if(auth()->user()->isAdmin() || auth()->user()->isGerente())
+            @if(session('activo_sucursal_id') !== 'global')
+                <button type="button" class="btn btn-warning text-dark" data-bs-toggle="modal" data-bs-target="#modalFijarMulta">
+                    <i class="bi bi-cash-coin me-1"></i> Fijar Costo de Multa
+                </button>
+            @endif
+        @endif
+        
+        <a href="{{ route('rentas.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Nueva Renta
+        </a>
     </div>
-    <a href="{{ route('rentas.create') }}" class="btn btn-primary rounded-3 px-3 py-2 fw-semibold">
-        <i class="bi bi-plus-circle me-1"></i> Nueva Renta
-    </a>
 </div>
 
 <!-- Alertas -->
@@ -251,10 +257,14 @@
                     </span>
                     
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary border-0 rounded-circle p-2" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-sm btn-outline-secondary border-0 rounded-circle p-2" 
+                                type="button" 
+                                id="dropdownRenta{{ $renta->id }}" 
+                                data-bs-toggle="dropdown" 
+                                aria-expanded="false">
                             <i class="bi bi-three-dots-vertical fs-6"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="dropdownRenta{{ $renta->id }}">
                             <li>
                                 <a class="dropdown-item py-2" href="{{ route('rentas.show', $renta) }}">
                                     <i class="bi bi-eye me-2 text-primary"></i> Ver contrato
@@ -352,4 +362,47 @@ document.getElementById('buscarInput').addEventListener('keyup', filtrarRentas);
 document.getElementById('estadoSelect').addEventListener('change', filtrarRentas);
 document.getElementById('fechaFilter').addEventListener('change', filtrarRentas);
 </script>
+
+<!-- 🔒 MODAL: Fijar Tarifa de Multa (Solo Admin/Gerente) -->
+@if(auth()->user()->isAdmin() || auth()->user()->isGerente())
+<div class="modal fade" id="modalFijarMulta" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-warning text-dark py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-1"></i> Fijar Tarifa por Retraso</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('rentas.actualizarMulta') }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">
+                        Define el costo que se cobrará automáticamente al cliente <strong>por cada día</strong> que se atrase en la entrega del equipo en esta sucursal.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-body">Costo diario de penalización ($)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-body text-secondary">$</span>
+                            <input type="number" 
+                                    name="penalizacion_diaria" 
+                                    class="form-control bg-body" 
+                                    step="0.01" 
+                                    min="0" 
+                                    value="{{ $tarifaMulta ?? 0 }}" 
+                                    required 
+                                    onfocus="if(this.value == 0) this.value = '';" 
+                                    onblur="if(this.value == '') this.value = 0;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
+                        <i class="bi bi-save me-1"></i> Guardar Tarifa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 @endsection

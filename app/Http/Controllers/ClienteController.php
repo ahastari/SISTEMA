@@ -8,29 +8,35 @@ use Illuminate\Support\Facades\Storage;
 
 class ClienteController extends Controller
 {
-    /**
-     * Mostrar lista de clientes
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $clientes = Cliente::latest()->paginate(10);
+        $sucursalId = session('activo_sucursal_id');
+        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
+
+        $query = Cliente::latest();
+
+        if (!$isGlobalAdmin) {
+            $query->where('sucursal_id', $sucursalId);
+        }
+
+        // Búsqueda que ya tenías en la vista
+        if ($request->has('search') && $request->search) {
+            $query->where('nombre_completo', 'like', '%' . $request->search . '%')
+                  ->orWhere('rfc', 'like', '%' . $request->search . '%')
+                  ->orWhere('empresa', 'like', '%' . $request->search . '%');
+        }
+
+        $clientes = $query->paginate(10);
         return view('clientes.index', compact('clientes'));
     }
 
-    /**
-     * Mostrar formulario para crear cliente
-     */
     public function create()
     {
         return view('clientes.create');
     }
 
-    /**
-     * Guardar nuevo cliente
-     */
     public function store(Request $request)
     {
-        // Validar datos
         $validated = $request->validate([
             'nombre_completo' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
@@ -50,40 +56,30 @@ class ClienteController extends Controller
             'observaciones' => 'nullable|string',
         ]);
 
-        // Crear cliente
+        $sucursalId = session('activo_sucursal_id');
+        $sucursalIdGuardar = ($sucursalId && $sucursalId !== 'global') ? $sucursalId : null;
+
         $cliente = new Cliente();
         $cliente->fill($validated);
+        $cliente->sucursal_id = $sucursalIdGuardar; // 🔒 Asignar a la sucursal activa
 
-        // Subir archivo INE si existe
         if ($request->hasFile('ine_documento')) {
-            $path = $request->file('ine_documento')->store('clientes/ine', 'public');
-            $cliente->ine_documento = $path;
+            $cliente->ine_documento = $request->file('ine_documento')->store('clientes/ine', 'public');
         }
-
-        // Subir contrato firmado si existe
         if ($request->hasFile('contrato_firmado')) {
-            $path = $request->file('contrato_firmado')->store('clientes/contratos', 'public');
-            $cliente->contrato_firmado = $path;
+            $cliente->contrato_firmado = $request->file('contrato_firmado')->store('clientes/contratos', 'public');
         }
-
-        // Subir comprobante de depósito si existe
         if ($request->hasFile('comprobante_deposito')) {
-            $path = $request->file('comprobante_deposito')->store('clientes/comprobantes', 'public');
-            $cliente->comprobante_deposito = $path;
+            $cliente->comprobante_deposito = $request->file('comprobante_deposito')->store('clientes/comprobantes', 'public');
         }
 
         $cliente->save();
 
-        return redirect()->route('clientes.index')
-            ->with('success', 'Cliente creado exitosamente');
+        return redirect()->route('clientes.index')->with('success', 'Cliente creado exitosamente');
     }
 
-    /**
-     * Mostrar un cliente específico
-     */
     public function show(Cliente $cliente)
     {
-        // Cargar rentas y obras relacionadas
         $cliente->load([
             'rentas' => function($query) {
                 $query->latest()->with('detalles.equipo');
@@ -91,29 +87,19 @@ class ClienteController extends Controller
             'obras'
         ]);
         
-        // Rentas activas
         $rentasActivas = $cliente->rentas->where('estado', 'activa');
-        
-        // Rentas finalizadas
         $rentasFinalizadas = $cliente->rentas->where('estado', 'finalizada');
         
         return view('clientes.show', compact('cliente', 'rentasActivas', 'rentasFinalizadas'));
     }
 
-    /**
-     * Mostrar formulario para editar cliente
-     */
     public function edit(Cliente $cliente)
     {
         return view('clientes.edit', compact('cliente'));
     }
 
-    /**
-     * Actualizar cliente
-     */
     public function update(Request $request, Cliente $cliente)
     {
-        // Validar datos
         $validated = $request->validate([
             'nombre_completo' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
@@ -133,61 +119,34 @@ class ClienteController extends Controller
             'observaciones' => 'nullable|string',
         ]);
 
-        // Actualizar datos básicos
         $cliente->fill($validated);
 
-        // Subir nuevo archivo INE si existe (y eliminar el anterior)
         if ($request->hasFile('ine_documento')) {
-            if ($cliente->ine_documento && Storage::disk('public')->exists($cliente->ine_documento)) {
-                Storage::disk('public')->delete($cliente->ine_documento);
-            }
-            $path = $request->file('ine_documento')->store('clientes/ine', 'public');
-            $cliente->ine_documento = $path;
+            if ($cliente->ine_documento && Storage::disk('public')->exists($cliente->ine_documento)) Storage::disk('public')->delete($cliente->ine_documento);
+            $cliente->ine_documento = $request->file('ine_documento')->store('clientes/ine', 'public');
         }
-
-        // Subir nuevo contrato si existe
         if ($request->hasFile('contrato_firmado')) {
-            if ($cliente->contrato_firmado && Storage::disk('public')->exists($cliente->contrato_firmado)) {
-                Storage::disk('public')->delete($cliente->contrato_firmado);
-            }
-            $path = $request->file('contrato_firmado')->store('clientes/contratos', 'public');
-            $cliente->contrato_firmado = $path;
+            if ($cliente->contrato_firmado && Storage::disk('public')->exists($cliente->contrato_firmado)) Storage::disk('public')->delete($cliente->contrato_firmado);
+            $cliente->contrato_firmado = $request->file('contrato_firmado')->store('clientes/contratos', 'public');
         }
-
-        // Subir nuevo comprobante si existe
         if ($request->hasFile('comprobante_deposito')) {
-            if ($cliente->comprobante_deposito && Storage::disk('public')->exists($cliente->comprobante_deposito)) {
-                Storage::disk('public')->delete($cliente->comprobante_deposito);
-            }
-            $path = $request->file('comprobante_deposito')->store('clientes/comprobantes', 'public');
-            $cliente->comprobante_deposito = $path;
+            if ($cliente->comprobante_deposito && Storage::disk('public')->exists($cliente->comprobante_deposito)) Storage::disk('public')->delete($cliente->comprobante_deposito);
+            $cliente->comprobante_deposito = $request->file('comprobante_deposito')->store('clientes/comprobantes', 'public');
         }
 
         $cliente->save();
 
-        return redirect()->route('clientes.show', $cliente)
-            ->with('success', 'Cliente actualizado exitosamente');
+        return redirect()->route('clientes.show', $cliente)->with('success', 'Cliente actualizado exitosamente');
     }
 
-    /**
-     * Eliminar cliente
-     */
     public function destroy(Cliente $cliente)
     {
-        // Eliminar archivos asociados
-        if ($cliente->ine_documento && Storage::disk('public')->exists($cliente->ine_documento)) {
-            Storage::disk('public')->delete($cliente->ine_documento);
-        }
-        if ($cliente->contrato_firmado && Storage::disk('public')->exists($cliente->contrato_firmado)) {
-            Storage::disk('public')->delete($cliente->contrato_firmado);
-        }
-        if ($cliente->comprobante_deposito && Storage::disk('public')->exists($cliente->comprobante_deposito)) {
-            Storage::disk('public')->delete($cliente->comprobante_deposito);
-        }
+        if ($cliente->ine_documento && Storage::disk('public')->exists($cliente->ine_documento)) Storage::disk('public')->delete($cliente->ine_documento);
+        if ($cliente->contrato_firmado && Storage::disk('public')->exists($cliente->contrato_firmado)) Storage::disk('public')->delete($cliente->contrato_firmado);
+        if ($cliente->comprobante_deposito && Storage::disk('public')->exists($cliente->comprobante_deposito)) Storage::disk('public')->delete($cliente->comprobante_deposito);
 
         $cliente->delete();
 
-        return redirect()->route('clientes.index')
-            ->with('success', 'Cliente eliminado exitosamente');
+        return redirect()->route('clientes.index')->with('success', 'Cliente eliminado exitosamente');
     }
 }

@@ -11,7 +11,7 @@
             <i class="bi bi-arrow-left me-1"></i> Volver
         </a>
         @if($movimiento->estado == 'completado')
-            <form action="{{ route('movimientos.cancelar', $movimiento) }}" method="POST" class="d-inline m-0">
+            <form action="{{ route('movimientos.procesarCancelacion', $movimiento) }}" method="POST" class="d-inline m-0">
                 @csrf
                 <button type="submit" class="btn btn-outline-danger btn-sm rounded-3" 
                         onclick="return confirm('¿Estás seguro de cancelar este movimiento? Se revertirá el stock.')">

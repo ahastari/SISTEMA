@@ -21,6 +21,47 @@
     .card-custom-header {
         border-bottom: 1px solid var(--bs-border-color);
     }
+    .factura-option {
+        border: 2px solid var(--bs-border-color);
+        border-radius: 10px;
+        padding: 12px 16px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        height: 100%;
+    }
+    .factura-option:hover {
+        border-color: #0d6efd;
+        background: rgba(13, 110, 253, 0.03);
+    }
+    .factura-option.selected {
+        border-color: #0d6efd;
+        background: rgba(13, 110, 253, 0.08);
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    }
+    .factura-option.selected .factura-icon {
+        color: #0d6efd;
+    }
+    .factura-option.selected .factura-label {
+        color: #0d6efd;
+        font-weight: 700;
+    }
+    .factura-icon {
+        font-size: 28px;
+        margin-bottom: 8px;
+        color: var(--bs-secondary-color);
+        transition: color 0.2s;
+    }
+    .factura-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--bs-body-color);
+        margin-bottom: 4px;
+    }
+    .factura-desc {
+        font-size: 11px;
+        color: var(--bs-secondary-color);
+    }
 </style>
 
 <!-- Header Responsive -->
@@ -111,6 +152,32 @@
                         <small class="text-secondary" style="font-size: 11px;">Se calcula día de salida y día de entrega</small>
                     </div>
                     
+                    <!-- 🔥 NUEVO: Selector de Facturación -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-body">¿Requiere Factura? <span class="text-danger">*</span></label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div class="factura-option selected" id="conFactura" onclick="seleccionarFacturacion(true)">
+                                    <div class="factura-icon">
+                                        <i class="bi bi-receipt"></i>
+                                    </div>
+                                    <div class="factura-label">Con Factura</div>
+                                    <div class="factura-desc">Se aplica IVA (16%)</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="factura-option" id="sinFactura" onclick="seleccionarFacturacion(false)">
+                                    <div class="factura-icon">
+                                        <i class="bi bi-cash-stack"></i>
+                                    </div>
+                                    <div class="factura-label">Sin Factura</div>
+                                    <div class="factura-desc">Sin IVA (Público general)</div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="requiere_factura" id="requiere_factura" value="1">
+                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-body">Depósito en Garantía</label>
                         <div class="input-group input-group-sm">
@@ -134,15 +201,15 @@
             <!-- Selección de Equipos -->
             <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
                 <div class="card-header bg-success text-white py-2 px-3 rounded-top-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-box-seam me-1"></i> Equipos a Rentar</h6>
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-box-seam me-1"></i> Productos a Rentar</h6>
                 </div>
                 <div class="card-body p-3">
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Agregar equipo</label>
+                        <label class="form-label small fw-semibold text-body">Agregar producto</label>
                         <div class="row g-2">
                             <div class="col-12 col-sm-7">
                                 <select class="form-select form-select-sm bg-body" id="selectEquipo">
-                                    <option value="">Seleccionar equipo...</option>
+                                    <option value="">Seleccionar producto...</option>
                                     @foreach($equipos as $equipo)
                                         <option value="{{ $equipo->id }}" data-precio="{{ $equipo->precio_dia }}" data-nombre="{{ $equipo->nombre }}" data-stock="{{ $equipo->stock }}">
                                             {{ $equipo->codigo }} - {{ $equipo->nombre }} (${{ number_format($equipo->precio_dia, 2) }}/día) - Stock: {{ $equipo->stock }}
@@ -163,7 +230,7 @@
                     
                     <div id="equiposLista" class="mt-2">
                         <div class="alert alert-info py-2 px-3 mb-0 small" id="listaVacia">
-                            <i class="bi bi-info-circle me-1"></i> No hay equipos agregados al contrato
+                            <i class="bi bi-info-circle me-1"></i> No hay productos agregados al contrato
                         </div>
                     </div>
                 </div>
@@ -181,7 +248,7 @@
                                 <th class="p-1 text-secondary">Subtotal:</th>
                                 <td class="p-1 text-end text-body"><strong id="res_subtotal">$0.00</strong></td>
                             </tr>
-                            <tr>
+                            <tr id="fila_iva">
                                 <th class="p-1 text-secondary">IVA (16%):</th>
                                 <td class="p-1 text-end text-body"><strong id="res_iva">$0.00</strong></td>
                             </tr>
@@ -212,6 +279,25 @@
 
 <script>
 let equipos = [];
+let requiereFactura = true; // 🔥 Por defecto: Con Factura
+
+// 🔥 NUEVO: Función para seleccionar tipo de facturación
+function seleccionarFacturacion(conFactura) {
+    requiereFactura = conFactura;
+    
+    // Actualizar UI
+    document.getElementById('conFactura').classList.toggle('selected', conFactura);
+    document.getElementById('sinFactura').classList.toggle('selected', !conFactura);
+    
+    // Actualizar campo hidden
+    document.getElementById('requiere_factura').value = conFactura ? '1' : '0';
+    
+    // Mostrar/ocultar fila de IVA
+    document.getElementById('fila_iva').style.display = conFactura ? '' : 'none';
+    
+    // Recalcular totales
+    actualizarResumen();
+}
 
 // Calcular días
 function calcularDias() {
@@ -229,7 +315,7 @@ function calcularDias() {
     return 0;
 }
 
-// Actualizar resumen
+// 🔥 MODIFICADO: Actualizar resumen con soporte de facturación
 function actualizarResumen() {
     const dias = calcularDias();
     let subtotal = 0;
@@ -238,7 +324,8 @@ function actualizarResumen() {
         subtotal += eq.precio * eq.cantidad * dias;
     });
     
-    const iva = subtotal * 0.16;
+    // Calcular IVA según si requiere factura
+    const iva = requiereFactura ? (subtotal * 0.16) : 0;
     const total = subtotal + iva;
     const deposito = parseFloat(document.getElementById('deposito').value) || 0;
     const saldo = total - deposito;
@@ -248,6 +335,9 @@ function actualizarResumen() {
     document.getElementById('res_total').innerHTML = '$' + total.toFixed(2);
     document.getElementById('res_deposito').innerHTML = '$' + deposito.toFixed(2);
     document.getElementById('res_saldo').innerHTML = '$' + saldo.toFixed(2);
+    
+    // Mostrar/ocultar fila de IVA
+    document.getElementById('fila_iva').style.display = requiereFactura ? '' : 'none';
     
     document.getElementById('btnGuardar').disabled = equipos.length === 0;
 }

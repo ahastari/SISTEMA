@@ -10,13 +10,30 @@ class ObraController extends Controller
 {
     public function index()
     {
-        $obras = Obra::with('cliente')->latest()->paginate(10);
+        $sucursalId = session('activo_sucursal_id');
+        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
+
+        $query = Obra::with('cliente')->latest();
+
+        if (!$isGlobalAdmin) {
+            $query->where('sucursal_id', $sucursalId);
+        }
+
+        $obras = $query->paginate(10);
         return view('obras.index', compact('obras'));
     }
 
     public function create()
     {
-        $clientes = Cliente::orderBy('nombre_completo')->get();
+        $sucursalId = session('activo_sucursal_id');
+        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
+
+        $clientesQuery = Cliente::orderBy('nombre_completo');
+        if (!$isGlobalAdmin) {
+            $clientesQuery->where('sucursal_id', $sucursalId);
+        }
+        $clientes = $clientesQuery->get();
+
         return view('obras.create', compact('clientes'));
     }
 
@@ -35,13 +52,15 @@ class ObraController extends Controller
             'observaciones' => 'nullable|string',
         ]);
 
-        // Convertir el valor 'on' a 1 o 0
+        $sucursalId = session('activo_sucursal_id');
+        $sucursalIdGuardar = ($sucursalId && $sucursalId !== 'global') ? $sucursalId : null;
         $activa = $request->has('activa') ? 1 : 0;
 
         Obra::create([
             'nombre' => $request->nombre,
             'direccion' => $request->direccion,
             'cliente_id' => $request->cliente_id,
+            'sucursal_id' => $sucursalIdGuardar,
             'colonia' => $request->colonia,
             'ciudad' => $request->ciudad,
             'estado' => $request->estado,
@@ -52,8 +71,7 @@ class ObraController extends Controller
             'activa' => $activa,
         ]);
 
-        return redirect()->route('obras.index')
-            ->with('success', 'Obra creada exitosamente');
+        return redirect()->route('obras.index')->with('success', 'Obra creada exitosamente');
     }
 
     public function show(Obra $obra)
@@ -64,7 +82,15 @@ class ObraController extends Controller
 
     public function edit(Obra $obra)
     {
-        $clientes = Cliente::orderBy('nombre_completo')->get();
+        $sucursalId = session('activo_sucursal_id');
+        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
+
+        $clientesQuery = Cliente::orderBy('nombre_completo');
+        if (!$isGlobalAdmin) {
+            $clientesQuery->where('sucursal_id', $sucursalId);
+        }
+        $clientes = $clientesQuery->get();
+
         return view('obras.edit', compact('obra', 'clientes'));
     }
 
@@ -76,7 +102,6 @@ class ObraController extends Controller
             'cliente_id' => 'required|exists:clientes,id',
         ]);
 
-        // Convertir el valor 'on' a 1 o 0
         $activa = $request->has('activa') ? 1 : 0;
 
         $obra->update([
@@ -93,21 +118,21 @@ class ObraController extends Controller
             'activa' => $activa,
         ]);
 
-        return redirect()->route('obras.show', $obra)
-            ->with('success', 'Obra actualizada exitosamente');
+        return redirect()->route('obras.show', $obra)->with('success', 'Obra actualizada exitosamente');
     }
 
     public function destroy(Obra $obra)
     {
         $obra->delete();
-        return redirect()->route('obras.index')
-            ->with('success', 'Obra eliminada');
+        return redirect()->route('obras.index')->with('success', 'Obra eliminada');
     }
 
-    // API para obtener obras por cliente (para usar en selects dinámicos)
     public function getObrasByCliente($clienteId)
     {
-        $obras = Obra::where('cliente_id', $clienteId)->where('activa', true)->get();
+        $obras = Obra::where('cliente_id', $clienteId)
+                     ->where('activa', true)
+                     ->get();
+                     
         return response()->json($obras);
     }
 }

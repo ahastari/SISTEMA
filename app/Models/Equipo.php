@@ -1,10 +1,10 @@
 <?php
-// app/Models/Equipo.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Equipo extends Model
 {
@@ -13,8 +13,19 @@ class Equipo extends Model
     protected $table = 'equipos';
 
     protected $fillable = [
-        'codigo', 'codigo_barras', 'nombre', 'categoria_id', 'unidad_medida_id', 'tipo_operacion',
-        'precio_dia', 'precio_venta', 'stock', 'stock_minimo', 'imagen', 'descripcion', 'activo'
+        'codigo', 
+        'codigo_barras', 
+        'nombre', 
+        'categoria_id', 
+        'unidad_medida_id', 
+        'tipo_operacion',
+        'precio_dia', 
+        'precio_venta', 
+        'stock', 
+        'stock_minimo', 
+        'imagen', 
+        'descripcion', 
+        'activo'
     ];
 
     public function categoria()
@@ -32,7 +43,6 @@ class Equipo extends Model
         return $this->hasMany(DetalleVenta::class);
     }
 
-    // Relación con sucursales a través de la tabla pivote
     public function sucursales()
     {
         return $this->belongsToMany(Sucursal::class, 'equipo_sucursal')
@@ -40,39 +50,114 @@ class Equipo extends Model
                     ->withTimestamps();
     }
 
-    // Obtener stock en una sucursal específica
-    public function getStockEnSucursal($sucursalId)
+    /**
+     * 🔥 OBTENER STOCK EN UNA SUCURSAL ESPECÍFICA
+     */
+    public function getStockEnSucursal($sucursalId): int
     {
-        $pivot = $this->sucursales()->where('sucursal_id', $sucursalId)->first();
-        return $pivot ? $pivot->pivot->stock : 0;
+        $pivot = DB::table('equipo_sucursal')
+            ->where('equipo_id', $this->id)
+            ->where('sucursal_id', $sucursalId)
+            ->first();
+        
+        return $pivot ? (int) $pivot->stock : 0;
     }
 
-    // Actualizar stock en una sucursal
-    public function actualizarStockEnSucursal($sucursalId, $cantidad, $operacion = 'sumar')
+    /**
+     * 🔥 ACTUALIZAR STOCK EN UNA SUCURSAL (SUMAR, RESTAR O ESTABLECER)
+     * Y SINCRONIZAR EL STOCK TOTAL DEL EQUIPO
+     */
+    public function actualizarStockEnSucursal($sucursalId, $cantidad, $operacion = 'sumar'): void
     {
-        $pivot = $this->sucursales()->where('sucursal_id', $sucursalId)->first();
+        // Obtener stock actual en la sucursal
+        $stockActual = $this->getStockEnSucursal($sucursalId);
         
-        if (!$pivot) {
-            // Si no existe, crear registro
-            $this->sucursales()->attach($sucursalId, [
-                'stock' => max(0, $cantidad),
-                'stock_minimo' => $this->stock_minimo ?? 0
-            ]);
-            return;
+        // Calcular nuevo stock dependiendo de la operación
+        if ($operacion === 'establecer') {
+            $nuevoStock = $cantidad;
+        } else {
+            $nuevoStock = $operacion === 'sumar' 
+                ? $stockActual + $cantidad 
+                : $stockActual - $cantidad;
         }
-
-        $nuevoStock = $operacion === 'sumar' 
-            ? $pivot->pivot->stock + $cantidad 
-            : $pivot->pivot->stock - $cantidad;
         
-        $this->sucursales()->updateExistingPivot($sucursalId, [
-            'stock' => max(0, $nuevoStock)
+        // Asegurar que el stock no sea negativo
+        $nuevoStock = max(0, $nuevoStock);
+        
+        // Verificar si ya existe un registro en la tabla pivote
+        $existe = DB::table('equipo_sucursal')
+            ->where('equipo_id', $this->id)
+            ->where('sucursal_id', $sucursalId)
+            ->exists();
+        
+        if ($existe) {
+            // ACTUALIZAR registro existente
+            DB::table('equipo_sucursal')
+                ->where('equipo_id', $this->id)
+                ->where('sucursal_id', $sucursalId)
+                ->update([
+                    'stock' => $nuevoStock,
+                    'updated_at' => now(),
+                ]);
+        } else {
+            // INSERTAR nuevo registro
+            DB::table('equipo_sucursal')->insert([
+                'equipo_id' => $this->id,
+                'sucursal_id' => $sucursalId,
+                'stock' => $nuevoStock,
+                'stock_minimo' => $this->stock_minimo ?? 5,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+        
+        // 🔥 SINCRONIZAR STOCK TOTAL DEL EQUIPO INMEDIATAMENTE
+        $this->sincronizarStockTotal();
+    }
+
+    /**
+     * 🔥 VERIFICAR DISPONIBILIDAD EN UNA SUCURSAL
+     */
+    public function disponibleEnSucursal($sucursalId, $cantidad): bool
+    {
+        return $this->getStockEnSucursal($sucursalId) >= $cantidad;
+    }
+
+    /**
+     * 🔥 SINCRONIZAR STOCK TOTAL (suma de todas las sucursales)
+     */
+    public function sincronizarStockTotal(): void
+    {
+        $stockTotal = DB::table('equipo_sucursal')
+            ->where('equipo_id', $this->id)
+            ->sum('stock');
+        
+        $this->stock = (int) $stockTotal;
+        $this->save();
+        
+        \Log::info("📊 Stock total sincronizado", [
+            'equipo_id' => $this->id,
+            'equipo' => $this->nombre,
+            'stock_total' => $this->stock,
         ]);
     }
 
-    // Verificar disponibilidad en una sucursal
-    public function disponibleEnSucursal($sucursalId, $cantidad)
+    /**
+     * 🔥 OBTENER TODOS LOS STOCKS POR SUCURSAL
+     */
+    public function getStocksPorSucursal(): array
     {
-        return $this->getStockEnSucursal($sucursalId) >= $cantidad;
+        $stocks = DB::table('equipo_sucursal')
+            ->join('sucursales', 'equipo_sucursal.sucursal_id', '=', 'sucursales.id')
+            ->where('equipo_sucursal.equipo_id', $this->id)
+            ->select(
+                'sucursales.id',
+                'sucursales.nombre',
+                'equipo_sucursal.stock',
+                'equipo_sucursal.stock_minimo'
+            )
+            ->get();
+        
+        return $stocks->toArray();
     }
 }

@@ -182,9 +182,9 @@
                 </div>
             </div>
             
-            <div class="form-check form-switch mb-3 ms-1">
-                <input class="form-check-input" type="checkbox" name="activo" id="activo" {{ old('activo', $equipo->activo) ? 'checked' : '' }}>
-                <label class="form-check-label ms-2 small fw-bold text-body" for="activo">Producto Activo y Visible</label>
+            <div class="form-check form-switch mb-4 ms-1">
+                <input class="form-check-input" type="checkbox" name="activo" id="activo" value="1" {{ old('activo', $equipo->activo) ? 'checked' : '' }} style="transform: scale(1.3);">
+                <label class="form-check-label ms-2 fw-bold text-body" for="activo">Producto Activo y Visible</label>
             </div>
 
             <button type="submit" class="btn btn-warning fw-bold w-100 py-2 shadow-sm rounded-3 text-dark"><i class="bi bi-pencil-square me-1"></i> Actualizar Producto</button>

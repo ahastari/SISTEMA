@@ -182,12 +182,15 @@
                                 </a>
                                 
                                 @if($movimiento->estado == 'completado')
-                                    <a href="{{ route('movimientos.cancelar', $movimiento) }}" 
-                                       class="btn btn-sm btn-outline-danger border-0 p-1" 
-                                       title="Cancelar Movimiento"
-                                       onclick="return confirm('¿Estás seguro de cancelar este movimiento? Se revertirá el stock.')">
-                                        <i class="bi bi-x-lg fs-6"></i>
-                                    </a>
+                                    <form action="{{ route('movimientos.procesarCancelacion', $movimiento) }}" method="POST" class="d-inline m-0">
+                                        @csrf
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-outline-danger border-0 p-1" 
+                                                title="Cancelar Movimiento"
+                                                onclick="return confirm('¿Estás seguro de cancelar este movimiento? Se revertirá el stock.')">
+                                            <i class="bi bi-x-lg fs-6"></i>
+                                        </button>
+                                    </form>
                                 @endif
                             </div>
                         </td>

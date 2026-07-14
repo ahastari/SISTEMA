@@ -10,7 +10,8 @@ class Cliente extends Model
         'nombre_completo', 'telefono', 'email', 'rfc', 'curp',
         'ine_numero', 'ine_documento', 'contrato_firmado', 'comprobante_deposito',
         'telefono_alternativo', 'empresa', 'direccion', 'ciudad',
-        'estado', 'codigo_postal', 'observaciones'
+        'estado', 'codigo_postal', 'observaciones', 
+        'sucursal_id'
     ];
     
     public function rentas()
@@ -28,4 +29,8 @@ class Cliente extends Model
         return $this->hasMany(Venta::class);
     }
 
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class);
+    }
 }

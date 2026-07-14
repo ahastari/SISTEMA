@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'Sistema') | {{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'Panel de Control') }}</title>
+    <title>@yield('title', 'Sistema') | {{ \App\Helpers\ContentHelper::getNombreMostrar() }}</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -63,12 +63,16 @@
     <aside id="sidebar" class="bg-dark text-white vh-100 p-3 shadow position-sticky top-0 d-flex flex-column flex-shrink-0" data-bs-theme="dark">
         
         <div class="text-center mb-3">
-            @if(\App\Helpers\ContentHelper::getCompanyData('empresa_logo'))
+            @php
+                $logoMostrar = \App\Helpers\ContentHelper::getLogoActual();
+            @endphp
+            
+            @if($logoMostrar)
                 <img
-                    src="{{ asset('storage/' . \App\Helpers\ContentHelper::getCompanyData('empresa_logo')) }}"
+                    src="{{ asset('storage/' . $logoMostrar) }}"
                     class="img-fluid rounded-3"
                     style="max-height: 75px; object-fit: contain;"
-                    alt="Logo Corporativo"
+                    alt="Logo"
                 >
             @else
                 <div class="d-inline-flex align-items-center justify-content-center bg-secondary bg-opacity-25 rounded-circle" style="width: 60px; height: 60px;">
@@ -78,7 +82,7 @@
         </div>
 
         <h6 class="text-center text-uppercase fw-bold text-wrap px-2 mb-4 tracking-tight" style="color: #f8fafc; font-size: 13px; letter-spacing: 0.5px;">
-            {{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'Configurar Empresa') }}
+            {{ \App\Helpers\ContentHelper::getNombreMostrar() }}
         </h6>
 
         <hr class="text-white-50 my-2">
@@ -105,7 +109,8 @@
                 </a>
             </li>
 
-            <li class="nav-item mb-1">
+            <!-- Movimientos entre sucursales -->
+            <li class="nav-item mb-2">
                 <a href="{{ route('movimientos.index') }}" class="nav-link {{ request()->routeIs('movimientos.*') ? 'text-primary fw-bold' : 'text-white' }}">
                     <i class="bi bi-arrow-left-right me-2"></i>
                     Movimientos
@@ -157,9 +162,8 @@
                     </h5>
                 </div>
 
-                <div class="d-flex align-items-center gap-2 ms-auto">
-                    
-                    <button class="btn btn-outline-secondary btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center" 
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center me-3" 
                             id="themeToggle" 
                             type="button" 
                             style="width: 34px; height: 34px;"
@@ -167,17 +171,35 @@
                         <i class="bi bi-moon-stars-fill fs-6" id="themeIcon"></i>
                     </button>
 
-                    <div class="text-end d-none d-lg-block border-end pe-3">
-                        <span class="text-secondary d-block" style="font-size: 9px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Sucursal Activa</span>
-                        <span class="badge bg-primary bg-opacity-10 text-primary fw-bold small rounded-pill px-2 py-1">
+                    @php
+                        $sucursalInfo = \App\Helpers\ContentHelper::getSucursalActiva();
+                    @endphp
+                    
+                    <div class="me-4 text-end d-none d-md-block border-end pe-3">
+                        <span class="text-muted d-block" style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">
+                            @if(\App\Helpers\ContentHelper::isSucursalEspecifica())
+                                Sucursal Activa
+                            @else
+                                Consola
+                            @endif
+                        </span>
+                        <span class="badge bg-dark bg-opacity-10 text-dark fw-bold small rounded-pill px-3">
                             <i class="bi bi-geo-alt-fill text-primary me-1"></i>
-                            {{ session('activo_sucursal_nombre', 'Cargando tienda...') }}
+                            {{ $sucursalInfo['nombre'] }}
                         </span>
                     </div>
 
-                    <div class="text-end d-none d-sm-block me-1">
-                        <span class="d-block fw-semibold lh-1" style="font-size: 12px;">{{ Auth::user()->name }}</span>
-                        <span class="text-secondary text-capitalize d-block" style="font-size: 10px;">{{ Auth::user()->role ?? 'Operador' }}</span>
+                    <div class="text-end me-3">
+                        <span class="d-block fw-semibold text-dark" style="font-size: 13px;">{{ Auth::user()->name }}</span>
+                        <span class="text-muted text-capitalize d-block" style="font-size: 11px;">
+                            @if(Auth::user()->isAdmin())
+                                Administrador Global
+                            @elseif(Auth::user()->isGerente())
+                                Gerente de Sucursal
+                            @else
+                                Cajero / POS
+                            @endif
+                        </span>
                     </div>
 
                     <form action="{{ route('logout') }}" method="POST" class="m-0">
@@ -200,9 +222,17 @@
 
 </div>
 
+<!-- Botón flotante con dropdown -->
 <div class="position-fixed bottom-0 end-0 p-3 p-md-4" style="z-index: 1050;">
-    <div class="dropdown">
-        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-2" style="min-width: 220px;">
+    <div class="dropdown dropup">
+        <button class="btn btn-primary floating-btn dropdown-toggle d-flex align-items-center justify-content-center" 
+                type="button" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="Acciones rápidas">
+            <i class="bi bi-plus-lg fs-3"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-2 mb-2" style="min-width: 220px;">
             <li>
                 <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('movimientos.create') }}">
                     <span class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
@@ -269,39 +299,45 @@
         const themeToggleBtn = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
 
-        if (!themeToggleBtn || !htmlElement) return;
+        if (themeToggleBtn && htmlElement && themeIcon) {
+            const getPreferredTheme = () => {
+                const storedTheme = localStorage.getItem('theme');
+                if (storedTheme) {
+                    return storedTheme;
+                }
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            };
 
-        const getPreferredTheme = () => {
-            const storedTheme = localStorage.getItem('theme');
-            if (storedTheme) {
-                return storedTheme;
-            }
-            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        };
+            const setTheme = (theme) => {
+                htmlElement.setAttribute('data-bs-theme', theme);
+                localStorage.setItem('theme', theme);
 
-        const setTheme = (theme) => {
-            htmlElement.setAttribute('data-bs-theme', theme);
-            localStorage.setItem('theme', theme);
+                if (theme === 'dark') {
+                    themeIcon.className = 'bi bi-sun-fill';
+                    themeToggleBtn.classList.remove('btn-outline-secondary');
+                    themeToggleBtn.classList.add('btn-outline-warning', 'text-warning');
+                } else {
+                    themeIcon.className = 'bi bi-moon-stars-fill';
+                    themeToggleBtn.classList.remove('btn-outline-warning', 'text-warning');
+                    themeToggleBtn.classList.add('btn-outline-secondary');
+                }
+            };
 
-            if (theme === 'dark') {
-                themeIcon.className = 'bi bi-sun-fill';
-                themeToggleBtn.classList.remove('btn-outline-secondary');
-                themeToggleBtn.classList.add('btn-outline-warning', 'text-warning');
-            } else {
-                themeIcon.className = 'bi bi-moon-stars-fill';
-                themeToggleBtn.classList.remove('btn-outline-warning', 'text-warning');
-                themeToggleBtn.classList.add('btn-outline-secondary');
-            }
-        };
+            // Cargar tema inicial
+            setTheme(getPreferredTheme());
 
-        // Cargar tema inicial
-        setTheme(getPreferredTheme());
+            // Evento Click
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = htmlElement.getAttribute('data-bs-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                setTheme(newTheme);
+            });
+        }
 
-        // Evento Click
-        themeToggleBtn.addEventListener('click', () => {
-            const currentTheme = htmlElement.getAttribute('data-bs-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(newTheme);
+        // 3. Inicializar tooltips de Bootstrap si existen
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
         });
     });
 </script>

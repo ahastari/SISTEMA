@@ -6,18 +6,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class Venta extends Model
 {
+    // 🔥 AQUÍ AGREGAMOS SUCURSAL_ID Y LOS DEMÁS CAMPOS DEL PUNTO DE VENTA
     protected $fillable = [
-        'folio', 'cliente_id', 'cliente_nombre', 'subtotal', 'iva', 'total',
-        'metodo_pago', 'estado', 'observaciones'
+        'folio', 'corte_caja_id', 'sucursal_id', 'cliente_id', 'cliente_nombre', 
+        'subtotal', 'iva', 'total', 'metodo_pago', 'estado', 'observaciones',
+        'requiere_factura', 'rfc_cliente'
     ];
 
     public function detalles()
     {
         return $this->hasMany(DetalleVenta::class, 'venta_id');
     }
+    
     public function cliente()
     {
         return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    // 🔒 Relación con la sucursal
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
     public static function generarFolio()

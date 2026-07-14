@@ -1,3 +1,8 @@
+{{-- ============================================ --}}
+{{-- MODALES DE USUARIO - SOLO VISIBLES PARA ADMIN --}}
+{{-- ============================================ --}}
+
+{{-- Modal Cambiar Contraseña --}}
 <div class="modal fade" id="modalPassword{{ $user->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -19,6 +24,7 @@
     </div>
 </div>
 
+{{-- Modal Editar Usuario --}}
 <div class="modal fade" id="modalEditarUsuario{{ $user->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">

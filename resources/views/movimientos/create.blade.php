@@ -13,6 +13,21 @@
     </a>
 </div>
 
+<!-- 🔥 MENSAJES DE NOTIFICACIÓN DE ÉXITO O ERROR (Faltaban en tu código original) -->
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm" role="alert">
+        <i class="bi bi-x-circle-fill me-2"></i> {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 @if($errors->any())
     <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm" role="alert">
         <i class="bi bi-exclamation-triangle-fill me-2"></i> Por favor corrige los siguientes errores:
@@ -55,25 +70,21 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Sucursal Origen <span class="text-danger">*</span></label>
+                    <!-- 🔥 SE AGREGÓ ID container_origen PARA OCULTAR/MOSTRAR CON JS -->
+                    <div class="mb-3" id="container_origen">
+                        <label class="form-label small fw-semibold text-body">Sucursal Origen (De donde sale) <span class="text-danger">*</span></label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body-tertiary text-secondary">
                                 <i class="bi bi-building"></i>
                             </span>
                             <select name="sucursal_origen_id" id="sucursal_origen_id" class="form-select bg-body text-body" required>
-                                @if($sucursalOrigen)
-                                    <option value="{{ $sucursalOrigen->id }}" selected>
-                                        {{ $sucursalOrigen->nombre }}
+                                <option value="">Seleccione sucursal de origen...</option>
+                                @foreach($sucursales as $sucursal)
+                                    <option value="{{ $sucursal->id }}" 
+                                        {{ (old('sucursal_origen_id') ?? $sucursalActivaId) == $sucursal->id ? 'selected' : '' }}>
+                                        {{ $sucursal->nombre }}
                                     </option>
-                                @else
-                                    <option value="">Seleccione sucursal de origen...</option>
-                                    @foreach($sucursales as $sucursal)
-                                        <option value="{{ $sucursal->id }}" {{ old('sucursal_origen_id') == $sucursal->id ? 'selected' : '' }}>
-                                            {{ $sucursal->nombre }}
-                                        </option>
-                                    @endforeach
-                                @endif
+                                @endforeach
                             </select>
                         </div>
                         <div id="stock_origen" class="mt-2 text-secondary small fw-medium" style="display: none;">
@@ -81,8 +92,9 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Sucursal Destino <span class="text-danger">*</span></label>
+                    <!-- 🔥 SE AGREGÓ ID container_destino PARA OCULTAR/MOSTRAR CON JS -->
+                    <div class="mb-3" id="container_destino">
+                        <label class="form-label small fw-semibold text-body">Sucursal Destino (Donde entra) <span class="text-danger">*</span></label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body-tertiary text-secondary">
                                 <i class="bi bi-building"></i>
@@ -146,7 +158,7 @@
                             </div>
                         </div>
                         <small class="text-secondary d-block mt-1" style="font-size: 11px;">
-                            <strong>Transferencia:</strong> entre tiendas | <strong>Entrada/Salida/Ajuste:</strong> auditoría interna externa.
+                            <strong>Transferencia:</strong> entre tiendas | <strong>Entrada/Ajuste:</strong> auditoría interna externa.
                         </small>
                     </div>
 
@@ -171,26 +183,7 @@
         </form>
     </div>
 </div>
-
-<div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
-            <div class="modal-header bg-primary text-white py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-check-circle me-1"></i> Confirmar Movimiento</h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-3">
-                <div id="resumen_movimiento" class="text-body small"></div>
-            </div>
-            <div class="modal-footer py-2">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnConfirmarMovimiento">
-                    <i class="bi bi-check-lg me-1"></i> Confirmar
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+@endsection
 
 @push('scripts')
 <script>
@@ -206,8 +199,96 @@ document.addEventListener('DOMContentLoaded', function() {
     const stockDestinoCantidad = document.getElementById('stock_destino_cantidad');
     const productoInfo = document.getElementById('info_producto');
     const productoNombre = document.getElementById('producto_nombre');
+    
+    const containerOrigen = document.getElementById('container_origen');
+    const containerDestino = document.getElementById('container_destino');
 
-    // Función Ajax para consultar stock
+    if (!document.getElementById('stock_total_info')) {
+        const stockTotalInfo = document.createElement('div');
+        stockTotalInfo.id = 'stock_total_info';
+        stockTotalInfo.className = 'mt-2 text-secondary small';
+        stockTotalInfo.style.display = 'none';
+        stockTotalInfo.innerHTML = 'Stock total del producto: <strong id="stock_total_cantidad">0</strong> unidades';
+        cantidadInput.parentNode.after(stockTotalInfo);
+    }
+
+    const stockTotalDiv = document.getElementById('stock_total_info');
+    const stockTotalCantidad = document.getElementById('stock_total_cantidad');
+
+    // 🔥 NUEVA FUNCIÓN: Exclusión mutua de sucursales
+    function regularSucursalesDisponibles() {
+        const origenSeleccionado = sucursalOrigen.value;
+        const destinoSeleccionado = sucursalDestino.value;
+        const tipoSelected = document.querySelector('input[name="tipo"]:checked').value;
+
+        // Solo procesamos la exclusión si es una transferencia
+        if (tipoSelected === 'transferencia') {
+            
+            // 1. Limpiar sucursal seleccionada en Origen dentro del selector de Destino
+            Array.from(sucursalDestino.options).forEach(option => {
+                if (option.value !== "" && option.value === origenSeleccionado) {
+                    option.style.display = 'none'; // Ocultar en navegadores modernos
+                    option.disabled = true;        // Respaldo de seguridad
+                    if (destinoSeleccionado === origenSeleccionado) {
+                        sucursalDestino.value = ""; // Reset si coincide
+                    }
+                } else {
+                    option.style.display = 'block';
+                    option.disabled = false;
+                }
+            });
+
+            // 2. Limpiar sucursal seleccionada en Destino dentro del selector de Origen
+            Array.from(sucursalOrigen.options).forEach(option => {
+                if (option.value !== "" && option.value === destinoSeleccionado) {
+                    option.style.display = 'none';
+                    option.disabled = true;
+                } else {
+                    option.style.display = 'block';
+                    option.disabled = false;
+                }
+            });
+        }
+    }
+
+    function toggleSucursalesVisibility() {
+        const tipoSelected = document.querySelector('input[name="tipo"]:checked').value;
+
+        if (tipoSelected === 'transferencia') {
+            containerOrigen.style.display = 'block';
+            sucursalOrigen.setAttribute('required', 'required');
+            containerDestino.style.display = 'block';
+            sucursalDestino.setAttribute('required', 'required');
+            
+            // Al cambiar a transferencia, regulamos las opciones
+            regularSucursalesDisponibles();
+            
+        } else if (tipoSelected === 'entrada' || tipoSelected === 'ajuste') {
+            containerOrigen.style.display = 'none';
+            sucursalOrigen.removeAttribute('required');
+            sucursalOrigen.value = '';
+            
+            containerDestino.style.display = 'block';
+            sucursalDestino.setAttribute('required', 'required');
+            
+            // Habilitar todo en destino ya que no hay origen con el cual chocar
+            Array.from(sucursalDestino.options).forEach(o => { o.style.display = 'block'; o.disabled = false; });
+            
+        } else if (tipoSelected === 'salida') {
+            containerOrigen.style.display = 'block';
+            sucursalOrigen.setAttribute('required', 'required');
+            containerDestino.style.display = 'none';
+            sucursalDestino.removeAttribute('required');
+            sucursalDestino.value = '';
+            
+            // Habilitar todo en origen ya que no hay destino con el cual chocar
+            Array.from(sucursalOrigen.options).forEach(o => { o.style.display = 'block'; o.disabled = false; });
+        }
+        
+        actualizarStockOrigen();
+        actualizarStockDestino();
+    }
+
     function consultarStock(equipoId, sucursalId, callback) {
         if (!equipoId || !sucursalId) {
             callback(null);
@@ -215,41 +296,53 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         fetch(`{{ route('movimientos.stock') }}?equipo_id=${equipoId}&sucursal_id=${sucursalId}`)
             .then(response => response.json())
-            .then(data => { callback(data.success ? data.stock : null); })
+            .then(data => {
+                if (data.success) {
+                    callback(data);
+                } else {
+                    callback(null);
+                }
+            })
             .catch(() => callback(null));
     }
 
     function actualizarStockOrigen() {
         const equipoId = equipoSelect.value;
         const sucursalId = sucursalOrigen.value;
-        if (!equipoId || !sucursalId) {
+        const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
+        
+        if (!equipoId || !sucursalId || tipoSelected === 'entrada' || tipoSelected === 'ajuste') {
             stockOrigenDiv.style.display = 'none';
+            stockTotalDiv.style.display = 'none';
             return;
         }
 
-        consultarStock(equipoId, sucursalId, function(stock) {
-            if (stock !== null) {
-                stockOrigenCantidad.textContent = stock;
+        consultarStock(equipoId, sucursalId, function(data) {
+            if (data !== null) {
+                stockOrigenCantidad.textContent = data.stock;
                 stockOrigenDiv.style.display = 'block';
                 
+                stockTotalCantidad.textContent = data.stock_total || data.stock;
+                stockTotalDiv.style.display = 'block';
+                
                 const cantidad = parseInt(cantidadInput.value) || 0;
-                const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
 
-                // Solo validar insuficiencia de stock físico si es Salida o Transferencia
-                if (cantidad > stock && (tipoSelected === 'transferencia' || tipoSelected === 'salida')) {
+                if (cantidad > data.stock && (tipoSelected === 'transferencia' || tipoSelected === 'salida')) {
                     cantidadInput.classList.add('is-invalid');
                     document.querySelector('#cantidad-error')?.remove();
                     const error = document.createElement('div');
                     error.id = 'cantidad-error';
                     error.className = 'invalid-feedback d-block';
-                    error.textContent = `No hay suficiente stock en almacén origen. Disponible: ${stock}`;
+                    error.textContent = `⚠️ No hay suficiente stock. Disponible: ${data.stock} ${data.unidad || 'unidades'}`;
                     cantidadInput.parentNode.after(error);
-                } else {
+                } else if (cantidad > 0) {
                     cantidadInput.classList.remove('is-invalid');
+                    cantidadInput.classList.add('is-valid');
                     document.querySelector('#cantidad-error')?.remove();
                 }
             } else {
                 stockOrigenDiv.style.display = 'none';
+                stockTotalDiv.style.display = 'none';
             }
         });
     }
@@ -257,25 +350,30 @@ document.addEventListener('DOMContentLoaded', function() {
     function actualizarStockDestino() {
         const equipoId = equipoSelect.value;
         const sucursalId = sucursalDestino.value;
-        if (!equipoId || !sucursalId) {
+        const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
+        
+        if (!equipoId || !sucursalId || tipoSelected === 'salida') {
             stockDestinoDiv.style.display = 'none';
             return;
         }
-        consultarStock(equipoId, sucursalId, function(stock) {
-            if (stock !== null) {
-                stockDestinoCantidad.textContent = stock;
+
+        consultarStock(equipoId, sucursalId, function(data) {
+            if (data !== null) {
                 stockDestinoDiv.style.display = 'block';
+                const cantidad = parseInt(cantidadInput.value) || 0;
+                const stockActual = data.stock;
+                const stockFuturo = stockActual + cantidad;
+                stockDestinoCantidad.textContent = `${stockActual} → ${stockFuturo} (después del movimiento)`;
             } else {
                 stockDestinoDiv.style.display = 'none';
             }
         });
     }
 
-    // Escuchadores
     equipoSelect.addEventListener('change', function() {
         const selected = this.options[this.selectedIndex];
         if (selected.value) {
-            productoNombre.textContent = selected.textContent.trim();
+            productoNombre.textContent = selected.getAttribute('data-nombre') || selected.textContent;
             productoInfo.style.display = 'block';
         } else {
             productoInfo.style.display = 'none';
@@ -284,32 +382,53 @@ document.addEventListener('DOMContentLoaded', function() {
         actualizarStockDestino();
     });
 
-    sucursalOrigen.addEventListener('change', actualizarStockOrigen);
-    sucursalDestino.addEventListener('change', actualizarStockDestino);
-    cantidadInput.addEventListener('input', actualizarStockOrigen);
+    // 🔥 ESCUCHADORES MODIFICADOS: Ejecutan la regulación dinámica
+    sucursalOrigen.addEventListener('change', function() {
+        regularSucursalesDisponibles();
+        actualizarStockOrigen();
+    });
+    
+    sucursalDestino.addEventListener('change', function() {
+        regularSucursalesDisponibles();
+        actualizarStockDestino();
+    });
+    
+    cantidadInput.addEventListener('input', function() {
+        actualizarStockOrigen();
+        actualizarStockDestino();
+    });
+    
     document.querySelectorAll('input[name="tipo"]').forEach(radio => {
-        radio.addEventListener('change', actualizarStockOrigen);
+        radio.addEventListener('change', function() {
+            toggleSucursalesVisibility();
+        });
     });
 
-    // Validar Cruce de Sucursales
-    function verificarSucursales() {
+    form.addEventListener('submit', function(e) {
         const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
-        if (tipoSelected === 'transferencia' && sucursalOrigen.value && sucursalOrigen.value === sucursalDestino.value) {
-            sucursalOrigen.classList.add('is-invalid');
-            sucursalDestino.classList.add('is-invalid');
-            return false;
+        const cantidad = parseInt(cantidadInput.value) || 0;
+        const stock = parseInt(stockOrigenCantidad.textContent) || 0;
+        const origen = sucursalOrigen.value;
+        const destino = sucursalDestino.value;
+        
+        if (tipoSelected === 'transferencia' && origen === destino) {
+            e.preventDefault();
+            alert('⚠️ La sucursal de origen y destino no pueden ser iguales.');
+            return;
         }
-        sucursalOrigen.classList.remove('is-invalid');
-        sucursalDestino.classList.remove('is-invalid');
-        return true;
-    }
 
-    sucursalOrigen.addEventListener('change', verificarSucursales);
-    sucursalDestino.addEventListener('change', verificarSucursales);
+        if ((tipoSelected === 'transferencia' || tipoSelected === 'salida') && cantidad > stock) {
+            e.preventDefault();
+            alert('⚠️ La cantidad excede el stock disponible en la sucursal origen.');
+        }
+    });
 
-    // Cargar estados si ya existen datos viejos en recarga
+    // Estado inicial
+    toggleSucursalesVisibility();
+
     if (equipoSelect.value) {
-        productoNombre.textContent = equipoSelect.options[equipoSelect.selectedIndex].textContent.trim();
+        const selectedOption = equipoSelect.options[equipoSelect.selectedIndex];
+        productoNombre.textContent = selectedOption.getAttribute('data-nombre') || selectedOption.textContent;
         productoInfo.style.display = 'block';
         actualizarStockOrigen();
         actualizarStockDestino();
@@ -317,4 +436,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endpush
-@endsection

@@ -87,6 +87,44 @@
     .top-cliente-item:last-child {
         border-bottom: none;
     }
+    .top-cliente-item .badge {
+        font-size: 11px;
+        padding: 3px 8px;
+    }
+    .ultimas-rentas {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .ultimas-rentas::-webkit-scrollbar {
+        width: 4px;
+    }
+    .ultimas-rentas::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 4px;
+    }
+    .row.g-2 {
+        --bs-gutter-y: 0.5rem;
+        --bs-gutter-x: 0.5rem;
+    }
+    .welcome-text {
+        font-size: 14px;
+        margin-bottom: 0;
+    }
+    .welcome-text strong {
+        font-size: 16px;
+    }
+    .sucursal-context {
+        background: #f0f7ff;
+        border: 1px solid #b6d4fe;
+        border-radius: 8px;
+        padding: 8px 15px;
+        font-size: 13px;
+        color: #084298;
+        margin-bottom: 16px;
+    }
+    .sucursal-context i {
+        color: #0d6efd;
+    }
 </style>
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -99,6 +137,23 @@
     </span>
 </div>
 
+{{-- 🔒 INDICADOR DE CONTEXTO DE SUCURSAL --}}
+@if(!$isGlobalAdmin)
+    <div class="sucursal-context">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        <strong>Vista filtrada:</strong> Mostrando datos exclusivos de <strong>{{ $sucursalNombre }}</strong>
+        @if(Auth::user()->isAdmin())
+            <span class="text-muted ms-2">(Como Admin puedes cambiar a vista global)</span>
+        @endif
+    </div>
+@else
+    <div class="sucursal-context" style="background: #f0fff4; border-color: #a3cfbb; color: #0f5132;">
+        <i class="bi bi-globe2 me-2"></i>
+        <strong>Vista Global:</strong> Mostrando datos consolidados de todas las sucursales
+    </div>
+@endif
+
+<!-- Tarjetas de Estadísticas -->
 <div class="row g-2 mb-3">
     <div class="col-12 col-sm-6 col-lg-3">
         <div class="stats-card">
@@ -124,7 +179,7 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h3>{{ $totalEquipos }}</h3>
-                    <p>Equipos</p>
+                    <p>Productos</p>
                 </div>
                 <div class="icon bg-success bg-opacity-10 text-success">
                     <i class="bi bi-box-seam"></i>
@@ -133,7 +188,7 @@
             <div class="mt-2 d-flex flex-wrap gap-1 align-items-center">
                 <span class="text-secondary small-text">Stock: {{ $totalStock }} und</span>
                 @if($stockBajo > 0)
-                    <span class="badge bg-warning text-dark style="font-size: 9px;">{{ $stockBajo }} bajo</span>
+                    <span class="badge bg-warning text-dark" style="font-size: 9px;">{{ $stockBajo }} bajo</span>
                 @endif
             </div>
         </div>
@@ -180,15 +235,27 @@
 <div class="row g-2 mb-3">
     <div class="col-12 col-lg-8">
         <div class="chart-container">
-            <h6 class="fw-bold mb-2"><i class="bi bi-graph-up me-1"></i> Rentas por Mes</h6>
+            <h6 class="fw-bold mb-2">
+                <i class="bi bi-graph-up me-1"></i> 
+                Rentas por Mes 
+                @if(!$isGlobalAdmin)
+                    <small class="text-muted">- {{ $sucursalNombre }}</small>
+                @endif
+            </h6>
             <div style="position: relative; width:100%;">
-                <canvas id="rentasChart"></canvas>
+                <canvas id="rentasChart" height="120"></canvas>
             </div>
         </div>
     </div>
     <div class="col-12 col-lg-4">
         <div class="chart-container">
-            <h6 class="fw-bold mb-2"><i class="bi bi-trophy me-1"></i> Top Clientes</h6>
+            <h6 class="fw-bold mb-2">
+                <i class="bi bi-trophy me-1"></i> 
+                Top Clientes
+                @if(!$isGlobalAdmin)
+                    <small class="text-muted">- {{ $sucursalNombre }}</small>
+                @endif
+            </h6>
             <div class="mt-1">
                 @forelse($topClientes as $cliente)
                     <div class="top-cliente-item">
@@ -199,13 +266,14 @@
                         <span class="badge bg-primary">{{ $cliente->total_rentas }} rentas</span>
                     </div>
                 @empty
-                    <p class="text-secondary small text-center my-3">Sin datos</p>
+                    <p class="text-muted small-text text-center">Sin datos para esta sucursal</p>
                 @endforelse
             </div>
         </div>
     </div>
 </div>
 
+<!-- Accesos Rápidos -->
 <div class="row g-2 mb-3">
     <div class="col-12">
         <h6 class="fw-bold mb-2 text-body"><i class="bi bi-rocket-takeoff me-1"></i> Accesos Rápidos</h6>
@@ -254,8 +322,14 @@
     <div class="col-12">
         <div class="chart-container">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-1"></i> Últimas Rentas</h6>
-                <a href="{{ route('rentas.index') }}" class="text-primary text-decoration-none small">
+                <h6 class="mb-0 fw-bold">
+                    <i class="bi bi-clock-history me-1"></i> 
+                    Últimas Rentas
+                    @if(!$isGlobalAdmin)
+                        <small class="text-muted">- {{ $sucursalNombre }}</small>
+                    @endif
+                </h6>
+                <a href="{{ route('rentas.index') }}" class="text-primary text-decoration-none small-text">
                     Ver todas <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
@@ -279,9 +353,11 @@
                                 <td class="d-none d-sm-table-cell">{{ $renta->fecha_inicio->format('d/m/Y') }}</td>
                                 <td>${{ number_format($renta->total, 0) }}</td>
                                 <td>
-                                    <span class="badge {{ $renta->estado == 'activa' ? 'bg-success' : 'bg-info' }}">
-                                        {{ ucfirst($renta->estado) }}
-                                    </span>
+                                    @if($renta->estado == 'activa')
+                                        <span class="badge bg-success">Activa</span>
+                                    @else
+                                        <span class="badge bg-info">Finalizada</span>
+                                    @endif
                                 </td>
                                 <td>
                                     <a href="{{ route('rentas.show', $renta) }}" class="btn btn-sm btn-primary py-0 px-2">
@@ -291,7 +367,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-secondary py-3">No hay rentas registradas</td>
+                                <td colspan="6" class="text-center text-muted small-text py-3">No hay rentas registradas en esta sucursal</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -309,6 +385,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const labels = @json($rentasPorMes->pluck('mes_nombre'));
     const data = @json($rentasPorMes->pluck('total'));
     
+    // Si no hay datos, mostrar array vacío con placeholder
+    const hasData = data.length > 0 && data.some(val => val > 0);
+    
+    // Detectar tema actual
     const isDark = document.getElementById('htmlElement').getAttribute('data-bs-theme') === 'dark';
     const textColor = isDark ? '#adb5bd' : '#6c757d';
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
@@ -316,11 +396,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const myChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labels,
+            labels: labels.length > 0 ? labels : ['Sin datos'],
             datasets: [{
                 label: 'Rentas',
-                data: data,
-                backgroundColor: 'rgba(13, 110, 253, 0.75)',
+                data: data.length > 0 ? data : [0],
+                backgroundColor: isDark ? 'rgba(13, 110, 253, 0.75)' : 'rgba(13, 110, 253, 0.6)',
                 borderColor: 'rgba(13, 110, 253, 1)',
                 borderWidth: 1,
                 borderRadius: 4
@@ -329,33 +409,46 @@ document.addEventListener('DOMContentLoaded', function() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { 
+                legend: { display: false } 
+            },
             scales: {
                 y: {
                     beginAtZero: true,
                     grid: { color: gridColor },
-                    ticks: { stepSize: 1, color: textColor, font: { size: 10 } }
+                    ticks: { 
+                        stepSize: 1, 
+                        color: textColor, 
+                        font: { size: 10 } 
+                    }
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: textColor, font: { size: 10 } }
+                    ticks: { 
+                        color: textColor, 
+                        font: { size: 10 } 
+                    }
                 }
             }
         }
     });
 
-    document.getElementById('themeToggle').addEventListener('click', () => {
-        setTimeout(() => {
-            const currentDark = document.getElementById('htmlElement').getAttribute('data-bs-theme') === 'dark';
-            const updatedColor = currentDark ? '#adb5bd' : '#6c757d';
-            const updatedGrid = currentDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-            
-            myChart.options.scales.y.ticks.color = updatedColor;
-            myChart.options.scales.y.grid.color = updatedGrid;
-            myChart.options.scales.x.ticks.color = updatedColor;
-            myChart.update();
-        }, 50);
-    });
+    // Actualizar colores del gráfico cuando cambia el tema
+    const themeToggleBtn = document.getElementById('themeToggle');
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            setTimeout(() => {
+                const currentDark = document.getElementById('htmlElement').getAttribute('data-bs-theme') === 'dark';
+                const updatedColor = currentDark ? '#adb5bd' : '#6c757d';
+                const updatedGrid = currentDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+                
+                myChart.options.scales.y.ticks.color = updatedColor;
+                myChart.options.scales.y.grid.color = updatedGrid;
+                myChart.options.scales.x.ticks.color = updatedColor;
+                myChart.update();
+            }, 50);
+        });
+    }
 });
 </script>
 @endsection

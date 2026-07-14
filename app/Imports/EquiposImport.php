@@ -6,12 +6,21 @@ use App\Models\Equipo;
 use App\Models\Categoria;
 use App\Models\UnidadMedida;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Illuminate\Support\Str;
 
 class EquiposImport implements ToCollection, WithHeadingRow
 {
+    protected $sucursalId;
+
+    // Recibimos la sucursal activa al instanciar la clase
+    public function __construct($sucursalId)
+    {
+        $this->sucursalId = $sucursalId;
+    }
+
     public function collection(Collection $rows)
     {
         foreach ($rows as $row) {
@@ -59,7 +68,7 @@ class EquiposImport implements ToCollection, WithHeadingRow
             }
 
             // 5. Guardar equipo
-            Equipo::updateOrCreate(
+            $equipo = Equipo::updateOrCreate(
                 ['codigo' => $codigo],
                 [
                     'codigo_barras' => $codigoBarras ?: null,
@@ -69,12 +78,24 @@ class EquiposImport implements ToCollection, WithHeadingRow
                     'tipo_operacion' => $tipoOperacion,
                     'precio_dia' => $precioDia ?: 0,
                     'precio_venta' => $precioVenta ?: 0,
-                    'stock' => $stock ?: 0,
+                    // Si es sucursal global, asignamos el stock al modelo base. Si no, lo dejamos en 0 y usamos la pivote.
+                    'stock' => ($this->sucursalId === 'global') ? ($stock ?: 0) : 0, 
                     'stock_minimo' => $stockMinimo ?: 0,
                     'descripcion' => $descripcion ?: '',
                     'activo' => true,
                 ]
             );
+
+            // 6. 🔒 ASIGNAR EL STOCK A LA SUCURSAL DE QUIEN IMPORTA
+            if ($this->sucursalId && $this->sucursalId !== 'global') {
+                $equipo->actualizarStockEnSucursal($this->sucursalId, $stock ?: 0, 'establecer');
+                
+                // Aseguramos que el stock mínimo también se refleje en la tabla pivote
+                DB::table('equipo_sucursal')
+                    ->where('equipo_id', $equipo->id)
+                    ->where('sucursal_id', $this->sucursalId)
+                    ->update(['stock_minimo' => $stockMinimo ?: 0]);
+            }
         }
     }
 

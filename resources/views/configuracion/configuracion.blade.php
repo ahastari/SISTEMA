@@ -121,6 +121,97 @@
     .user-table tr:last-child td {
         border-bottom: none;
     }
+    
+    /* Estados y Badges */
+    .badge-status {
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 6px;
+        display: inline-block;
+    }
+    .badge-status.active {
+        background: #ecfdf5;
+        color: #065f46;
+    }
+    .badge-status.inactive {
+        background: #fef2f2;
+        color: #991b1b;
+    }
+    
+    /* Formulario */
+    .form-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--bs-body-color);
+        margin-bottom: 6px;
+    }
+    .form-control, .form-select {
+        border-radius: 8px;
+        padding: 10px 14px;
+        border: 1px solid var(--bs-border-color);
+        font-size: 13px;
+        color: var(--bs-body-color);
+        background-color: var(--bs-body-bg);
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--bs-primary);
+        box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.08);
+    }
+    .form-control:disabled, .form-select:disabled {
+        background-color: var(--bs-tertiary-bg);
+        color: var(--bs-secondary-color);
+        cursor: not-allowed;
+    }
+
+    /* Botones */
+    .btn {
+        font-size: 13px;
+        font-weight: 600;
+        padding: 9px 18px;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    .btn-primary {
+        background: var(--bs-primary);
+        border: none;
+        color: white;
+    }
+    .btn-primary:hover {
+        background: var(--bs-primary-dark, #0b5ed7);
+    }
+    .btn-action-outline {
+        background: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        color: var(--bs-secondary-color);
+        padding: 6px 12px;
+        border-radius: 6px;
+    }
+    .btn-action-outline:hover {
+        background: var(--bs-tertiary-bg);
+        color: var(--bs-body-color);
+    }
+
+    /* 🔒 Estilos para elementos bloqueados */
+    .locked-overlay {
+        position: relative;
+        opacity: 0.7;
+        pointer-events: none;
+    }
+    .locked-badge { 
+        position: absolute; 
+        top: 8px; 
+        right: 12px; 
+        background: #fef2f2; 
+        color: #991b1b; 
+        font-size: 10px; 
+        font-weight: 700; 
+        padding: 4px 10px; 
+        border-radius: 20px; 
+        border: 1px solid #fecaca;
+        z-index: 10;
+        pointer-events: auto;
+    }
 </style>
 
 <div class="container-fluid p-0 py-2">
@@ -129,6 +220,20 @@
         <h3 class="fw-bold text-body mb-1"><i class="bi bi-shield-gear text-primary me-2"></i>Consola de Configuración Corporativa</h3>
         <p class="text-secondary small mb-0">Administra los datos globales de tu empresa, gestiona sucursales y controla los perfiles de acceso de tus empleados.</p>
     </div>
+
+    {{-- ✅ Mensaje de alerta para Gerentes (informativo) --}}
+    @if(auth()->user()->isGerente())
+        <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                <div>
+                    <strong>Acceso de Gerente:</strong> Solo puedes modificar los datos de tu sucursal asignada. 
+                    La gestión de empresa, usuarios y creación de sucursales está reservada al Administrador Global.
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
@@ -140,24 +245,43 @@
         </div>
     @endif
 
-    <ul class="nav premium-tabs flex-nowrap overflow-x-auto shadow-none" id="configTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active text-nowrap" id="empresa-tab" data-bs-toggle="tab" data-bs-target="#panel-empresa" type="button" role="tab">
-                <i class="bi bi-building me-2"></i>Datos de la Empresa
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-nowrap" id="sucursales-tab" data-bs-toggle="tab" data-bs-target="#panel-sucursales" type="button" role="tab">
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                <div>{{ session('error') }}</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    <ul class="nav premium-tabs" id="configTabs" role="tablist">
+        {{-- Solo Admin ve la pestaña de Empresa --}}
+        @if(auth()->user()->isAdmin())
+            <li class="nav-item">
+                <button class="nav-link active" id="empresa-tab" data-bs-toggle="tab" data-bs-target="#panel-empresa" type="button" role="tab">
+                    <i class="bi bi-building me-2"></i>Datos de la Empresa
+                </button>
+            </li>
+        @endif
+        
+        <li class="nav-item">
+            <button class="nav-link {{ auth()->user()->isGerente() && !auth()->user()->isAdmin() ? 'active' : '' }}" id="sucursales-tab" data-bs-toggle="tab" data-bs-target="#panel-sucursales" type="button" role="tab">
                 <i class="bi bi-geo-alt me-2"></i>Sucursales y Tiendas
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-nowrap" id="usuarios-tab" data-bs-toggle="tab" data-bs-target="#panel-usuarios" type="button" role="tab">
-                <i class="bi bi-people me-2"></i>Usuarios y Operadores
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link text-nowrap" id="plantillas-tab" data-bs-toggle="tab" data-bs-target="#panel-plantillas" type="button" role="tab">
+        
+        {{-- Solo Admin ve la pestaña de Usuarios --}}
+        @if(auth()->user()->isAdmin())
+            <li class="nav-item">
+                <button class="nav-link" id="usuarios-tab" data-bs-toggle="tab" data-bs-target="#panel-usuarios" type="button" role="tab">
+                    <i class="bi bi-people me-2"></i>Usuarios y Operadores
+                </button>
+            </li>
+        @endif
+        
+        <li class="nav-item">
+            <button class="nav-link" id="plantillas-tab" data-bs-toggle="tab" data-bs-target="#panel-plantillas" type="button" role="tab">
                 <i class="bi bi-file-earmark-richtext me-2"></i>Plantillas de Documentos
             </button>
         </li>
@@ -165,7 +289,10 @@
 
     <div class="tab-content" id="configTabsContent">
         
-        <!-- PANELES DE EMPRESA -->
+        {{-- ============================================ --}}
+        {{-- PANEL DE EMPRESA (SOLO ADMIN) --}}
+        {{-- ============================================ --}}
+        @if(auth()->user()->isAdmin())
         <div class="tab-pane fade show active" id="panel-empresa" role="tabpanel">
             <div class="panel-box rounded-4 shadow-sm">
                 <h6 class="panel-title mb-4 fw-bold text-body">Información de la Entidad Legal y Marca</h6>
@@ -219,15 +346,21 @@
                 </form>
             </div>
         </div>
+        @endif
 
-        <!-- PANELES DE SUCURSALES -->
-        <div class="tab-pane fade" id="panel-sucursales" role="tabpanel">
-            <div class="panel-box rounded-4 shadow-sm">
+        {{-- ============================================ --}}
+        {{-- PANEL DE SUCURSALES (ADMIN Y GERENTE) --}}
+        {{-- ============================================ --}}
+        <div class="tab-pane fade {{ auth()->user()->isGerente() && !auth()->user()->isAdmin() ? 'show active' : '' }}" id="panel-sucursales" role="tabpanel">
+            <div class="panel-box bg-white p-4 rounded-4 shadow-sm">
                 <div class="panel-title-area d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-                    <h6 class="panel-title fw-bold text-body m-0">Unidades de Negocio y Sucursales</h6>
-                    <button class="btn btn-primary btn-sm shadow-sm rounded-3 fw-bold" data-bs-toggle="modal" data-bs-target="#modalCrearSucursal">
-                        <i class="bi bi-plus-lg me-1"></i> Registrar Nueva Sucursal
-                    </button>
+                    <h5 class="panel-title fw-bold text-dark m-0">Unidades de Negocio y Sucursales</h5>
+                    {{-- Solo Admin puede crear sucursales --}}
+                    @if(auth()->user()->isAdmin())
+                        <button class="btn btn-primary shadow-sm rounded-3 fw-bold" data-bs-toggle="modal" data-bs-target="#modalCrearSucursal">
+                            <i class="bi bi-plus-lg me-1"></i> Registrar Nueva Sucursal
+                        </button>
+                    @endif
                 </div>
 
                 <div class="branch-container">
@@ -264,7 +397,7 @@
                             </div>
                         </div>
 
-                        <!-- MODAL EDITAR SUCURSAL -->
+                        {{-- Modal Editar Sucursal (Versión Admin vs Gerente) --}}
                         <div class="modal fade" id="modalEditarSucursal{{ $suc->id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
@@ -294,17 +427,23 @@
                                                 <input type="text" name="direccion" class="form-control form-control-sm bg-body text-body" value="{{ $suc->direccion }}" required>
                                             </div>
                                             <div class="row g-2 align-items-center">
-                                                <div class="col-8">
-                                                    <label class="form-label small fw-semibold text-body">Cambiar Imagen/Logo</label>
-                                                    <input type="file" name="logo" class="form-control form-control-sm bg-body text-body" accept="image/*">
+                                                <div class="{{ auth()->user()->isAdmin() ? 'col-8' : 'col-12' }}">
+                                                    <label class="form-label fw-semibold small text-muted">Cambiar Imagen/Logo</label>
+                                                    <input type="file" name="logo" class="form-control" accept="image/*">
                                                 </div>
-                                                <div class="col-4">
-                                                    <label class="form-label small fw-semibold text-body">Estado</label>
-                                                    <select name="activa" class="form-select form-select-sm bg-body text-body">
-                                                        <option value="1" {{ $suc->activa ? 'selected' : '' }}>Operativa</option>
-                                                        <option value="0" {{ !$suc->activa ? 'selected' : '' }}>Suspendida</option>
-                                                    </select>
-                                                </div>
+                                                {{-- Solo Admin puede cambiar estado operativo --}}
+                                                @if(auth()->user()->isAdmin())
+                                                    <div class="col-4">
+                                                        <label class="form-label fw-semibold small text-muted">Estado</label>
+                                                        <select name="activa" class="form-select">
+                                                            <option value="1" {{ $suc->activa ? 'selected' : '' }}>Operativa</option>
+                                                            <option value="0" {{ !$suc->activa ? 'selected' : '' }}>Suspendida</option>
+                                                        </select>
+                                                    </div>
+                                                @else
+                                                    {{-- Campo oculto para mantener el estado actual --}}
+                                                    <input type="hidden" name="activa" value="{{ $suc->activa }}">
+                                                @endif
                                             </div>
                                         </div>
                                         <div class="modal-footer py-2 bg-body">
@@ -320,18 +459,23 @@
                             <div class="bg-body border d-inline-flex p-3 rounded-circle mb-3 text-secondary">
                                 <i class="bi bi-geo fs-2"></i>
                             </div>
-                            <h5 class="fw-bold text-body">No hay sucursales registradas</h5>
-                            <p class="text-secondary small mx-auto mb-2" style="max-width: 360px;">Registra tu primera sucursal física o almacén para poder enlazar inventarios y cajeros operadores.</p>
-                            <!-- <button class="btn btn-sm btn-primary fw-bold px-3 rounded-3" data-bs-toggle="modal" data-bs-target="#modalCrearSucursal">
-                                <i class="bi bi-plus-lg me-1"></i> Configurar ahora
-                            </button> -->
+                            <h5 class="fw-bold text-dark">No hay sucursales registradas</h5>
+                            <p class="text-muted small mx-auto" style="max-width: 360px;">Registra tu primera sucursal física o almacén para poder enlazar inventarios y cajeros operadores.</p>
+                            @if(auth()->user()->isAdmin())
+                                <button class="btn btn-sm btn-primary fw-bold px-3 rounded-3 mt-2" data-bs-toggle="modal" data-bs-target="#modalCrearSucursal">
+                                    <i class="bi bi-plus-lg me-1"></i> Configurar ahora
+                                </button>
+                            @endif
                         </div>
                     @endforelse
                 </div>
             </div>
         </div>
 
-        <!-- PANELES DE USUARIOS -->
+        {{-- ============================================ --}}
+        {{-- PANEL DE USUARIOS (SOLO ADMIN) --}}
+        {{-- ============================================ --}}
+        @if(auth()->user()->isAdmin())
         <div class="tab-pane fade" id="panel-usuarios" role="tabpanel">
             <div class="panel-box rounded-4 shadow-sm">
                 <div class="panel-title-area d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
@@ -422,23 +566,25 @@
 
                                 @include('configuracion.partials.modales_usuario', ['user' => $user])
 
-                                @empty
-                                <tr>
-                                    <td colspan="6" class="text-center py-5 text-secondary bg-body-tertiary">
-                                        <div class="mb-2"><i class="bi bi-people fs-2"></i></div>
-                                        <h6 class="fw-bold text-body mb-1">No hay operadores secundarios dados de alta</h6>
-                                        <p class="small mb-0">Solo tú tienes acceso al sistema actualmente.</p>
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                            @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-5 bg-light">
+                                    <div class="text-muted mb-2"><i class="bi bi-people fs-2 text-secondary"></i></div>
+                                    <h6 class="fw-bold text-dark mb-1">No hay operadores secundarios dados de alta</h6>
+                                    <p class="text-muted small mb-0">Registra nuevos usuarios para gestionar el sistema.</p>
+                                </td>
+                            </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
+        @endif
 
-        <!-- PANELES DE PLANTILLAS -->
+        {{-- ============================================ --}}
+        {{-- PANEL DE PLANTILLAS (ADMIN Y GERENTE) --}}
+        {{-- ============================================ --}}
         <div class="tab-pane fade" id="panel-plantillas" role="tabpanel">
             <div class="panel-box rounded-4 shadow-sm">
                 <div class="panel-title-area mb-4 pb-2 border-bottom">
@@ -466,14 +612,14 @@
                                     <span class="d-block fw-bold text-body mb-2" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px;">
                                         <i class="bi bi-code-slash text-secondary me-1"></i> Atajos de Variables Rápidas:
                                     </span>
-                                    <div class="d-flex flex-wrap gap-1.5">
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {cliente}'">{cliente}</button>
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {folio}'">{folio}</button>
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {monto_total}'">{monto_total}</button>
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {monto_neto}'">{monto_neto}</button>
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {deposito}'">{deposito}</button>
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {fecha_fin}'">{fecha_fin}</button>
-                                        <button type="button" class="badge btn btn-sm btn-outline-secondary font-monospace p-1 px-2 text-body" style="font-size: 10.5px;" onclick="this.closest('form').querySelector('textarea').value += ' {empresa}'">{empresa}</button>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{cliente}')">{cliente}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{folio}')">{folio}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{monto_total}')">{monto_total}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{monto_neto}')">{monto_neto}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{deposito}')">{deposito}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{fecha_fin}')">{fecha_fin}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{empresa}')">{empresa}</button>
                                     </div>
                                     <small class="text-secondary d-block mt-2" style="font-size: 11px; line-height: 1.3;"><i class="bi bi-info-circle me-1"></i> Haz clic en los botones superiores para insertar variables automáticamente al texto.</small>
                                 </div>
@@ -498,7 +644,10 @@
     </div>
 </div>
 
-<!-- MODAL CREAR SUCURSAL -->
+{{-- ============================================ --}}
+{{-- MODAL CREAR SUCURSAL (SOLO ADMIN) --}}
+{{-- ============================================ --}}
+@if(auth()->user()->isAdmin())
 <div class="modal fade" id="modalCrearSucursal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
@@ -540,8 +689,12 @@
         </div>
     </div>
 </div>
+@endif
 
-<!-- MODAL CREAR USUARIO -->
+{{-- ============================================ --}}
+{{-- MODAL CREAR USUARIO (SOLO ADMIN) --}}
+{{-- ============================================ --}}
+@if(auth()->user()->isAdmin())
 <div class="modal fade" id="modalCrearUsuario" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
@@ -584,20 +737,36 @@
                         </div>
                     </div>
                     <div class="mb-0">
-                        <label class="form-label small fw-semibold text-body">Fotografía de Perfil (Opcional)</label>
-                        <input type="file" name="foto" class="form-control form-control-sm bg-body text-body" accept="image/*">
+                        <label class="form-label fw-semibold small text-muted">Fotografía de Perfil (Opcional)</label>
+                        <input type="file" name="foto" class="form-control" accept="image/*">
                     </div>
                 </div>
-                <div class="modal-footer py-2 bg-body">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-success fw-bold">Guardar y Enlazar</button>
+                <div class="modal-footer border-0 p-3 bg-white">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success px-4 fw-bold">Guardar y Enlazar</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+@endif
 
 <script>
+    // ✅ Función corregida para insertar variables en textarea
+    function insertVariable(button, variable) {
+        const form = button.closest('form');
+        const textarea = form.querySelector('textarea');
+        if (textarea) {
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = textarea.value;
+            textarea.value = text.substring(0, start) + ' ' + variable + ' ' + text.substring(end);
+            textarea.focus();
+            textarea.selectionStart = start + variable.length + 2;
+            textarea.selectionEnd = start + variable.length + 2;
+        }
+    }
+
     document.addEventListener("DOMContentLoaded", function() {
         let activeTab = "{{ session('tab') }}";
         
@@ -625,21 +794,7 @@
         });
     });
 
-    document.querySelectorAll('input[type="file"]').forEach(input => {
-        input.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                let reader = new FileReader();
-                let previewContainer = this.closest('.row, .modal-body, .tab-pane').querySelector('img');
-                if(previewContainer) {
-                    reader.onload = function(e) {
-                        previewContainer.src = e.target.result;
-                    }
-                    reader.readAsDataURL(this.files[0]);
-                }
-            }
-        });
-    });
-
+    // Preview de imagen para logo de empresa
     document.getElementById('empresa_logo')?.addEventListener('change', function() {
         if (this.files && this.files[0]) {
             let reader = new FileReader();

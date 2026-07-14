@@ -13,23 +13,68 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // Estadísticas principales
-        $totalClientes = Cliente::count();
-        $totalEquipos = Equipo::where('activo', true)->count();
-        $totalStock = Equipo::sum('stock');
-        $totalObras = Obra::where('activa', true)->count();
+        $user = auth()->user();
+        $sucursalId = session('activo_sucursal_id');
         
-        // Rentas
-        $rentasActivas = Renta::where('estado', 'activa')->count();
-        $rentasFinalizadas = Renta::where('estado', 'finalizada')->count();
-        $rentasTotales = Renta::count();
+        $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
         
-        // Equipos con stock bajo
-        $stockBajo = Equipo::where('stock', '<=', 5)->where('stock', '>', 0)->count();
-        $stockAgotado = Equipo::where('stock', 0)->count();
+        if ($isGlobalAdmin) {
+            $totalClientes = Cliente::count();
+        } else {
+            $totalClientes = Cliente::where('sucursal_id', $sucursalId)->count();
+        }
         
-        // Rentas por mes (últimos 12 meses)
-        $rentasPorMes = Renta::select(
+        if ($isGlobalAdmin) {
+            $totalEquipos = Equipo::where('activo', true)->count();
+            $totalStock = DB::table('equipo_sucursal')->sum('stock');
+            $stockBajo = DB::table('equipo_sucursal')
+                ->where('stock', '<=', 5)
+                ->where('stock', '>', 0)
+                ->count();
+            $stockAgotado = DB::table('equipo_sucursal')
+                ->where('stock', 0)
+                ->count();
+        } else {
+            $totalEquipos = Equipo::where('activo', true)
+                ->whereHas('sucursales', function($q) use ($sucursalId) {
+                    $q->where('sucursal_id', $sucursalId);
+                })
+                ->count();
+            
+            $totalStock = DB::table('equipo_sucursal')
+                ->where('sucursal_id', $sucursalId)
+                ->sum('stock');
+            
+            $stockBajo = DB::table('equipo_sucursal')
+                ->where('sucursal_id', $sucursalId)
+                ->where('stock', '<=', 5)
+                ->where('stock', '>', 0)
+                ->count();
+            
+            $stockAgotado = DB::table('equipo_sucursal')
+                ->where('sucursal_id', $sucursalId)
+                ->where('stock', 0)
+                ->count();
+        }
+        
+        if ($isGlobalAdmin) {
+            $totalObras = Obra::where('activa', true)->count();
+        } else {
+            $totalObras = Obra::where('activa', true)->where('sucursal_id', $sucursalId)->count();
+        }
+        
+        $rentasQuery = Renta::query();
+        
+        if (!$isGlobalAdmin) {
+            $rentasQuery->where('sucursal_id', $sucursalId);
+        }
+        
+        $rentasActivas = (clone $rentasQuery)->where('estado', 'activa')->count();
+        $rentasFinalizadas = (clone $rentasQuery)->where('estado', 'finalizada')->count();
+        $rentasTotales = (clone $rentasQuery)->count();
+        
+        $rentasPorMes = (clone $rentasQuery)
+            ->select(
                 DB::raw('MONTH(created_at) as mes'),
                 DB::raw('YEAR(created_at) as año'),
                 DB::raw('COUNT(*) as total')
@@ -44,8 +89,8 @@ class DashboardController extends Controller
                 return $item;
             });
         
-        // Top 5 clientes con más rentas
-        $topClientes = Renta::with('cliente')
+        $topClientes = (clone $rentasQuery)
+            ->with('cliente')
             ->select('cliente_id', DB::raw('COUNT(*) as total_rentas'))
             ->groupBy('cliente_id')
             ->orderBy('total_rentas', 'desc')
@@ -56,11 +101,14 @@ class DashboardController extends Controller
                 return $item;
             });
         
-        // Últimas rentas
-        $ultimasRentas = Renta::with('cliente')
+        $ultimasRentas = (clone $rentasQuery)
+            ->with('cliente')
             ->latest()
             ->limit(5)
             ->get();
+        
+        $sucursalNombre = session('activo_sucursal_nombre', 'Todas las sucursales');
+        $isAdmin = $user->isAdmin();
         
         return view('dashboard', compact(
             'totalClientes',
@@ -74,7 +122,10 @@ class DashboardController extends Controller
             'stockAgotado',
             'rentasPorMes',
             'topClientes',
-            'ultimasRentas'
+            'ultimasRentas',
+            'sucursalNombre',
+            'isAdmin',
+            'isGlobalAdmin'
         ));
     }
 }
