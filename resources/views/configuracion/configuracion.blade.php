@@ -30,7 +30,7 @@
 
     /* Paneles de Contenedor Adaptable */
     .panel-box {
-        background: var(--bs-body-bg);
+        background: var(--bs-tertiary-bg);
         border: 1px solid var(--bs-border-color);
         border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.01);
@@ -54,6 +54,7 @@
 
     /* Tarjetas de Sucursales */
     .branch-card {
+        background: var(--bs-body-bg);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -61,7 +62,6 @@
         border: 1px solid var(--bs-border-color);
         border-radius: 10px;
         margin-bottom: 12px;
-        background: var(--bs-body-bg);
         transition: border-color 0.2s ease;
     }
     .branch-card:hover {
@@ -348,13 +348,13 @@
         </div>
         @endif
 
-        {{-- ============================================ --}}
-        {{-- PANEL DE SUCURSALES (ADMIN Y GERENTE) --}}
-        {{-- ============================================ --}}
-        <div class="tab-pane fade {{ auth()->user()->isGerente() && !auth()->user()->isAdmin() ? 'show active' : '' }}" id="panel-sucursales" role="tabpanel">
-            <div class="panel-box bg-white p-4 rounded-4 shadow-sm">
+        
+        <div class="tab-pane fade show active" id="panel-sucursales" role="tabpanel">
+            <!-- Usamos bg-body-tertiary para dar un fondo adaptable con buena profundidad -->
+            <div class="panel-box bg-body-tertiary p-4 rounded-4 shadow-sm">
                 <div class="panel-title-area d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-                    <h5 class="panel-title fw-bold text-dark m-0">Unidades de Negocio y Sucursales</h5>
+                    <!-- text-body se adaptará automáticamente a blanco o negro -->
+                    <h5 class="panel-title fw-bold text-body m-0">Unidades de Negocio y Sucursales</h5>
                     {{-- Solo Admin puede crear sucursales --}}
                     @if(auth()->user()->isAdmin())
                         <button class="btn btn-primary shadow-sm rounded-3 fw-bold" data-bs-toggle="modal" data-bs-target="#modalCrearSucursal">

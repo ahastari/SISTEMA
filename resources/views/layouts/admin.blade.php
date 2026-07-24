@@ -3,6 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
+    <head>
+    <meta charset="UTF-8">
+    <!-- 🔥 SCRIPT DE BLOQUEO PARA EVITAR EL FLASH BLANCO -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-bs-theme', theme);
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Sistema') | {{ \App\Helpers\ContentHelper::getNombreMostrar() }}</title>
 
@@ -11,6 +22,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <style>
+
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
         .required-asterisk {
             color: red;
             margin-left: 2px;
@@ -56,7 +72,7 @@
     </style>
 </head>
 
-<body class="bg-body-tertiary">
+<body class="bg-body">
 
 <div class="d-flex min-vh-100 position-relative">
 
@@ -183,14 +199,14 @@
                                 Consola
                             @endif
                         </span>
-                        <span class="badge bg-dark bg-opacity-10 text-dark fw-bold small rounded-pill px-3">
+                        <span class="badge bg-body-secondary text-body fw-bold small rounded-pill px-3 border">
                             <i class="bi bi-geo-alt-fill text-primary me-1"></i>
                             {{ $sucursalInfo['nombre'] }}
                         </span>
                     </div>
 
                     <div class="text-end me-3">
-                        <span class="d-block fw-semibold text-dark" style="font-size: 13px;">{{ Auth::user()->name }}</span>
+                        <span class="d-block fw-semibold text-body" style="font-size: 13px;">{{ Auth::user()->name }}</span>
                         <span class="text-muted text-capitalize d-block" style="font-size: 11px;">
                             @if(Auth::user()->isAdmin())
                                 Administrador Global

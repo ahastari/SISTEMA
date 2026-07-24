@@ -325,9 +325,67 @@ class RentaController extends Controller
         return $pdf->stream('Pagare_' . $renta->folio . '.pdf');
     }
 
-    public function uploadContrato(Request $request, Renta $renta) { /* ... tu mismo código ... */ }
-    public function uploadPagare(Request $request, Renta $renta) { /* ... tu mismo código ... */ }
-    public function deleteDocumento(Renta $renta, $tipo) { /* ... tu mismo código ... */ }
+    public function uploadContrato(Request $request, Renta $renta)
+    {
+        $request->validate([
+            'contrato_firmado' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'
+        ]);
+
+        if ($request->hasFile('contrato_firmado')) {
+            // Eliminar archivo anterior si existe
+            if ($renta->contrato_firmado_path && Storage::disk('public')->exists($renta->contrato_firmado_path)) {
+                Storage::disk('public')->delete($renta->contrato_firmado_path);
+            }
+            
+            $path = $request->file('contrato_firmado')->store('rentas/contratos', 'public');
+            $renta->contrato_firmado_path = $path;
+            $renta->save();
+            
+            return back()->with('success', 'Contrato firmado subido correctamente');
+        }
+        
+        return back()->with('error', 'Error al subir el contrato');
+    }
+
+    public function uploadPagare(Request $request, Renta $renta)
+    {
+        $request->validate([
+            'pagare_firmado' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'
+        ]);
+
+        if ($request->hasFile('pagare_firmado')) {
+            if ($renta->pagare_firmado_path && Storage::disk('public')->exists($renta->pagare_firmado_path)) {
+                Storage::disk('public')->delete($renta->pagare_firmado_path);
+            }
+            
+            $path = $request->file('pagare_firmado')->store('rentas/pagares', 'public');
+            $renta->pagare_firmado_path = $path;
+            $renta->save();
+            
+            return back()->with('success', 'Pagaré firmado subido correctamente');
+        }
+        
+        return back()->with('error', 'Error al subir el pagaré');
+    }
+
+    public function deleteDocumento(Renta $renta, $tipo)
+    {
+        if ($tipo === 'contrato' && $renta->contrato_firmado_path) {
+            Storage::disk('public')->delete($renta->contrato_firmado_path);
+            $renta->contrato_firmado_path = null;
+            $renta->save();
+            return back()->with('success', 'Contrato eliminado');
+        }
+        
+        if ($tipo === 'pagare' && $renta->pagare_firmado_path) {
+            Storage::disk('public')->delete($renta->pagare_firmado_path);
+            $renta->pagare_firmado_path = null;
+            $renta->save();
+            return back()->with('success', 'Pagaré eliminado');
+        }
+        
+        return back()->with('error', 'Documento no encontrado');
+    }
 
     public function registrarPago(Request $request, Renta $renta)
     {

@@ -293,7 +293,7 @@
             <div class="col-6 col-sm-4 col-md-2">
                 <a href="{{ route('inventario.create') }}" class="quick-action">
                     <span class="icon text-success"><i class="bi bi-box-seam"></i></span>
-                    <span>Nuevo Equipo</span>
+                    <span>Nuevo Producto</span>
                 </a>
             </div>
             <div class="col-6 col-sm-4 col-md-2">
@@ -303,9 +303,9 @@
                 </a>
             </div>
             <div class="col-6 col-sm-4 col-md-2">
-                <a href="{{ route('inventario.kanban') }}" class="quick-action">
-                    <span class="icon text-danger"><i class="bi bi-grid-3x3-gap-fill"></i></span>
-                    <span>Kanban</span>
+                <a href="{{ route('puntoventa.index') }}" class="quick-action">
+                    <span class="icon text-danger"><i class="bi bi-cart-check-fill"></i></span>
+                    <span>Punto de Venta</span>
                 </a>
             </div>
             <div class="col-6 col-sm-4 col-md-2">
