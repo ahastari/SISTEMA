@@ -6,10 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class DetalleRenta extends Model
 {
-    protected $table = 'detalles_rentas';  // ← Importante: plural
-    
+    protected $table = 'detalles_rentas';
+
     protected $fillable = [
-        'renta_id', 'equipo_id', 'cantidad', 'precio_dia', 'dias', 'subtotal'
+        'renta_id',
+        'equipo_id',
+        'cantidad',
+        'cantidad_devuelta',
+        'precio_dia',
+        'dias',
+        'subtotal'
     ];
 
     public function renta()

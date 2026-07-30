@@ -177,12 +177,29 @@
                         </div>
                         <input type="hidden" name="requiere_factura" id="requiere_factura" value="1">
                     </div>
-                    
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-semibold text-body">Flete</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body text-secondary">$</span>
+                                <input type="number" name="flete" class="form-control bg-body" step="0.01" value="{{ old('flete', 0) }}" id="flete" onfocus="if(this.value == 0) this.value = '';" onblur="if(this.value == '') this.value = 0;">
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label small fw-semibold text-body">Mano de Obra</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body text-secondary">$</span>
+                                <input type="number" name="mano_obra" class="form-control bg-body" step="0.01" value="{{ old('mano_obra', 0) }}" id="mano_obra" onfocus="if(this.value == 0) this.value = '';" onblur="if(this.value == '') this.value = 0;">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Depósito en Garantía</label>
+                        <label class="form-label small fw-semibold text-body">Depósito Inicial</label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body text-secondary">$</span>
-                            <input type="number" name="deposito" class="form-control bg-body" step="0.01" value="{{ old('deposito', 0) }}" id="deposito">
+                            <input type="number" name="deposito" class="form-control bg-body" step="0.01" value="{{ old('deposito', 0) }}" id="deposito" onfocus="if(this.value == 0) this.value = '';" onblur="if(this.value == '') this.value = 0;">
                         </div>
                         <small class="text-secondary" style="font-size: 11px;">Monto dejado en garantía (reembolsable o acreditable)</small>
                     </div>
@@ -245,6 +262,20 @@
                     <table class="table table-borderless align-middle mb-2" style="font-size: 13px;">
                         <tbody>
                             <tr>
+                                <th class="p-1 text-secondary">Equipos:</th>
+                                <td class="p-1 text-end text-body"><strong id="res_equipos">$0.00</strong></td>
+                            </tr>
+                            <!-- 🔥 NUEVO: Filas ocultas por defecto para Flete y Mano de Obra -->
+                            <tr id="fila_flete" style="display: none;">
+                                <th class="p-1 text-secondary">Flete:</th>
+                                <td class="p-1 text-end text-body"><strong id="res_flete">$0.00</strong></td>
+                            </tr>
+                            <tr id="fila_mano_obra" style="display: none;">
+                                <th class="p-1 text-secondary">Mano de Obra:</th>
+                                <td class="p-1 text-end text-body"><strong id="res_mano_obra">$0.00</strong></td>
+                            </tr>
+                            
+                            <tr class="border-top">
                                 <th class="p-1 text-secondary">Subtotal:</th>
                                 <td class="p-1 text-end text-body"><strong id="res_subtotal">$0.00</strong></td>
                             </tr>
@@ -252,7 +283,7 @@
                                 <th class="p-1 text-secondary">IVA (16%):</th>
                                 <td class="p-1 text-end text-body"><strong id="res_iva">$0.00</strong></td>
                             </tr>
-                            <tr class="border-top">
+                            <tr class="border-top bg-body-tertiary">
                                 <th class="p-1 text-body">Total:</th>
                                 <td class="p-1 text-end"><strong id="res_total" class="text-success fs-5">$0.00</strong></td>
                             </tr>
@@ -315,20 +346,37 @@ function calcularDias() {
     return 0;
 }
 
-// 🔥 MODIFICADO: Actualizar resumen con soporte de facturación
 function actualizarResumen() {
     const dias = calcularDias();
-    let subtotal = 0;
+    let subtotalEquipos = 0;
     
     equipos.forEach(eq => {
-        subtotal += eq.precio * eq.cantidad * dias;
+        subtotalEquipos += eq.precio * eq.cantidad * dias;
     });
+    
+    // Obtener valores
+    const flete = parseFloat(document.getElementById('flete').value) || 0;
+    const manoObra = parseFloat(document.getElementById('mano_obra').value) || 0;
+    
+    // Sumar todo para el subtotal general
+    let subtotal = subtotalEquipos + flete + manoObra;
     
     // Calcular IVA según si requiere factura
     const iva = requiereFactura ? (subtotal * 0.16) : 0;
     const total = subtotal + iva;
     const deposito = parseFloat(document.getElementById('deposito').value) || 0;
     const saldo = total - deposito;
+    
+    // 🔥 ACTUALIZAR UI DEL DESGLOSE
+    document.getElementById('res_equipos').innerHTML = '$' + subtotalEquipos.toFixed(2);
+    
+    // Mostrar u ocultar Flete
+    document.getElementById('fila_flete').style.display = flete > 0 ? '' : 'none';
+    document.getElementById('res_flete').innerHTML = '$' + flete.toFixed(2);
+    
+    // Mostrar u ocultar Mano de Obra
+    document.getElementById('fila_mano_obra').style.display = manoObra > 0 ? '' : 'none';
+    document.getElementById('res_mano_obra').innerHTML = '$' + manoObra.toFixed(2);
     
     document.getElementById('res_subtotal').innerHTML = '$' + subtotal.toFixed(2);
     document.getElementById('res_iva').innerHTML = '$' + iva.toFixed(2);
@@ -341,6 +389,9 @@ function actualizarResumen() {
     
     document.getElementById('btnGuardar').disabled = equipos.length === 0;
 }
+
+document.getElementById('flete').addEventListener('input', actualizarResumen);
+document.getElementById('mano_obra').addEventListener('input', actualizarResumen);
 
 // Agregar equipo
 function agregarEquipo() {

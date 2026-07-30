@@ -14,36 +14,7 @@ use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\EmpresaConfigController;
 use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\UsuarioConfigController;
-use App\Http\Controllers\PlantillaDocumentoController;
 use App\Http\Controllers\MovimientoSucursalController;
-use App\Models\PlantillaDocumento;
-
-/*
-|--------------------------------------------------------------------------
-| SEEDER DE PLANTILLAS POR DEFECTO
-|--------------------------------------------------------------------------
-| Esta ruta temporal crea las plantillas base del sistema.
-| Debe ejecutarse una sola vez y luego puede eliminarse.
-*/
-Route::get('/seed-plantillas', function () {
-    PlantillaDocumento::updateOrCreate(
-        ['tipo' => 'contrato'],
-        [
-            'titulo' => 'CONTRATO DE PRESTACIÓN DE SERVICIOS DE RENTA',
-            'contenido' => "1. - El prestador de servicios se compromete a entregar en perfectas condiciones de trabajo el equipo al cliente.\n2. - El cliente {cliente} tiene la obligación de verificar el buen estado en que recibe el equipo y entregarlo de igual forma.\n3. - Las piezas faltantes o averiadas se cobrarán en efectivo.\n4. - En la renta del equipo NO HAY CRÉDITO por lo que al devolver el equipo se deberá liquidar la renta.\n5. - El cliente está obligado a dejar un depósito por la cantidad de {deposito} que garantiza la devolución del equipo en buen estado.\n6. - El prestador de servicios {empresa} se compromete a no hacer uso de este depósito, salvo si el cliente llegara a hacer mal uso del equipo."
-        ]
-    );
-
-    PlantillaDocumento::updateOrCreate(
-        ['tipo' => 'pagare'],
-        [
-            'titulo' => 'PAGARÉ',
-            'contenido' => "DEBO (EMOS) Y PAGARÉ (EMOS) INCONDICIONALMENTE POR ESTE PAGARÉ A LA ORDEN DE {empresa} EN DURANGO, DGO. EL DÍA {fecha_fin} LA CANTIDAD DE {monto_neto} VALOR RECIBIDO A MI (NUESTRA) ENTERA SATISFACCIÓN, EN CASO DE DEMORA PARCIALMENTE INSOLUTO SIN QUE POR ELLO SE CONSIDERE PRORROGADO EL PLAZO FIJADO."
-        ]
-    );
-
-    return "✅ Formatos cargados con éxito. Ya puedes borrar esta ruta del archivo web.php.";
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -137,6 +108,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/rentas/{renta}/registrar-pago', [RentaController::class, 'registrarPago'])->name('rentas.registrarPago');
     Route::post('/rentas/{renta}/finalizar-con-pago', [RentaController::class, 'finalizarConPago'])->name('rentas.finalizarConPago');
     Route::get('/rentas/{renta}/estado', [RentaController::class, 'getEstadoRenta'])->name('rentas.estado');
+
+    // Gestion de entregas parciales
+    Route::post('/rentas/{renta}/devolucion-parcial', [App\Http\Controllers\RentaController::class, 'devolucionParcial'])->name('rentas.devolucionParcial');
 });
 
 /*

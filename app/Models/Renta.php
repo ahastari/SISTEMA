@@ -16,6 +16,8 @@ class Renta extends Model
         'dias_totales',
         'dias_ampliados',
         'subtotal',
+        'flete',
+        'mano_obra',
         'iva',
         'total',
         'cargos_extra',
@@ -120,6 +122,11 @@ class Renta extends Model
      */
     public function getSaldoPendienteAttribute()
     {
+        // Si la renta está cancelada, la deuda se anula automáticamente
+        if ($this->estado === 'cancelada') {
+            return 0; 
+        }
+
         // Sumamos todos los pagos realizados a esta renta
         $totalPagado = $this->pagos()->sum('monto');
         

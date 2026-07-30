@@ -92,6 +92,17 @@
     .filtro-input {
         border-radius: 8px;
     }
+
+    .estado-cancelada {
+        background: rgba(108, 117, 125, 0.15);
+        color: var(--bs-secondary-color);
+        border: 1px solid var(--bs-border-color);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        display: inline-block;
+    }
 </style>
 
 <!-- Header Responsive -->
@@ -99,14 +110,6 @@
     <h2><i class="bi bi-card-list me-2"></i>Historial de Rentas</h2>
     
     <div class="d-flex gap-2">
-        @if(auth()->user()->isAdmin() || auth()->user()->isGerente())
-            @if(session('activo_sucursal_id') !== 'global')
-                <button type="button" class="btn btn-warning text-dark" data-bs-toggle="modal" data-bs-target="#modalFijarMulta">
-                    <i class="bi bi-cash-coin me-1"></i> Fijar Costo de Multa
-                </button>
-            @endif
-        @endif
-        
         <a href="{{ route('rentas.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle me-1"></i> Nueva Renta
         </a>
@@ -128,30 +131,30 @@
     </div>
 @endif
 
-<!-- Tarjetas de estadísticas Responsive -->
+<!-- Tarjetas de estadísticas Financieras -->
 <div class="row g-2 mb-3">
     <div class="col-6 col-sm-6 col-lg-3">
         <div class="stats-card" style="border-left-color: #0d6efd;">
-            <h3>{{ $rentas->total() }}</h3>
-            <p>Total de Rentas</p>
+            <h3>${{ number_format($totalFacturado, 2) }}</h3>
+            <p>Total Histórico</p>
         </div>
     </div>
     <div class="col-6 col-sm-6 col-lg-3">
         <div class="stats-card" style="border-left-color: #198754;">
-            <h3>{{ $rentas->where('estado', 'activa')->count() }}</h3>
-            <p>Rentas Activas</p>
+            <h3>${{ number_format($totalPagado, 2) }}</h3>
+            <p>Dinero Recibido</p>
         </div>
     </div>
     <div class="col-6 col-sm-6 col-lg-3">
-        <div class="stats-card" style="border-left-color: #0dcaf0;">
-            <h3>{{ $rentas->where('estado', 'finalizada')->count() }}</h3>
-            <p>Rentas Finalizadas</p>
+        <div class="stats-card" style="border-left-color: #dc3545;">
+            <h3>${{ number_format($totalPendiente, 2) }}</h3>
+            <p>Resta por Cobrar</p>
         </div>
     </div>
     <div class="col-6 col-sm-6 col-lg-3">
         <div class="stats-card" style="border-left-color: #ffc107;">
-            <h3>${{ number_format($rentas->sum('total'), 0) }}</h3>
-            <p>Total Facturado</p>
+            <h3>{{ $rentas->total() }}</h3>
+            <p>Rentas Registradas</p>
         </div>
     </div>
 </div>
@@ -174,6 +177,8 @@
                     <option value="">Todos los estados</option>
                     <option value="activa">Activas</option>
                     <option value="finalizada">Finalizadas</option>
+                    <option value="cancelada">Canceladas</option>
+                    <option value="adeudo">Con Adeudo (Deben dinero)</option>
                 </select>
             </div>
             <div class="col-6 col-md-3">
@@ -191,7 +196,8 @@
 <!-- Lista de Rentas Responsive -->
 <div id="rentasLista">
     @forelse($rentas as $renta)
-    <div class="renta-card" data-estado="{{ $renta->estado }}" data-fecha="{{ $renta->fecha_inicio->format('Y-m-d') }}">
+    <!-- Agregamos el atributo data-adeudo para que funcione el filtro -->
+    <div class="renta-card" data-estado="{{ $renta->estado }}" data-fecha="{{ $renta->fecha_inicio->format('Y-m-d') }}" data-adeudo="{{ $renta->saldo_pendiente > 0 ? 'si' : 'no' }}">
         <div class="row align-items-center g-3">
             
             <!-- Folio y Cliente -->
@@ -216,13 +222,6 @@
                 <small class="text-secondary d-block" style="font-size: 11px;">{{ $renta->dias_totales }} días</small>
             </div>
 
-            <!-- Equipos -->
-            <div class="col-6 col-sm-4 col-md-2 text-start text-sm-center">
-                <small class="text-secondary d-block" style="font-size: 11px;">Equipos</small>
-                <strong class="text-body small">{{ $renta->detalles->count() }} tipos</strong>
-                <small class="text-secondary d-block" style="font-size: 11px;">{{ $renta->detalles->sum('cantidad') }} unds</small>
-            </div>
-
             <!-- Días Restantes -->
             <div class="col-6 col-sm-4 col-md-2 text-start text-sm-center">
                 <small class="text-secondary d-block" style="font-size: 11px;">Restante</small>
@@ -243,28 +242,34 @@
                 @endif
             </div>
 
-            <!-- Total -->
-            <div class="col-6 col-md-2 col-lg-1 text-end text-md-center">
-                <small class="text-secondary d-block" style="font-size: 11px;">Total</small>
-                <div class="total-amount">${{ number_format($renta->total, 0) }}</div>
+            <!-- Total y Adeudo -->
+            <div class="col-6 col-md-2 col-lg-3 text-end text-md-center">
+                @if($renta->estado == 'cancelada')
+                    <small class="text-secondary d-block text-decoration-line-through" style="font-size: 11px;">Original: ${{ number_format($renta->total_real, 2) }}</small>
+                    <span class="badge bg-secondary mt-1 fs-6 px-2 py-1"><i class="bi bi-slash-circle me-1"></i>Deuda Anulada</span>
+                @else
+                    <small class="text-secondary d-block" style="font-size: 11px;">Total: ${{ number_format($renta->total_real, 2) }}</small>
+                    
+                    @if($renta->saldo_pendiente > 0)
+                        <span class="badge bg-danger mt-1 fs-6 px-2 py-1"><i class="bi bi-exclamation-circle me-1"></i>Debe: ${{ number_format($renta->saldo_pendiente, 2) }}</span>
+                    @else
+                        <span class="badge bg-success mt-1"><i class="bi bi-check2-circle me-1"></i>Pagado</span>
+                    @endif
+                @endif
             </div>
 
             <!-- Estado y Acciones -->
             <div class="col-12 col-md-2 col-lg-2">
                 <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2">
-                    <span class="{{ $renta->estado == 'activa' ? 'estado-activa' : 'estado-finalizada' }}">
-                        {{ $renta->estado == 'activa' ? 'ACTIVA' : 'FINALIZADA' }}
+                    <span class="{{ $renta->estado == 'activa' ? 'estado-activa' : ($renta->estado == 'finalizada' ? 'estado-finalizada' : 'estado-cancelada') }}">
+                        {{ strtoupper($renta->estado) }}
                     </span>
                     
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary border-0 rounded-circle p-2" 
-                                type="button" 
-                                id="dropdownRenta{{ $renta->id }}" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false">
+                        <button class="btn btn-sm btn-outline-secondary border-0 rounded-circle p-2" type="button" data-bs-toggle="dropdown">
                             <i class="bi bi-three-dots-vertical fs-6"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="dropdownRenta{{ $renta->id }}">
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
                             <li>
                                 <a class="dropdown-item py-2" href="{{ route('rentas.show', $renta) }}">
                                     <i class="bi bi-eye me-2 text-primary"></i> Ver contrato
@@ -281,17 +286,13 @@
                                     <i class="bi bi-check-lg me-2 text-success"></i> Finalizar
                                 </a>
                             </li>
-                            @endif
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item py-2 text-danger" href="#" onclick="event.preventDefault(); if(confirm('¿Eliminar esta renta?')) document.getElementById('delete-form-{{ $renta->id }}').submit();">
-                                    <i class="bi bi-trash me-2"></i> Eliminar
+                                <a class="dropdown-item py-2 text-danger" href="{{ route('rentas.cancelar', $renta) }}" onclick="return confirm('¿Seguro que deseas cancelar esta renta? El stock se devolverá automáticamente.')">
+                                    <i class="bi bi-x-octagon me-2"></i> Cancelar Renta
                                 </a>
-                                <form id="delete-form-{{ $renta->id }}" action="{{ route('rentas.destroy', $renta) }}" method="POST" class="d-none">
-                                    @csrf
-                                    @method('DELETE')
-                                </form>
                             </li>
+                            @endif
                         </ul>
                     </div>
                 </div>
@@ -304,9 +305,6 @@
         <i class="bi bi-inbox text-secondary" style="font-size: 48px;"></i>
         <h5 class="mt-3 text-body">No hay rentas registradas</h5>
         <p class="text-secondary small">Comienza creando tu primera renta en el sistema.</p>
-        <!-- <a href="{{ route('rentas.create') }}" class="btn btn-primary btn-sm rounded-3 mt-1">
-            <i class="bi bi-plus-circle me-1"></i> Nueva Renta
-        </a> -->
     </div>
     @endforelse
 </div>
@@ -336,7 +334,13 @@ function filtrarRentas() {
         }
         
         if (mostrar && estado) {
-            if (renta.dataset.estado !== estado) {
+            // Evaluamos si pidió filtrar los que deben dinero
+            if (estado === 'adeudo') {
+                if (renta.dataset.adeudo !== 'si') {
+                    mostrar = false;
+                }
+            } else if (renta.dataset.estado !== estado) {
+                // Filtro normal activa/finalizada
                 mostrar = false;
             }
         }
@@ -362,47 +366,4 @@ document.getElementById('buscarInput').addEventListener('keyup', filtrarRentas);
 document.getElementById('estadoSelect').addEventListener('change', filtrarRentas);
 document.getElementById('fechaFilter').addEventListener('change', filtrarRentas);
 </script>
-
-<!-- 🔒 MODAL: Fijar Tarifa de Multa (Solo Admin/Gerente) -->
-@if(auth()->user()->isAdmin() || auth()->user()->isGerente())
-<div class="modal fade" id="modalFijarMulta" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
-            <div class="modal-header bg-warning text-dark py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-1"></i> Fijar Tarifa por Retraso</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ route('rentas.actualizarMulta') }}" method="POST">
-                @csrf
-                <div class="modal-body">
-                    <p class="small text-secondary mb-3">
-                        Define el costo que se cobrará automáticamente al cliente <strong>por cada día</strong> que se atrase en la entrega del equipo en esta sucursal.
-                    </p>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-body">Costo diario de penalización ($)</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-body text-secondary">$</span>
-                            <input type="number" 
-                                    name="penalizacion_diaria" 
-                                    class="form-control bg-body" 
-                                    step="0.01" 
-                                    min="0" 
-                                    value="{{ $tarifaMulta ?? 0 }}" 
-                                    required 
-                                    onfocus="if(this.value == 0) this.value = '';" 
-                                    onblur="if(this.value == '') this.value = 0;">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
-                        <i class="bi bi-save me-1"></i> Guardar Tarifa
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
 @endsection

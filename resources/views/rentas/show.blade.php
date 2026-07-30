@@ -2,7 +2,6 @@
 
 @section('content')
 <style>
-    /* Estilos dinámicos para Tema Claro y Oscuro */
     .info-card {
         background: var(--bs-body-bg);
         border: 1px solid var(--bs-border-color);
@@ -11,21 +10,25 @@
         margin-bottom: 15px;
         border-radius: 8px;
     }
+
     .info-card h6 {
         color: #0d6efd;
         font-weight: bold;
         margin-bottom: 10px;
     }
+
     .badge-estado {
         font-size: 13px;
         padding: 6px 12px;
         border-radius: 20px;
     }
+
     .table-renta thead th {
         background-color: var(--bs-tertiary-bg) !important;
         color: var(--bs-body-color) !important;
         border-bottom: 1px solid var(--bs-border-color) !important;
     }
+
     .clausula {
         background: rgba(255, 193, 7, 0.15);
         border-left: 4px solid #ffc107;
@@ -43,7 +46,7 @@
         </h3>
         <small class="text-secondary">Folio: <strong class="text-body">{{ $renta->folio }}</strong></small>
     </div>
-    
+
     <div class="d-flex flex-wrap gap-2">
         <a href="{{ route('rentas.index') }}" class="btn btn-outline-secondary btn-sm rounded-3">
             <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline ms-1">Regresar</span>
@@ -54,31 +57,59 @@
         <a href="{{ route('rentas.pagare', $renta) }}" class="btn btn-warning btn-sm rounded-3 text-dark" target="_blank">
             <i class="bi bi-file-text"></i> <span class="d-none d-sm-inline ms-1">Pagaré</span>
         </a>
+        
         @if($renta->estado == 'activa')
+            <button class="btn btn-secondary btn-sm rounded-3 text-white" data-bs-toggle="modal" data-bs-target="#modalDevParcial">
+                <i class="bi bi-box-arrow-in-down me-1"></i> Dev. Parcial
+            </button>
             <button class="btn btn-primary btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#modalAmpliar">
                 <i class="bi bi-plus-circle me-1"></i> Ampliar Días
             </button>
             <button class="btn btn-info btn-sm rounded-3 text-white" data-bs-toggle="modal" data-bs-target="#modalPago">
                 <i class="bi bi-cash-coin me-1"></i> Registrar Pago
             </button>
-            <button class="btn btn-success btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#modalFinalizar">
-                <i class="bi bi-check-lg me-1"></i> Finalizar
-            </button>
+            @if(empty($renta->contrato_firmado_path) || empty($renta->pagare_firmado_path))
+                <button class="btn btn-success btn-sm rounded-3 opacity-50" onclick="alert('Faltan documentos por subir. Ve a la sección de Documentos Firmados en la parte inferior para subirlos antes de finalizar.');">
+                    <i class="bi bi-check-lg me-1"></i> Finalizar
+                </button>
+            @else
+                <button class="btn btn-success btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#modalFinalizar">
+                    <i class="bi bi-check-lg me-1"></i> Finalizar
+                </button>
+            @endif
+            <a href="{{ route('rentas.cancelar', $renta) }}" class="btn btn-outline-danger btn-sm rounded-3" onclick="return confirm('¿Estás seguro de cancelar esta renta? El stock regresará inmediatamente.');">
+                <i class="bi bi-x-octagon me-1"></i> Cancelar
+            </a>
         @endif
     </div>
 </div>
 
+@if($renta->estado == 'activa' && (empty($renta->contrato_firmado_path) || empty($renta->pagare_firmado_path)))
+<div class="alert alert-warning alert-dismissible fade show rounded-3 mb-4" role="alert" style="border-left: 4px solid #ffc107;">
+    <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>
+    <strong>¡Documentos Pendientes!</strong> No podrás finalizar la renta hasta que subas el 
+    @if(empty($renta->contrato_firmado_path) && empty($renta->pagare_firmado_path))
+        <strong>Contrato y el Pagaré</strong>
+    @elseif(empty($renta->contrato_firmado_path))
+        <strong>Contrato</strong>
+    @else
+        <strong>Pagaré</strong>
+    @endif
+    firmados en la sección de abajo.
+</div>
+@endif
+
 @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
-        <i class="bi bi-check-circle me-2"></i> {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+<div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
+    <i class="bi bi-check-circle me-2"></i> {{ session('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
 @endif
 @if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
-        <i class="bi bi-exclamation-triangle me-2"></i> {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+<div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i> {{ session('error') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
 @endif
 
 <div class="row g-3">
@@ -102,26 +133,28 @@
                 <strong>Fin:</strong> {{ $renta->fecha_fin->format('d/m/Y') }}<br>
                 <strong>Días totales:</strong> {{ $renta->dias_totales }} días<br>
                 @if($renta->dias_ampliados > 0)
-                    <strong>Días ampliados:</strong> {{ $renta->dias_ampliados }} días<br>
-                    <strong>Fecha ampliación:</strong> {{ $renta->fecha_ampliacion ? \Carbon\Carbon::parse($renta->fecha_ampliacion)->format('d/m/Y') : 'N/A' }}<br>
+                <strong>Días ampliados:</strong> {{ $renta->dias_ampliados }} días<br>
+                <strong>Fecha ampliación:</strong> {{ $renta->fecha_ampliacion ? \Carbon\Carbon::parse($renta->fecha_ampliacion)->format('d/m/Y') : 'N/A' }}<br>
                 @endif
                 <strong>Estado:</strong>
                 @if($renta->estado == 'activa')
                     <span class="badge bg-success rounded-pill px-2">ACTIVA</span>
+                @elseif($renta->estado == 'cancelada')
+                    <span class="badge bg-dark rounded-pill px-2">CANCELADA</span>
                 @else
                     <span class="badge bg-info rounded-pill px-2">FINALIZADA</span>
                 @endif
             </div>
 
             @if($diasRetraso > 0)
-                <div class="alert alert-danger mt-3 mb-0 py-2 small" style="border-left: 4px solid #dc3545;">
-                    <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
-                    <strong>¡Contrato Vencido!</strong><br>
-                    {{ $diasRetraso }} día(s) de retraso. 
-                    @if($multaCalculada > 0)
-                        Multa generada: <strong>${{ number_format($multaCalculada, 2) }}</strong>
-                    @endif
-                </div>
+            <div class="alert alert-danger mt-3 mb-0 py-2 small" style="border-left: 4px solid #dc3545;">
+                <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                <strong>¡Contrato Vencido!</strong><br>
+                {{ $diasRetraso }} día(s) de retraso.
+                @if($multaCalculada > 0)
+                Multa generada: <strong>${{ number_format($multaCalculada, 2) }}</strong>
+                @endif
+            </div>
             @endif
         </div>
     </div>
@@ -146,198 +179,287 @@
                 <table class="table table-bordered table-hover align-middle mb-0 table-renta" style="font-size: 13px;">
                     <thead>
                         <tr>
-                            <th>Cant.</th>
+                            <th>Cant. Inicial</th>
+                            <th>Entregados</th>
+                            <th>Pendientes</th>
                             <th>Equipo</th>
                             <th>Código</th>
                             <th>Precio/día</th>
-                            <th>Días</th>
                             <th>Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($renta->detalles as $detalle)
                         <tr>
-                            <td>{{ $detalle->cantidad }}</td>
+                            <td class="fw-bold text-center">{{ $detalle->cantidad }}</td>
+                            <td class="text-success fw-bold text-center">{{ $detalle->cantidad_devuelta }}</td>
+                            <td class="text-danger fw-bold text-center">{{ $detalle->cantidad - $detalle->cantidad_devuelta }}</td>
                             <td>{{ $detalle->equipo->nombre }}</td>
                             <td><code>{{ $detalle->equipo->codigo }}</code></td>
                             <td>${{ number_format($detalle->precio_dia, 2) }}</td>
-                            <td>{{ $detalle->dias }}</td>
                             <td class="fw-semibold">${{ number_format($detalle->subtotal, 2) }}</td>
                         </tr>
                         @endforeach
                     </tbody>
-                    <tfoot>
-                        <!-- 1. Cargos Base -->
-                        <tr>
-                            <td colspan="5" class="text-end fw-bold text-secondary">Subtotal:</td>
-                            <td class="fw-semibold text-secondary">${{ number_format($renta->subtotal, 2) }}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="5" class="text-end fw-bold text-secondary">IVA (16%):</td>
-                            <td class="fw-semibold text-secondary">${{ number_format($renta->iva, 2) }}</td>
-                        </tr>
-                        
-                        <!-- 2. Cargos Extra (En caso de que tenga multas/daños) -->
-                        @if(isset($renta->cargos_extra) && $renta->cargos_extra > 0)
-                        <tr>
-                            <td colspan="5" class="text-end fw-bold text-danger">Cargos Extra (Multas/Daños):</td>
-                            <td class="fw-semibold text-danger">+${{ number_format($renta->cargos_extra, 2) }}</td>
-                        </tr>
-                        @endif
-
-                        <!-- 3. Total Real del Contrato (CORREGIDO PARA MODO OSCURO) -->
-                        <tr class="fw-bold bg-body-tertiary">
-                            <td colspan="5" class="text-end fs-6 text-body">TOTAL DEL CONTRATO:</td>
-                            <td class="fs-6 text-success">${{ number_format($renta->total, 2) }}</td>
-                        </tr>
-                        
-                        <!-- 4. Depósito (Abono inicial) -->
-                        @if($renta->deposito > 0)
-                        <tr>
-                            <td colspan="5" class="text-end fw-bold text-secondary">Depósito en Garantía:</td>
-                            <td class="text-primary fw-bold">-${{ number_format($renta->deposito, 2) }}</td>
-                        </tr>
-                        @endif
-                        
-                        <!-- 5. Desglose de cada pago registrado -->
-                        @if($renta->pagos->count() > 0)
-                            <tr>
-                                <td colspan="6" class="p-0 border-0"></td>
-                            </tr>
-                            
-                            @foreach($renta->pagos as $pago)
-                            <tr>
-                                <td colspan="5" class="text-end fw-bold text-secondary">
-                                    <i class="bi bi-arrow-down-right text-success"></i> Pago ({{ $pago->fecha_pago->format('d/m/Y') }}):
-                                </td>
-                                <td class="text-info fw-bold">-${{ number_format($pago->monto, 2) }}</td>
-                            </tr>
-                            @endforeach
-                            
-                            <!-- Suma total de los abonos -->
-                            <tr class="bg-body-secondary">
-                                <td colspan="5" class="text-end fw-bold text-body">Total Abonado:</td>
-                                <td class="fw-bold text-info">-${{ number_format($renta->pagos->sum('monto'), 2) }}</td>
-                            </tr>
-                        @endif
-                        
-                        <!-- 6. Saldo Pendiente Final -->
-                        <tr class="fw-bold">
-                            <td colspan="5" class="text-end fs-6 text-body">SALDO PENDIENTE:</td>
-                            <td class="fs-6 {{ $renta->saldo_pendiente > 0 ? 'text-danger' : 'text-success' }}">
-                                ${{ number_format($renta->saldo_pendiente, 2) }}
-                            </td>
-                        </tr>
-                    </tfoot>
                 </table>
             </div>
         </div>
     </div>
 
-    <div class="col-12">
-        <div class="card border-0 shadow-sm rounded-3 p-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
-            <h5 class="fw-bold text-body mb-3"><i class="bi bi-credit-card text-success me-2"></i>HISTORIAL DE PAGOS</h5>
-            @if($renta->pagos->count() > 0)
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover align-middle mb-0 table-renta" style="font-size: 13px;">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Monto</th>
-                                <th>Método</th>
-                                <th>Referencia</th>
-                                <th>Observaciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($renta->pagos as $pago)
-                            <tr>
-                                <td>{{ $pago->fecha_pago->format('d/m/Y') }}</td>
-                                <td class="fw-bold">${{ number_format($pago->monto, 2) }}</td>
-                                <td>
-                                    <span class="badge 
-                                        @if($pago->metodo_pago == 'efectivo') bg-success
-                                        @elseif($pago->metodo_pago == 'transferencia') bg-info
-                                        @else bg-warning text-dark
-                                        @endif">
-                                        {{ ucfirst($pago->metodo_pago) }}
-                                    </span>
-                                </td>
-                                <td>{{ $pago->referencia ?? 'N/A' }}</td>
-                                <td>{{ $pago->observaciones ?? '' }}</td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @else
-                <p class="text-secondary small mb-0">No hay pagos registrados para este contrato.</p>
-            @endif
+    <!-- LADO IZQUIERDO: REGISTRO DE MOVIMIENTOS -->
+    <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
+            <h5 class="fw-bold text-body mb-3"><i class="bi bi-clock-history text-warning me-2"></i>REGISTRO DE MOVIMIENTOS</h5>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                    <thead class="bg-body-tertiary">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Movimiento</th>
+                            <th>Detalle / Ref.</th>
+                            <th class="text-end">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if(($renta->deposito ?? 0) > 0)
+                        <tr>
+                            <td class="text-secondary">{{ $renta->fecha_inicio->format('d/m/Y') }}</td>
+                            <td><span class="badge bg-secondary">Depósito</span></td>
+                            <td class="text-secondary small">Garantía inicial</td>
+                            <td class="text-end fw-bold text-primary">-${{ number_format($renta->deposito, 2) }}</td>
+                        </tr>
+                        @endif
+
+                        @if(($renta->dias_ampliados ?? 0) > 0)
+                        @php
+                        $costoDiarioRenta = 0;
+                        foreach($renta->detalles as $detalle) {
+                        $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                        if ($pendiente > 0) {
+                        $costoDiarioRenta += ($detalle->precio_dia * $pendiente);
+                        }
+                        }
+                        $costoAmpliacion = $costoDiarioRenta * $renta->dias_ampliados;
+                        @endphp
+                        <tr>
+                            <td class="text-secondary">{{ $renta->fecha_ampliacion ? \Carbon\Carbon::parse($renta->fecha_ampliacion)->format('d/m/Y') : 'N/A' }}</td>
+                            <td><span class="badge bg-primary">Ampliación</span></td>
+                            <td class="text-secondary small">+{{ $renta->dias_ampliados }} días al contrato</td>
+                            <td class="text-end fw-bold text-danger">+${{ number_format($costoAmpliacion, 2) }}</td>
+                        </tr>
+                        @endif
+
+                        @foreach($renta->pagos as $pago)
+                        <tr>
+                            <td class="text-secondary">{{ $pago->fecha_pago->format('d/m/Y') }}</td>
+                            <td>
+                                <span class="badge 
+                                    @if($pago->metodo_pago == 'efectivo') bg-success
+                                    @elseif($pago->metodo_pago == 'transferencia') bg-info
+                                    @else bg-warning text-dark
+                                    @endif">
+                                    Pago {{ ucfirst($pago->metodo_pago) }}
+                                </span>
+                            </td>
+                            <td class="text-secondary small text-truncate" style="max-width: 150px;" title="{{ $pago->referencia ?? $pago->observaciones }}">
+                                {{ $pago->referencia ?? $pago->observaciones ?? 'Abono a cuenta' }}
+                            </td>
+                            <td class="text-end fw-bold text-success">-${{ number_format($pago->monto, 2) }}</td>
+                        </tr>
+                        @endforeach
+
+                        @if(isset($renta->cargos_extra) && $renta->cargos_extra > 0)
+                        <tr>
+                            <td class="text-secondary">{{ $renta->fecha_devolucion ? $renta->fecha_devolucion->format('d/m/Y') : 'N/A' }}</td>
+                            <td><span class="badge bg-danger">Cargos Extra</span></td>
+                            <td class="text-secondary small">Multas o Daños</td>
+                            <td class="text-end fw-bold text-danger">+${{ number_format($renta->cargos_extra, 2) }}</td>
+                        </tr>
+                        @endif
+
+                        @if($renta->estado == 'activa' && $multaCalculada > 0)
+                        <tr class="bg-danger bg-opacity-10">
+                            <td class="text-danger fw-bold">Actual</td>
+                            <td><span class="badge bg-danger">Retraso</span></td>
+                            <td class="text-danger small">{{ $diasRetraso }} día(s) vencido(s)</td>
+                            <td class="text-end fw-bold text-danger">+${{ number_format($multaCalculada, 2) }}</td>
+                        </tr>
+                        @endif
+
+                        @if(($renta->deposito ?? 0) <= 0 && ($renta->dias_ampliados ?? 0) <= 0 && $renta->pagos->count() == 0 && (!isset($renta->cargos_extra) || $renta->cargos_extra <= 0) && $multaCalculada <=0)
+                                    <tr>
+                                    <td colspan="4" class="text-center text-secondary py-4">No hay movimientos financieros registrados.</td>
+                                    </tr>
+                                    @endif
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- 🔥 SECCIÓN DE DOCUMENTOS FIRMADOS CORREGIDA PARA MODO OSCURO -->
+    <!-- LADO DERECHO: RESUMEN FINANCIERO -->
+    <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm rounded-3 p-3 h-100" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
+            <h5 class="fw-bold text-body mb-3">
+                <i class="bi bi-calculator text-success me-2"></i>RESUMEN FINANCIERO
+                @if($renta->estado == 'cancelada')
+                    <span class="badge bg-secondary ms-2 fs-6">Anulado</span>
+                @endif
+            </h5>
+
+            <table class="table table-borderless align-middle mb-0" style="font-size: 14px;">
+                <tbody>
+                    @php
+                    // Separamos el costo puro de los equipos del subtotal guardado
+                    $subtotalEquipos = $renta->subtotal - ($renta->flete ?? 0) - ($renta->mano_obra ?? 0);
+                    @endphp
+
+                    <tr class="border-bottom">
+                        <td class="text-secondary fw-bold">Equipos:</td>
+                        <td class="text-end fw-semibold text-secondary">${{ number_format($subtotalEquipos, 2) }}</td>
+                    </tr>
+
+                    @if(($renta->flete ?? 0) > 0)
+                    <tr class="border-bottom">
+                        <td class="text-secondary fw-bold">Flete:</td>
+                        <td class="text-end fw-semibold text-secondary">${{ number_format($renta->flete, 2) }}</td>
+                    </tr>
+                    @endif
+
+                    @if(($renta->mano_obra ?? 0) > 0)
+                    <tr class="border-bottom">
+                        <td class="text-secondary fw-bold">Mano de Obra:</td>
+                        <td class="text-end fw-semibold text-secondary">${{ number_format($renta->mano_obra, 2) }}</td>
+                    </tr>
+                    @endif
+
+                    <tr class="border-bottom bg-body-tertiary">
+                        <td class="text-secondary fw-bold">Subtotal General:</td>
+                        <td class="text-end fw-bold text-secondary">${{ number_format($renta->subtotal, 2) }}</td>
+                    </tr>
+
+                    <tr class="border-bottom">
+                        <td class="text-secondary fw-bold">IVA (16%):</td>
+                        <td class="text-end fw-semibold text-secondary">${{ number_format($renta->iva, 2) }}</td>
+                    </tr>
+
+                    @php
+                    $cargosAdicionales = (isset($renta->cargos_extra) ? $renta->cargos_extra : 0) + ($renta->estado == 'activa' ? $multaCalculada : 0);
+                    @endphp
+                    @if($cargosAdicionales > 0)
+                    <tr class="border-bottom">
+                        <td class="text-danger fw-bold">Cargos por Retraso/Daños:</td>
+                        <td class="text-end fw-bold text-danger">+${{ number_format($cargosAdicionales, 2) }}</td>
+                    </tr>
+                    @endif
+
+                    <tr class="bg-body-tertiary border-bottom">
+                        <td class="text-body fw-bold py-3">TOTAL DEL CONTRATO:</td>
+                        <td class="text-end fw-bold text-success fs-5 py-3">
+                            @if($renta->estado == 'cancelada')
+                                <span class="text-decoration-line-through text-secondary fs-6">${{ number_format($renta->total, 2) }}</span><br>
+                                <span class="text-dark">$0.00</span>
+                            @else
+                                ${{ number_format($renta->total + ($renta->estado == 'activa' ? $multaCalculada : 0), 2) }}
+                            @endif
+                        </td>
+                    </tr>
+
+                    @php
+                    $totalAbonado = $renta->pagos->sum('monto') + ($renta->deposito ?? 0);
+                    @endphp
+                    <tr class="border-bottom">
+                        <td class="text-secondary fw-bold">Total Abonado (Inc. Depósito):</td>
+                        <td class="text-end fw-bold text-primary">-${{ number_format($totalAbonado, 2) }}</td>
+                    </tr>
+
+                    @php
+                    // Forzamos el saldo a 0 visualmente si está cancelada por mayor seguridad
+                    $saldoPendienteReal = $renta->estado == 'cancelada' ? 0 : ($renta->saldo_pendiente + ($renta->estado == 'activa' ? $multaCalculada : 0));
+                    @endphp
+                    <tr>
+                        <td class="text-body fw-bold py-3">SALDO PENDIENTE:</td>
+                        <td class="text-end fw-bold fs-4 {{ $saldoPendienteReal > 0 ? 'text-danger' : 'text-success' }} py-3">
+                            ${{ number_format($saldoPendienteReal, 2) }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- DOCUMENTOS FIRMADOS -->
     <div class="col-12">
         <div class="card border-0 shadow-sm rounded-3 p-3 mt-2" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
             <h5 class="fw-bold text-body mb-3"><i class="bi bi-folder-check text-warning me-2"></i>DOCUMENTOS FIRMADOS</h5>
             <div class="row g-3">
-                <!-- Contrato -->
+                
+                <!-- CONTRATO -->
                 <div class="col-12 col-md-6">
                     <div class="border rounded p-3 h-100 bg-body-tertiary">
                         <h6 class="fw-bold mb-3"><i class="bi bi-file-earmark-pdf text-danger"></i> Contrato de Renta</h6>
                         @if($renta->contrato_firmado_path)
-                            <!-- 👇 Aquí se cambió bg-white por bg-body -->
-                            <div class="d-flex align-items-center justify-content-between bg-body border p-2 rounded">
-                                <span class="small text-success fw-bold"><i class="bi bi-check-circle"></i> Archivo subido</span>
-                                <div>
-                                    <a href="{{ Storage::url($renta->contrato_firmado_path) }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> Ver</a>
-                                    <form action="{{ route('rentas.deleteDocumento', [$renta, 'contrato']) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar este contrato?');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                    </form>
-                                </div>
+                        <div class="d-flex align-items-center justify-content-between bg-body border p-2 rounded">
+                            <span class="small text-success fw-bold"><i class="bi bi-check-circle"></i> Archivo subido</span>
+                            <div>
+                                <a href="{{ Storage::url($renta->contrato_firmado_path) }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> Ver</a>
+                                @if($renta->estado == 'activa')
+                                <form action="{{ route('rentas.deleteDocumento', [$renta, 'contrato']) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar este contrato?');">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                                @endif
                             </div>
+                        </div>
                         @else
+                            @if($renta->estado == 'activa')
                             <form action="{{ route('rentas.uploadContrato', $renta) }}" method="POST" enctype="multipart/form-data">
                                 @csrf
                                 <div class="input-group input-group-sm">
                                     <input type="file" name="contrato_firmado" class="form-control bg-body" accept=".pdf,.jpg,.jpeg,.png" required>
                                     <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-upload"></i> Subir</button>
                                 </div>
-                                <small class="text-secondary d-block mt-1" style="font-size: 11px;">Formatos permitidos: PDF, JPG, PNG (Max. 5MB)</small>
                             </form>
+                            @else
+                            <div class="alert alert-secondary py-2 px-3 small mb-0 text-center">No se subió ningún documento</div>
+                            @endif
                         @endif
                     </div>
                 </div>
 
-                <!-- Pagaré -->
+                <!-- PAGARÉ -->
                 <div class="col-12 col-md-6">
                     <div class="border rounded p-3 h-100 bg-body-tertiary">
                         <h6 class="fw-bold mb-3"><i class="bi bi-file-earmark-text text-warning"></i> Pagaré</h6>
                         @if($renta->pagare_firmado_path)
-                            <!-- 👇 Aquí se cambió bg-white por bg-body -->
-                            <div class="d-flex align-items-center justify-content-between bg-body border p-2 rounded">
-                                <span class="small text-success fw-bold"><i class="bi bi-check-circle"></i> Archivo subido</span>
-                                <div>
-                                    <a href="{{ Storage::url($renta->pagare_firmado_path) }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> Ver</a>
-                                    <form action="{{ route('rentas.deleteDocumento', [$renta, 'pagare']) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar este pagaré?');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                    </form>
-                                </div>
+                        <div class="d-flex align-items-center justify-content-between bg-body border p-2 rounded">
+                            <span class="small text-success fw-bold"><i class="bi bi-check-circle"></i> Archivo subido</span>
+                            <div>
+                                <a href="{{ Storage::url($renta->pagare_firmado_path) }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i> Ver</a>
+                                @if($renta->estado == 'activa')
+                                <form action="{{ route('rentas.deleteDocumento', [$renta, 'pagare']) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar este pagaré?');">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                                @endif
                             </div>
+                        </div>
                         @else
+                            @if($renta->estado == 'activa')
                             <form action="{{ route('rentas.uploadPagare', $renta) }}" method="POST" enctype="multipart/form-data">
                                 @csrf
                                 <div class="input-group input-group-sm">
                                     <input type="file" name="pagare_firmado" class="form-control bg-body" accept=".pdf,.jpg,.jpeg,.png" required>
                                     <button type="submit" class="btn btn-warning fw-bold text-dark"><i class="bi bi-upload"></i> Subir</button>
                                 </div>
-                                <small class="text-secondary d-block mt-1" style="font-size: 11px;">Formatos permitidos: PDF, JPG, PNG (Max. 5MB)</small>
                             </form>
+                            @else
+                            <div class="alert alert-secondary py-2 px-3 small mb-0 text-center">No se subió ningún documento</div>
+                            @endif
                         @endif
                     </div>
                 </div>
+                
             </div>
         </div>
     </div>
@@ -352,16 +474,16 @@
     @endif
 </div>
 
+@if($renta->estado == 'activa')
 <!-- MODAL: Ampliar Días -->
 <div class="modal fade" id="modalAmpliar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <!-- Contenido original del modal ampliar (sin cambios) -->
         <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
             <div class="modal-header bg-primary text-white py-2">
                 <h6 class="modal-title fw-bold"><i class="bi bi-plus-circle me-1"></i> Ampliar Días de Renta</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ route('rentas.ampliarDias', $renta) }}" method="POST" id="formAmpliar">
+            <form action="{{ route('rentas.ampliarDias', $renta) }}" method="POST">
                 @csrf
                 <div class="modal-body">
                     <div class="row">
@@ -369,7 +491,6 @@
                             <div class="mb-3">
                                 <label class="form-label small fw-semibold text-body">Días adicionales <span class="text-danger">*</span></label>
                                 <input type="number" name="dias_extra" id="dias_extra" class="form-control form-control-sm bg-body" min="1" required oninput="calcularAmpliacion()" placeholder="Ej: 3">
-                                <small class="text-secondary" style="font-size: 11px;">Se recalculará el total automáticamente</small>
                             </div>
                             <div class="mb-3 form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="facturar" id="facturar" value="1" onchange="calcularAmpliacion()">
@@ -388,21 +509,21 @@
                             <div class="card bg-body-tertiary border p-3 h-100">
                                 <h6 class="text-primary border-bottom pb-2 fw-bold">Resumen de Ampliación</h6>
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-body small">Costo Extra:</span> 
+                                    <span class="text-body small">Costo Extra:</span>
                                     <strong id="res_costo" class="text-body">$0.00</strong>
                                 </div>
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-body small">IVA:</span> 
+                                    <span class="text-body small">IVA:</span>
                                     <strong id="res_iva_ext" class="text-body">$0.00</strong>
                                 </div>
                                 <hr>
                                 <div class="d-flex justify-content-between fs-6 fw-bold">
-                                    <span>Total a Sumar:</span> 
+                                    <span>Total a Sumar:</span>
                                     <strong id="res_total_ext" class="text-primary">$0.00</strong>
                                 </div>
                                 <div class="alert alert-info py-2 px-3 small mt-3 mb-0">
-                                    <i class="bi bi-info-circle me-1"></i> 
-                                    <strong>Nueva fecha tentativa:</strong> 
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    <strong>Nueva fecha tentativa:</strong>
                                     <span id="nueva_fecha">{{ $renta->fecha_fin->addDays(1)->format('d/m/Y') }}</span>
                                 </div>
                             </div>
@@ -411,9 +532,7 @@
                 </div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary fw-bold">
-                        <i class="bi bi-check-lg me-1"></i> Procesar Ampliación
-                    </button>
+                    <button type="submit" class="btn btn-sm btn-primary fw-bold"><i class="bi bi-check-lg me-1"></i> Procesar</button>
                 </div>
             </form>
         </div>
@@ -442,13 +561,9 @@
                         </div>
                     </div>
 
-                    <!-- 🔥 CÁLCULO DE CAMBIO/FALTANTE -->
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">
-                            Monto Recibido (por el cliente) <span class="text-danger">*</span>
-                        </label>
+                        <label class="form-label small fw-semibold text-body">Monto Recibido <span class="text-danger">*</span></label>
                         <input type="number" id="inputMontoRecibidoPago" class="form-control form-control-sm bg-body fw-bold" step="0.01" required oninput="calcularCambioPago()" placeholder="Ej: 500">
-                        <!-- Input oculto que envía la cantidad real a registrar al backend -->
                         <input type="hidden" name="monto" id="inputMontoRegistrarPago">
                     </div>
 
@@ -490,72 +605,7 @@
     </div>
 </div>
 
-<script>
-function calcularCambioPago() {
-    const saldoPendienteOriginal = parseFloat("{{ $renta->saldo_pendiente }}") || 0;
-    const montoRecibido = parseFloat(document.getElementById('inputMontoRecibidoPago').value) || 0;
-    
-    let montoARegistrar = 0;
-    let cambio = 0;
-    let faltante = 0;
-
-    // Si pagan más o igual a la deuda
-    if (montoRecibido >= saldoPendienteOriginal) {
-        montoARegistrar = saldoPendienteOriginal;
-        cambio = montoRecibido - saldoPendienteOriginal;
-        faltante = 0;
-    } else {
-        // Si pagan menos de la deuda
-        montoARegistrar = montoRecibido;
-        cambio = 0;
-        faltante = saldoPendienteOriginal - montoRecibido;
-    }
-
-    // Actualizamos el input oculto que viaja al backend
-    document.getElementById('inputMontoRegistrarPago').value = montoARegistrar.toFixed(2);
-    
-    // Textos informativos
-    document.getElementById('montoRegistrarText').textContent = '$' + montoARegistrar.toFixed(2);
-    document.getElementById('cambioText').textContent = '$' + cambio.toFixed(2);
-    document.getElementById('faltanteText').textContent = '$' + faltante.toFixed(2);
-    
-    // Feedback de "Saldo tras este pago"
-    const elNuevoSaldo = document.getElementById('nuevoSaldo');
-    elNuevoSaldo.textContent = '$' + faltante.toFixed(2);
-    
-    if (faltante === 0 && montoRecibido > 0) {
-        elNuevoSaldo.className = 'text-success fw-bold';
-    } else {
-        elNuevoSaldo.className = 'text-primary fw-bold';
-    }
-}
-
-function toggleReferencia() {
-    const metodo = document.getElementById('metodoPagoRegistro').value;
-    const campoReferencia = document.getElementById('campoReferencia');
-    const inputReferencia = document.getElementById('inputReferencia');
-
-    if (metodo === 'transferencia' || metodo === 'tarjeta') {
-        campoReferencia.style.display = 'block';
-        inputReferencia.setAttribute('required', 'required');
-    } else {
-        campoReferencia.style.display = 'none';
-        inputReferencia.removeAttribute('required');
-        inputReferencia.value = '';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const modalPago = document.getElementById('modalPago');
-    if (modalPago) {
-        modalPago.addEventListener('show.bs.modal', function () {
-            toggleReferencia();
-        });
-    }
-});
-</script>
-
-<!-- MODAL: Finalizar Renta con Pago -->
+<!-- MODAL: Finalizar Renta -->
 <div class="modal fade" id="modalFinalizar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
@@ -563,61 +613,87 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h6 class="modal-title fw-bold"><i class="bi bi-check-circle me-1"></i> Finalizar Renta</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ route('rentas.finalizarConPago', $renta) }}" method="POST" id="formFinalizar">
+            <form action="{{ route('rentas.finalizarConPago', $renta) }}" method="POST">
                 @csrf
                 <div class="modal-body">
                     <div class="row g-3 mb-3">
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-5">
                             <div class="alert alert-info py-2 px-3 small h-100 mb-0">
-                                <strong class="d-block mb-1">Cálculo de Cuenta Inicial:</strong>
+                                <strong class="d-block mb-2"><i class="bi bi-calculator me-1"></i> Cálculo de Cuenta Inicial:</strong>
                                 Total original: ${{ number_format($renta->total, 2) }}<br>
                                 - Depósito: ${{ number_format($renta->deposito ?? 0, 2) }}<br>
                                 - Pagado: ${{ number_format($renta->pagos->sum('monto'), 2) }}<br>
-                                <hr class="my-1">
+                                <hr class="my-2">
                                 <strong class="text-danger fs-6">Saldo Base a Pagar: $<span id="saldo_base_txt">{{ number_format($renta->saldo_pendiente, 2) }}</span></strong>
                             </div>
                         </div>
-                        <div class="col-12 col-md-6">
-                            <div class="alert alert-warning py-2 px-3 small h-100 mb-0">
-                                <strong class="d-block mb-1"><i class="bi bi-box-arrow-in-down me-1"></i> Equipos a devolver:</strong>
-                                @foreach($renta->detalles as $detalle)
-                                    <div>• {{ $detalle->cantidad }} x {{ $detalle->equipo->nombre }}</div>
-                                @endforeach
+                        <div class="col-12 col-md-7">
+                            <div class="card border-warning h-100 mb-0">
+                                <div class="card-header bg-warning bg-opacity-25 text-dark py-1 fw-bold" style="font-size: 13px;">
+                                    <i class="bi bi-box-arrow-in-down me-1"></i> Confirmar Entrega de Equipo
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive" style="max-height: 150px;">
+                                        <table class="table table-sm mb-0 align-middle" style="font-size: 12px;">
+                                            <thead class="bg-body-tertiary">
+                                                <tr>
+                                                    <th>Equipo</th>
+                                                    <th class="text-center">Pend.</th>
+                                                    <th style="width: 80px;" class="text-center">Devueltos</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($renta->detalles as $detalle)
+                                                @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
+                                                @if($pendiente > 0)
+                                                <tr>
+                                                    <td class="text-truncate" style="max-width: 140px;">{{ $detalle->equipo->nombre }}</td>
+                                                    <td class="text-center fw-bold text-danger">{{ $pendiente }}</td>
+                                                    <td class="text-center">
+                                                        <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center px-1" min="0" max="{{ $pendiente }}" value="{{ $pendiente }}" onfocus="if(this.value == 0) this.value = '';" onblur="if(this.value == '') this.value = 0;">
+                                                    </td>
+                                                </tr>
+                                                @endif
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="px-2 py-1 bg-body-tertiary text-secondary border-top" style="font-size: 10px;">
+                                        <i class="bi bi-info-circle me-1"></i> Si falta algún artículo, disminuye el número en "Devueltos".
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     @if($diasRetraso > 0)
-                        <div class="card border-warning mb-3">
-                            <div class="card-header bg-warning bg-opacity-25 text-dark py-2 fw-bold" style="font-size: 14px;">
-                                <i class="bi bi-clock-history me-1"></i> Multa por Retraso Generada ({{ $diasRetraso }} días)
-                            </div>
-                            <div class="card-body py-2">
-                                <div class="row g-2 align-items-center">
-                                    <div class="col-12 col-md-4">
-                                        <div class="input-group input-group-sm">
-                                            <span class="input-group-text bg-body text-danger fw-bold">$</span>
-                                            <input type="number" name="multa_retraso" id="multa_retraso" class="form-control text-danger fw-bold" step="0.01" min="0" value="{{ $multaCalculada }}" oninput="recalcularFinalizacion()" {{ !$puedeEditarMulta ? 'readonly' : '' }}>
-                                        </div>
-                                    </div>
-                                    <div class="col-12 col-md-8">
-                                        <input type="text" name="motivo_multa" id="motivo_multa" class="form-control form-control-sm" value="{{ $motivoMulta }}" {{ !$puedeEditarMulta ? 'readonly' : '' }}>
+                    <div class="card border-warning mb-3">
+                        <div class="card-header bg-warning bg-opacity-25 text-dark py-2 fw-bold" style="font-size: 14px;">
+                            <i class="bi bi-clock-history me-1"></i> Multa por Retraso Generada ({{ $diasRetraso }} días)
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-md-4">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-body text-danger fw-bold">$</span>
+                                        <input type="number" name="multa_retraso" id="multa_retraso" class="form-control text-danger fw-bold" step="0.01" min="0" value="{{ $multaCalculada }}" oninput="recalcularFinalizacion()" {{ !$puedeEditarMulta ? 'readonly' : '' }}>
                                     </div>
                                 </div>
-                                @if(!$puedeEditarMulta)
-                                    <small class="text-danger mt-1 d-block" style="font-size:11px;"><i class="bi bi-lock-fill"></i> Solo el Gerente/Admin puede condonar la multa.</small>
-                                @endif
+                                <div class="col-12 col-md-8">
+                                    <input type="text" name="motivo_multa" id="motivo_multa" class="form-control form-control-sm" value="{{ $motivoMulta }}" {{ !$puedeEditarMulta ? 'readonly' : '' }}>
+                                </div>
                             </div>
                         </div>
+                    </div>
                     @else
-                        <input type="hidden" name="multa_retraso" id="multa_retraso" value="0">
-                        <input type="hidden" name="motivo_multa" id="motivo_multa" value="">
+                    <input type="hidden" name="multa_retraso" id="multa_retraso" value="0">
+                    <input type="hidden" name="motivo_multa" id="motivo_multa" value="">
                     @endif
 
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" id="check_cargo_manual" onchange="toggleCargoManual()">
                         <label class="form-check-label fw-bold text-danger small" for="check_cargo_manual">
-                            ¿Generar otro cargo extra? (Daños, limpieza, piezas perdidas)
+                            ¿Generar otro cargo extra? (Daños, piezas perdidas)
                         </label>
                     </div>
 
@@ -638,18 +714,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     <h6 class="fw-bold text-body fs-6 border-bottom pb-2">Registrar Pago Final</h6>
                     <div class="row g-2">
-                        <!-- 🔥 CAMPO MODIFICADO: VALUE 0 O VACÍO -->
                         <div class="col-12 col-md-6">
                             <label class="form-label small fw-semibold text-body">Monto Recibido <span class="text-danger">*</span></label>
-                            <input type="number" id="montoRecibidoFinal" class="form-control form-control-sm bg-body fw-bold text-primary" step="0.01" 
-                                   value="" placeholder="0.00" required oninput="recalcularFinalizacion()">
-                            
+                            <input type="number" id="montoRecibidoFinal" class="form-control form-control-sm bg-body fw-bold text-primary" step="0.01" value="" required oninput="recalcularFinalizacion()">
                             <input type="hidden" name="monto_pago" id="montoPagoFinal" value="0">
-                            
                             <small class="text-secondary d-block" id="montoMaximoLabel" style="font-size: 11px;">Deuda Total: ${{ number_format($renta->saldo_pendiente, 2) }}</small>
                         </div>
-
-                        <!-- 🔥 SELECTOR CON ID PARA EJECUTAR LA FUNCIÓN -->
                         <div class="col-12 col-md-6">
                             <label class="form-label small fw-semibold text-body">Método de pago <span class="text-danger">*</span></label>
                             <select name="metodo_pago_final" id="metodoPagoFinalRegistro" class="form-select form-select-sm bg-body" required onchange="toggleReferenciaFinal()">
@@ -658,17 +728,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <option value="tarjeta">Tarjeta</option>
                             </select>
                         </div>
-
-                        <!-- 🔥 CAMPO DE REFERENCIA OCULTO POR DEFECTO -->
                         <div class="col-12" id="campoReferenciaFinal" style="display: none;">
-                            <label class="form-label small fw-semibold text-body">Referencia (Obligatoria si es Tarjeta/Transferencia)</label>
-                            <input type="text" name="referencia_final" id="inputReferenciaFinal" class="form-control form-control-sm bg-body" placeholder="Folio de transferencia o boucher">
+                            <label class="form-label small fw-semibold text-body">Referencia</label>
+                            <input type="text" name="referencia_final" id="inputReferenciaFinal" class="form-control form-control-sm bg-body">
                         </div>
-
                         <div class="col-12 mt-2">
                             <div class="alert alert-secondary py-2 px-3 small mb-0">
                                 <div class="d-flex justify-content-between mb-1">
-                                    <span>Monto a cobrar (Deuda real):</span>
+                                    <span>Monto a cobrar:</span>
                                     <strong id="montoCobrarFinalText" class="text-primary">${{ number_format($renta->saldo_pendiente, 2) }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between mb-1">
@@ -685,184 +752,244 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-success fw-bold" onclick="return validarCargo()">
-                        <i class="bi bi-check-lg me-1"></i> Finalizar Renta
-                    </button>
+                    <button type="submit" class="btn btn-sm btn-success fw-bold" onclick="return validarCargo()"><i class="bi bi-check-lg me-1"></i> Finalizar</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<!--Devolución Parcial -->
+<div class="modal fade" id="modalDevParcial" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-secondary text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down me-1"></i> Registrar Devolución Parcial</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('rentas.devolucionParcial', $renta) }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <p class="small text-secondary mb-3">Indica la cantidad de artículos que el cliente está devolviendo en este momento. El stock regresará automáticamente a la sucursal.</p>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" style="font-size: 13px;">
+                            <thead class="bg-body-tertiary">
+                                <tr>
+                                    <th>Equipo</th>
+                                    <th class="text-center">Pendientes</th>
+                                    <th style="width: 120px;">A devolver hoy</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($renta->detalles as $detalle)
+                                @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
+                                <tr>
+                                    <td>{{ $detalle->equipo->nombre }}</td>
+                                    <td class="text-center fw-bold {{ $pendiente > 0 ? 'text-danger' : 'text-success' }}">
+                                        {{ $pendiente }}
+                                    </td>
+                                    <td>
+                                        @if($pendiente > 0)
+                                        <input type="number" name="devolver[{{ $detalle->id }}]" class="form-control form-control-sm" min="0" max="{{ $pendiente }}" value="0" onfocus="if(this.value == 0) this.value = '';" onblur="if(this.value == '') this.value = 0;">
+                                        @else
+                                        <span class="badge bg-success w-100">Devuelto</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-secondary fw-bold">Registrar Entrega</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+    @php
+        $costoDiarioPendiente = 0;
+        foreach($renta->detalles as $detalle) {
+            $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+            if ($pendiente > 0) {
+                $costoDiarioPendiente += ($detalle->precio_dia * $pendiente);
+            }
+        }
+    @endphp
+
 <script>
-const saldoBaseOriginal = parseFloat("{{ $renta->saldo_pendiente }}") || 0;
-const inputMulta = document.getElementById('multa_retraso');
-const checkCargoManual = document.getElementById('check_cargo_manual');
-const seccionCargoManual = document.getElementById('seccion_cargo_manual');
-const inputCargoManual = document.getElementById('cargo_manual');
-const motivoCargoManual = document.getElementById('motivo_cargo_manual');
-const inputMontoFinalHidden = document.getElementById('montoPagoFinal');
-const labelMaximo = document.getElementById('montoMaximoLabel');
-const fechaFinOriginal = "{{ $renta->fecha_fin->format('Y-m-d') }}";
+    // Lógica de Modal Pago Regular
+    function calcularCambioPago() {
+        const saldoPendienteOriginal = parseFloat("{{ $renta->saldo_pendiente }}") || 0;
+        const montoRecibido = parseFloat(document.getElementById('inputMontoRecibidoPago').value) || 0;
 
-function toggleCargoManual() {
-    if (checkCargoManual.checked) {
-        seccionCargoManual.classList.remove('d-none');
-    } else {
-        seccionCargoManual.classList.add('d-none');
-        inputCargoManual.value = 0;
-        motivoCargoManual.value = '';
-    }
-    recalcularFinalizacion();
-}
+        let montoARegistrar = 0,
+            cambio = 0,
+            faltante = 0;
 
-// Ocultar o Mostrar el campo de Referencia Final
-function toggleReferenciaFinal() {
-    const metodo = document.getElementById('metodoPagoFinalRegistro').value;
-    const campoReferencia = document.getElementById('campoReferenciaFinal');
-    const inputReferencia = document.getElementById('inputReferenciaFinal');
+        if (montoRecibido >= saldoPendienteOriginal) {
+            montoARegistrar = saldoPendienteOriginal;
+            cambio = montoRecibido - saldoPendienteOriginal;
+        } else {
+            montoARegistrar = montoRecibido;
+            faltante = saldoPendienteOriginal - montoRecibido;
+        }
 
-    if (metodo === 'transferencia' || metodo === 'tarjeta') {
-        campoReferencia.style.display = 'block';
-        inputReferencia.setAttribute('required', 'required'); // Se vuelve obligatorio
-    } else {
-        campoReferencia.style.display = 'none';
-        inputReferencia.removeAttribute('required'); // Se quita lo obligatorio
-        inputReferencia.value = ''; // Se limpia el campo
-    }
-}
+        document.getElementById('inputMontoRegistrarPago').value = montoARegistrar.toFixed(2);
+        document.getElementById('montoRegistrarText').textContent = '$' + montoARegistrar.toFixed(2);
+        document.getElementById('cambioText').textContent = '$' + cambio.toFixed(2);
+        document.getElementById('faltanteText').textContent = '$' + faltante.toFixed(2);
 
-// Recalcula el total de la deuda y el cambio/faltante
-function recalcularFinalizacion() {
-    let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
-    let manual = (checkCargoManual && checkCargoManual.checked) ? (parseFloat(inputCargoManual.value) || 0) : 0;
-    let deudaReal = saldoBaseOriginal + multa + manual;
-    
-    if (labelMaximo) {
-        labelMaximo.textContent = 'Deuda Total: $' + deudaReal.toFixed(2);
-    }
-    
-    let montoRecibido = parseFloat(document.getElementById('montoRecibidoFinal').value) || 0;
-    let montoACobrar = 0;
-    let cambio = 0;
-    let faltante = 0;
-
-    if (montoRecibido >= deudaReal) {
-        montoACobrar = deudaReal;
-        cambio = montoRecibido - deudaReal;
-        faltante = 0;
-    } else {
-        montoACobrar = montoRecibido;
-        cambio = 0;
-        faltante = deudaReal - montoRecibido;
+        const elNuevoSaldo = document.getElementById('nuevoSaldo');
+        elNuevoSaldo.textContent = '$' + faltante.toFixed(2);
+        elNuevoSaldo.className = (faltante === 0 && montoRecibido > 0) ? 'text-success fw-bold' : 'text-primary fw-bold';
     }
 
-    // Input hidden que se envía al backend
-    inputMontoFinalHidden.value = montoACobrar.toFixed(2);
-    
-    // UI Feedback
-    document.getElementById('montoCobrarFinalText').textContent = '$' + montoACobrar.toFixed(2);
-    document.getElementById('cambioFinalText').textContent = '$' + cambio.toFixed(2);
-    document.getElementById('faltanteFinalText').textContent = '$' + faltante.toFixed(2);
-}
-
-// Validación final al presionar el botón verde
-function validarCargo() {
-    let manual = parseFloat(inputCargoManual ? inputCargoManual.value : 0) || 0;
-    let motivo = motivoCargoManual ? motivoCargoManual.value.trim() : '';
-    
-    if (checkCargoManual && checkCargoManual.checked && manual > 0 && motivo === '') {
-        alert('Ha agregado un cargo extra manual de $' + manual + '. Por favor, especifique el motivo (ej: Llanta dañada).');
-        motivoCargoManual.focus();
-        return false;
+    function toggleReferencia() {
+        const metodo = document.getElementById('metodoPagoRegistro').value;
+        const inputReferencia = document.getElementById('inputReferencia');
+        if (metodo === 'transferencia' || metodo === 'tarjeta') {
+            document.getElementById('campoReferencia').style.display = 'block';
+            inputReferencia.setAttribute('required', 'required');
+        } else {
+            document.getElementById('campoReferencia').style.display = 'none';
+            inputReferencia.removeAttribute('required');
+            inputReferencia.value = '';
+        }
     }
-    
-    let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
-    let deudaReal = saldoBaseOriginal + multa + manual;
-    let montoRecibido = parseFloat(document.getElementById('montoRecibidoFinal').value) || 0;
-    
-    // Validar que no falte dinero
-    if (montoRecibido < deudaReal) {
-        alert('El monto recibido ($' + montoRecibido.toFixed(2) + ') NO cubre la deuda total ($' + deudaReal.toFixed(2) + '). Para FINALIZAR la renta la deuda debe quedar en $0.00.');
-        return false;
+
+    // Lógica de Modal Finalizar
+    const saldoBaseOriginal = parseFloat("{{ $renta->saldo_pendiente }}") || 0;
+    const inputMulta = document.getElementById('multa_retraso');
+    const checkCargoManual = document.getElementById('check_cargo_manual');
+    const seccionCargoManual = document.getElementById('seccion_cargo_manual');
+    const inputCargoManual = document.getElementById('cargo_manual');
+    const motivoCargoManual = document.getElementById('motivo_cargo_manual');
+    const inputMontoFinalHidden = document.getElementById('montoPagoFinal');
+    const labelMaximo = document.getElementById('montoMaximoLabel');
+    const fechaFinOriginal = "{{ $renta->fecha_fin->format('Y-m-d') }}";
+
+    function toggleCargoManual() {
+        if (checkCargoManual.checked) {
+            seccionCargoManual.classList.remove('d-none');
+        } else {
+            seccionCargoManual.classList.add('d-none');
+            inputCargoManual.value = 0;
+            motivoCargoManual.value = '';
+        }
+        recalcularFinalizacion();
     }
-    
-    return true;
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-    recalcularFinalizacion();
+    function toggleReferenciaFinal() {
+        const metodo = document.getElementById('metodoPagoFinalRegistro').value;
+        const inputReferencia = document.getElementById('inputReferenciaFinal');
+        if (metodo === 'transferencia' || metodo === 'tarjeta') {
+            document.getElementById('campoReferenciaFinal').style.display = 'block';
+            inputReferencia.setAttribute('required', 'required');
+        } else {
+            document.getElementById('campoReferenciaFinal').style.display = 'none';
+            inputReferencia.removeAttribute('required');
+            inputReferencia.value = '';
+        }
+    }
 
-    // Inicializar el estado de la referencia al cargar el modal (por si se abriera con otro método)
-    const modalFinalizar = document.getElementById('modalFinalizar');
-    if (modalFinalizar) {
-        modalFinalizar.addEventListener('show.bs.modal', function () {
-            toggleReferenciaFinal();
-            // Asegurarse de que el input inicie vacío al abrir el modal (opcional, pero da mejor UX)
-            document.getElementById('montoRecibidoFinal').value = '';
-            recalcularFinalizacion();
+    function recalcularFinalizacion() {
+        let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
+        let manual = (checkCargoManual && checkCargoManual.checked) ? (parseFloat(inputCargoManual.value) || 0) : 0;
+        let deudaReal = saldoBaseOriginal + multa + manual;
+
+        if (labelMaximo) labelMaximo.textContent = 'Deuda Total: $' + deudaReal.toFixed(2);
+
+        let montoRecibido = parseFloat(document.getElementById('montoRecibidoFinal').value) || 0;
+        let montoACobrar = 0,
+            cambio = 0,
+            faltante = 0;
+
+        if (montoRecibido >= deudaReal) {
+            montoACobrar = deudaReal;
+            cambio = montoRecibido - deudaReal;
+        } else {
+            montoACobrar = montoRecibido;
+            faltante = deudaReal - montoRecibido;
+        }
+
+        inputMontoFinalHidden.value = montoACobrar.toFixed(2);
+        document.getElementById('montoCobrarFinalText').textContent = '$' + montoACobrar.toFixed(2);
+        document.getElementById('cambioFinalText').textContent = '$' + cambio.toFixed(2);
+        document.getElementById('faltanteFinalText').textContent = '$' + faltante.toFixed(2);
+    }
+
+    function validarCargo() {
+        let manual = parseFloat(inputCargoManual ? inputCargoManual.value : 0) || 0;
+        let motivo = motivoCargoManual ? motivoCargoManual.value.trim() : '';
+
+        if (checkCargoManual && checkCargoManual.checked && manual > 0 && motivo === '') {
+            alert('Ha agregado un cargo extra manual. Especifique el motivo.');
+            motivoCargoManual.focus();
+            return false;
+        }
+
+        let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
+        let deudaReal = saldoBaseOriginal + multa + manual;
+        let montoRecibido = parseFloat(document.getElementById('montoRecibidoFinal').value) || 0;
+
+        if (montoRecibido < deudaReal) {
+            alert('El monto recibido ($' + montoRecibido.toFixed(2) + ') NO cubre la deuda total ($' + deudaReal.toFixed(2) + ').');
+            return false;
+        }
+        return true;
+    }
+
+    const costoDiarioRenta = {{ $costoDiarioPendiente }};
+
+    function calcularAmpliacion() {
+        const dias = parseInt(document.getElementById('dias_extra').value) || 0;
+        const checkFacturar = document.getElementById('facturar');
+
+        const costoExtra = dias * costoDiarioRenta;
+        const ivaExtra = (checkFacturar && checkFacturar.checked) ? (costoExtra * 0.16) : 0;
+
+        document.getElementById('res_costo').textContent = '$' + costoExtra.toFixed(2);
+        document.getElementById('res_iva_ext').textContent = '$' + ivaExtra.toFixed(2);
+        document.getElementById('res_total_ext').textContent = '$' + (costoExtra + ivaExtra).toFixed(2);
+
+        const elNuevaFecha = document.getElementById('nueva_fecha');
+        let partesFecha = fechaFinOriginal.split('-');
+
+        if (dias > 0) {
+            let fecha = new Date(partesFecha[0], partesFecha[1] - 1, partesFecha[2]);
+            fecha.setDate(fecha.getDate() + dias);
+            elNuevaFecha.textContent = String(fecha.getDate()).padStart(2, '0') + '/' + String(fecha.getMonth() + 1).padStart(2, '0') + '/' + fecha.getFullYear();
+        } else {
+            elNuevaFecha.textContent = String(partesFecha[2]).padStart(2, '0') + '/' + String(partesFecha[1]).padStart(2, '0') + '/' + partesFecha[0];
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        ['modalPago', 'modalFinalizar', 'modalAmpliar'].forEach(id => {
+            let modal = document.getElementById(id);
+            if (modal) {
+                modal.addEventListener('show.bs.modal', function() {
+                    if (id === 'modalPago') toggleReferencia();
+                    if (id === 'modalFinalizar') {
+                        toggleReferenciaFinal();
+                        document.getElementById('montoRecibidoFinal').value = '';
+                        recalcularFinalizacion();
+                    }
+                    if (id === 'modalAmpliar') {
+                        document.getElementById('dias_extra').value = '';
+                        document.getElementById('facturar').checked = false;
+                        calcularAmpliacion();
+                    }
+                });
+            }
         });
-    }
-});
-
-const costoDiarioRenta = {{ $renta->detalles->sum(function($detalle) { 
-    return $detalle->precio_dia * $detalle->cantidad; 
-}) }};
-
-function calcularAmpliacion() {
-    const inputDias = document.getElementById('dias_extra');
-    const dias = parseInt(inputDias.value) || 0;
-    const checkFacturar = document.getElementById('facturar');
-    
-    // --- CÁLCULO DE COSTOS ---
-    const costoExtra = dias * costoDiarioRenta;
-    const ivaExtra = (checkFacturar && checkFacturar.checked) ? (costoExtra * 0.16) : 0;
-    const totalExtra = costoExtra + ivaExtra;
-    
-    // Actualizamos los textos en el DOM
-    document.getElementById('res_costo').textContent = '$' + costoExtra.toFixed(2);
-    document.getElementById('res_iva_ext').textContent = '$' + ivaExtra.toFixed(2);
-    document.getElementById('res_total_ext').textContent = '$' + totalExtra.toFixed(2);
-    
-    // --- CÁLCULO DE LA NUEVA FECHA TENTATIVA ---
-    const elNuevaFecha = document.getElementById('nueva_fecha');
-    
-    // Evitamos problemas de Zona Horaria dividiendo la cadena manualmente
-    let partesFecha = fechaFinOriginal.split('-');
-    let anioOriginal = parseInt(partesFecha[0]);
-    let mesOriginal = parseInt(partesFecha[1]) - 1; // En JS los meses van de 0 a 11
-    let diaOriginal = parseInt(partesFecha[2]);
-    
-    if (dias > 0) {
-        // Creamos la fecha original y le sumamos los días extra
-        let fecha = new Date(anioOriginal, mesOriginal, diaOriginal);
-        fecha.setDate(fecha.getDate() + dias);
-        
-        // Formateamos la nueva fecha a DD/MM/YYYY
-        let diaStr = String(fecha.getDate()).padStart(2, '0');
-        let mesStr = String(fecha.getMonth() + 1).padStart(2, '0');
-        let anioStr = fecha.getFullYear();
-        
-        elNuevaFecha.textContent = diaStr + '/' + mesStr + '/' + anioStr;
-    } else {
-        // Si el input está en 0 o vacío, mostramos la fecha original
-        let diaStr = String(diaOriginal).padStart(2, '0');
-        let mesStr = String(mesOriginal + 1).padStart(2, '0');
-        elNuevaFecha.textContent = diaStr + '/' + mesStr + '/' + anioOriginal;
-    }
-}
-
-// Escuchar cuando se abre el modal para reiniciar los valores por defecto
-document.addEventListener('DOMContentLoaded', function() {
-    const modalAmpliar = document.getElementById('modalAmpliar');
-    if (modalAmpliar) {
-        modalAmpliar.addEventListener('show.bs.modal', function () {
-            // Opcional: Limpiar el input al abrir el modal
-            document.getElementById('dias_extra').value = '';
-            document.getElementById('facturar').checked = false;
-            calcularAmpliacion();
-        });
-    }
-});
+        recalcularFinalizacion();
+    });
 </script>
 @endsection
