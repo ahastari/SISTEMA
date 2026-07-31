@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Venta extends Model
 {
-    // 🔥 AQUÍ AGREGAMOS SUCURSAL_ID Y LOS DEMÁS CAMPOS DEL PUNTO DE VENTA
+    // 🔥 AGREGAMOS MONTO_RECIBIDO, CAMBIO Y PAGOS_MIXTO A FILLABLE
     protected $fillable = [
         'folio', 'corte_caja_id', 'sucursal_id', 'cliente_id', 'cliente_nombre', 
-        'subtotal', 'iva', 'total', 'metodo_pago', 'estado', 'observaciones',
-        'requiere_factura', 'rfc_cliente'
+        'subtotal', 'iva', 'total', 'metodo_pago', 'monto_recibido', 'cambio', 'pagos_mixtos',
+        'estado', 'observaciones', 'requiere_factura', 'rfc_cliente'
     ];
 
     public function detalles()
@@ -23,7 +23,11 @@ class Venta extends Model
         return $this->belongsTo(Cliente::class, 'cliente_id');
     }
 
-    // 🔒 Relación con la sucursal
+    protected $casts = [
+        'pagos_mixtos' => 'array',
+        'requiere_factura' => 'boolean',
+    ];
+
     public function sucursal()
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');

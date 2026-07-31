@@ -4,13 +4,17 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-2">
     <div>
         <h3 class="mb-0 fw-bold text-body">
-            <i class="bi bi-cash-stack text-primary me-2"></i>Historial de Cortes y Turnos
+            <i class="bi bi-cash-stack text-primary me-2"></i>Historial de Cortes
         </h3>
-        <p class="text-secondary small mb-0">Auditoría, arqueos de caja y control de flujo de efectivo técnico</p>
     </div>
-    <a href="{{ route('puntoventa.index') }}" class="btn btn-outline-primary btn-sm rounded-3 shadow-sm fw-bold">
-        <i class="bi bi-arrow-left-short fs-5 align-middle"></i> Regresar al POS
-    </a>
+    <div class="d-flex gap-2">
+        <button onclick="recargarTablaCortes()" class="btn btn-outline-secondary btn-sm rounded-3 shadow-sm fw-bold">
+            <i class="bi bi-arrow-clockwise me-1"></i> Actualizar Ahora
+        </button>
+        <a href="{{ route('puntoventa.index') }}" class="btn btn-outline-primary btn-sm rounded-3 shadow-sm fw-bold">
+            <i class="bi bi-arrow-left-short fs-5 align-middle"></i> Regresar 
+        </a>
+    </div>
 </div>
 
 @if(session('success'))
@@ -30,20 +34,36 @@
                         <th class="py-2">Usuario / Turno</th>
                         <th class="py-2">Apertura / Cierre</th>
                         <th class="py-2 text-end">Fondo Inicial</th>
-                        <th class="py-2 text-end">Ventas Brutas</th>
+                        <th class="py-2 text-end">Ventas + Servicios</th>
                         <th class="py-2 text-center">Flujo Efectivo</th>
                         <th class="py-2 text-end bg-body-secondary text-body">Efectivo Esperado</th>
                         <th class="py-2 text-end">Monto Real Físico</th>
                         <th class="py-2 text-end">Diferencia</th>
-                        <th class="pe-4 py-2 text-center">Estado</th>
+                        <!-- <th class="pe-4 py-2 text-center">Estado</th> -->
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="contenedorCortesTabla">
                     @forelse($cortes as $corte)
                     @php
                         $ingresosEfe = $corte->movimientos->where('tipo', 'ingreso')->where('metodo', 'efectivo')->sum('monto');
                         $egresosEfe = $corte->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
                         $efectivoEsperado = $corte->monto_inicial + $corte->total_efectivo + $ingresosEfe - $egresosEfe;
+
+                        // Obtener montos de Flete y Mano de Obra sumando desde las ventas del corte
+                        $montoFlete = 0;
+                        $montoManoObra = 0;
+
+                        if($corte->ventas) {
+                            foreach($corte->ventas as $v) {
+                                foreach($v->detalles as $d) {
+                                    if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
+                                        $montoFlete += $d->subtotal;
+                                    } elseif(str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) {
+                                        $montoManoObra += $d->subtotal;
+                                    }
+                                }
+                            }
+                        }
                     @endphp
                     <tr>
                         <td class="ps-4 fw-bold text-secondary">#{{ $corte->id }}</td>
@@ -62,12 +82,25 @@
                             @endif
                         </td>
                         <td class="text-end fw-semibold text-secondary">${{ number_format($corte->monto_inicial, 2) }}</td>
+                        
+                        <!-- VENTAS + DESGLOSE DE FLETE Y MANO DE OBRA -->
                         <td class="text-end fw-semibold text-primary">
                             ${{ number_format($corte->total_ventas, 2) }}
-                            <br>
-                            <small class="text-secondary" style="font-size: 10px;" title="Ventas hechas únicamente en efectivo">
-                                (Efe: ${{ number_format($corte->total_efectivo, 2) }})
-                            </small>
+                            <div class="d-flex flex-column align-items-end mt-1 gap-1" style="font-size: 10px;">
+                                @if($montoFlete > 0)
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle" title="Monto cobrado por flete">
+                                        <i class="bi bi-truck me-1"></i>Flete: ${{ number_format($montoFlete, 2) }}
+                                    </span>
+                                @endif
+                                @if($montoManoObra > 0)
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Monto cobrado por mano de obra">
+                                        <i class="bi bi-tools me-1"></i>M. Obra: ${{ number_format($montoManoObra, 2) }}
+                                    </span>
+                                @endif
+                                <!-- <span class="text-secondary" style="font-size: 10px;" title="Ventas hechas únicamente en efectivo">
+                                    (Efe: ${{ number_format($corte->total_efectivo, 2) }})
+                                </span> -->
+                            </div>
                         </td>
                         
                         <td class="text-center">
@@ -95,7 +128,7 @@
                         
                         <td class="text-end fw-bold font-monospace">
                             @if($corte->estado == 'abierto')
-                                <span class="text-muted small fw-normal">Calculando...</span>
+                                <!-- <span class="text-muted small fw-normal">Calculando...</span> -->
                             @else
                                 @if(($corte->diferencia ?? 0) < 0)
                                     <span class="text-danger" title="Faltante en caja">
@@ -111,7 +144,7 @@
                             @endif
                         </td>
                         
-                        <td class="pe-4 text-center">
+                        <!-- <td class="pe-4 text-center">
                             @if($corte->estado == 'abierto')
                                 <span class="badge rounded-pill bg-success-subtle text-success px-3 py-1 border border-success-subtle">
                                     <span class="spinner-grow spinner-grow-sm align-middle me-1" style="width: 8px; height: 8px;" role="status"></span> Abierta
@@ -121,7 +154,7 @@
                                     Cerrada
                                 </span>
                             @endif
-                        </td>
+                        </td> -->
                     </tr>
                     @empty
                     <tr>
@@ -140,4 +173,28 @@
 <div class="mt-3 d-flex justify-content-center">
     {{ $cortes->links() }}
 </div>
+
+<!-- SCRIPT DE AUTO-RECARGA DINÁMICA -->
+<script>
+function recargarTablaCortes() {
+    fetch(window.location.href, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const nuevoContenido = doc.getElementById('contenedorCortesTabla');
+        if (nuevoContenido) {
+            document.getElementById('contenedorCortesTabla').innerHTML = nuevoContenido.innerHTML;
+        }
+    })
+    .catch(error => console.error('Error al actualizar historial:', error));
+}
+
+// Auto-refrescar cada 10 segundos
+setInterval(recargarTablaCortes, 10000);
+</script>
 @endsection

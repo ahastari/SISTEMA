@@ -1,145 +1,344 @@
 <!DOCTYPE html>
-<html lang="es" id="htmlElement" data-bs-theme="light">
+<html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>{{ $titulo }}</title>
+    <title>{{ $titulo ?? 'Balance Financiero' }}</title>
     <style>
-        @page { margin: 2cm 1.5cm; }
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; font-size: 11px; line-height: 1.6; }
+        /* CONFIGURACIÓN CARTA VERTICAL ESTRICTA */
+        @page { 
+            size: letter portrait;
+            margin: 1.2cm 1.2cm 1.5cm 1.2cm; 
+        }
         
-        /* Cabecera Corporativa de Alta Costura */
-        .header { border-bottom: 2px solid #0d6efd; padding-bottom: 14px; margin-bottom: 25px; }
-        .company-name { font-size: 13px; font-weight: bold; color: #0f172a; letter-spacing: 1px; margin: 0; }
-        .report-title { font-size: 18px; color: #475569; margin: 4px 0 0 0; font-weight: 300; }
-        .meta-date { text-align: right; color: #64748b; font-size: 9px; float: right; margin-top: -25px; }
-        
-        h3 { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 24px; margin-bottom: 12px; }
-        
-        /* Bloques de Estados Financieros KPI */
-        .kpi-table { width: 100%; margin-bottom: 20px; border-spacing: 8px 0; margin-left: -8px; }
-        .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; text-align: center; }
-        .kpi-lbl { font-size: 8px; color: #64748b; text-transform: uppercase; font-weight: bold; }
-        .kpi-val { font-size: 15px; font-weight: bold; margin-top: 4px; }
-        
-        .text-primary { color: #0d6efd; }
-        .text-success { color: #16a34a; }
-        .text-muted { color: #475569; }
+        * { box-sizing: border-box; }
 
-        /* Estructuras de Tablas */
-        .table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-        .table th { background: #f1f5f9; color: #475569; font-size: 8px; font-weight: bold; text-transform: uppercase; padding: 8px 10px; text-align: left; }
-        .table td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; color: #334155; }
-        .text-right { text-align: right; }
+        body { 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            color: #0f172a; 
+            font-size: 8.5pt; 
+            line-height: 1.25; 
+            margin: 0;
+            padding: 0;
+        }
 
-        /* Contenedores de Gráficos SVG Nativos Vectoriales */
-        .chart-row { width: 100%; margin-bottom: 20px; }
-        .chart-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; text-align: center; }
-        
-        .footer { text-align: center; position: fixed; bottom: -0.6cm; left: 0; right: 0; font-size: 8px; color: #94a3b8; }
+        table { width: 100%; border-collapse: collapse; }
+
+        /* ENCABEZADO Y SUCURSAL */
+        .header-table {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .logo-img {
+            max-height: 48px;
+            max-width: 150px;
+            margin-bottom: 4px;
+        }
+        .brand-title { 
+            font-size: 11pt; 
+            font-weight: 800; 
+            color: #0f172a; 
+            text-transform: uppercase;
+            margin: 0;
+            letter-spacing: 0.3px;
+        }
+        .branch-badge {
+            display: inline-block;
+            background: #f0f9ff;
+            color: #0369a1;
+            font-size: 7pt;
+            font-weight: bold;
+            padding: 2px 5px;
+            border-radius: 3px;
+            border: 1px solid #bae6fd;
+            margin-top: 2px;
+            margin-bottom: 4px;
+        }
+        .branch-details {
+            font-size: 7pt;
+            color: #475569;
+            line-height: 1.2;
+        }
+
+        /* TITULARES */
+        .section-header { 
+            font-size: 7.5pt; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            letter-spacing: 0.4px;
+            color: #0f172a; 
+            background: #f8fafc;
+            border-left: 3px solid #0284c7;
+            padding: 3px 6px;
+            margin-top: 10px; 
+            margin-bottom: 5px; 
+        }
+
+        /* CARDS KPIS */
+        .kpi-table { margin-bottom: 8px; }
+        .kpi-card { 
+            background: #ffffff; 
+            border: 1px solid #cbd5e1; 
+            padding: 6px 8px; 
+            border-radius: 4px; 
+        }
+        .kpi-title { 
+            font-size: 6.5pt; 
+            color: #64748b; 
+            text-transform: uppercase; 
+            font-weight: 700; 
+        }
+        .kpi-amount { 
+            font-size: 12pt; 
+            font-weight: 800; 
+            margin-top: 2px; 
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* ANALÍTICAS DE BARRAS */
+        .analytics-box {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 5px 7px;
+        }
+        .bar-bg {
+            width: 100%;
+            background-color: #f1f5f9;
+            height: 6px;
+            border-radius: 2px;
+        }
+        .bar-fill-blue { height: 6px; background-color: #0284c7; border-radius: 2px; }
+        .bar-fill-dark { height: 6px; background-color: #0f172a; border-radius: 2px; }
+
+        /* BITÁCORA */
+        .data-table { margin-top: 4px; }
+        .data-table th { 
+            background: #0f172a; 
+            color: #ffffff; 
+            font-size: 7pt; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            padding: 4px 6px; 
+            text-align: left; 
+        }
+        .data-table td { 
+            padding: 4px 6px; 
+            border-bottom: 1px solid #e2e8f0; 
+            color: #334155; 
+            font-size: 7.5pt;
+        }
+        .data-table tr:nth-child(even) { background: #f8fafc; }
+        .nowrap { white-space: nowrap; }
+        .font-mono { font-family: 'Courier New', Courier, monospace; font-weight: bold; }
+
+        /* FOOTER */
+        .footer { 
+            position: fixed; 
+            bottom: -0.8cm; 
+            left: 0; 
+            right: 0; 
+            font-size: 6.5pt; 
+            color: #94a3b8; 
+            border-top: 1px solid #e2e8f0;
+            padding-top: 3px;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1 class="company-name">ANDAMIOS Y MADERA VIRAMONTES</h1>
-        <h2 class="report-title">Balance e Informes de Gestión Financiera</h2>
-        <div class="meta-date">Período: {{ $inicio->format('d/m/Y') }} al {{ $fin->format('d/m/Y') }}</div>
-    </div>
 
-    <table class="kpi-table">
+    <!-- ENCABEZADO PRINCIPAL CON LOGO Y DATOS DE SUCURSAL -->
+    <table class="header-table">
         <tr>
-            <td style="width: 33%;">
-                <div class="kpi-card">
-                    <div class="kpi-lbl">Ingresos Totales (Ventas)</div>
-                    <div class="kpi-val text-primary">${{ number_format($totalVentas, 2) }}</div>
+            <td style="width: 58%; vertical-align: top;">
+                @if(isset($logoBase64) && $logoBase64)
+                    <img src="{{ $logoBase64 }}" class="logo-img" alt="Logo Sucursal"><br>
+                @endif
+                
+                <h1 class="brand-title">ANDAMIOS Y MADERA VIRAMONTES</h1>
+                
+                <div class="branch-badge">
+                    SUCURSAL: <strong>{{ strtoupper($sucursalNombre ?? 'Matriz General') }}</strong>
                 </div>
-            </td>
-            <td style="width: 33%;">
-                <div class="kpi-card">
-                    <div class="kpi-lbl">Costo de Inversión (Mercancía)</div>
-                    <div class="kpi-val text-muted">${{ number_format($totalCostos, 2) }}</div>
-                </div>
-            </td>
-            <td style="width: 34%;">
-                <div class="kpi-card" style="background: #f0fdf4; border-color: #bbf7d0;">
-                    <div class="kpi-lbl text-success">Utilidad Neta Neto (Ganancia)</div>
-                    <div class="kpi-val text-success">${{ number_format($gananciaNeta, 2) }}</div>
-                </div>
-            </td>
-        </tr>
-    </table>
 
-    <table class="chart-row" style="width: 100%;">
-        <tr>
-            <td style="width: 50%; padding-right: 10px; vertical-align: top;">
-                <h3>Ventas por Canal Liquidación</h3>
-                <div class="chart-box">
-                    <svg width="220" height="130" viewBox="0 0 220 130">
-                        @php $y = 10; @endphp
-                        @foreach($pagosPorMetodo as $metodo => $monto)
-                            @php 
-                                $porcentaje = $totalVentas > 0 ? ($monto / $totalVentas) * 100 : 0; 
-                                $anchoBarra = $porcentaje * 1.1; // Ajuste al contenedor del PDF
-                            @endphp
-                            <text x="5" y="{{ $y + 9 }}" font-size="9" fill="#334155" font-weight="bold">{{ ucfirst($metodo) }}</text>
-                            <rect x="80" y="{{ $y }}" width="110" height="11" rx="2" fill="#e2e8f0"/>
-                            <rect x="80" y="{{ $y }}" width="{{ max($anchoBarra, 1) }}" height="11" rx="2" fill="#0d6efd"/>
-                            <text x="195" y="{{ $y + 9 }}" font-size="8" fill="#475569" text-anchor="end">${{ number_format($monto, 0) }}</text>
-                            @php $y += 24; @endphp
-                        @endforeach
-                    </svg>
-                </div>
+                <!-- DATOS DE LA SUCURSAL DE BD -->
+                @if(isset($sucursalObj) && $sucursalObj)
+                    <div class="branch-details">
+                        @if($sucursalObj->direccion)
+                            <strong>Dirección:</strong> {{ $sucursalObj->direccion }}<br>
+                        @endif
+                        @if($sucursalObj->telefono || $sucursalObj->email)
+                            <strong>Contacto:</strong> {{ $sucursalObj->telefono ?? 'S/T' }} {{ $sucursalObj->email ? '| ' . $sucursalObj->email : '' }}
+                        @endif
+                    </div>
+                @endif
             </td>
             
-            <td style="width: 50%; padding-left: 10px; vertical-align: top;">
-                <h3>Top Productos Despachados</h3>
-                <div class="chart-box">
-                    <svg width="220" height="130" viewBox="0 0 220 130">
-                        @php 
-                            $yProd = 10; 
-                            $maxCantidad = count($topProductos) > 0 ? max($topProductos) : 1;
-                        @endphp
-                        @foreach($topProductos as $nombre => $cantidad)
-                            @php 
-                                $anchoBarraProd = ($cantidad / $maxCantidad) * 100;
-                            @endphp
-                            <text x="5" y="{{ $yProd + 9 }}" font-size="8" fill="#334155" font-weight="bold">{{ \Illuminate\Support\Str::limit($nombre, 12) }}</text>
-                            <rect x="85" y="{{ $yProd }}" width="105" height="11" rx="2" fill="#e2e8f0"/>
-                            <rect x="85" y="{{ $yProd }}" width="{{ max($anchoBarraProd, 1) }}" height="11" rx="2" fill="#f59e0b"/>
-                            <text x="195" y="{{ $yProd + 9 }}" font-size="8" fill="#475569" text-anchor="end">{{ $cantidad }} u</text>
-                            @php $yProd += 17; @endphp
-                        @endforeach
-                    </svg>
+            <td style="width: 42%; text-align: right; vertical-align: top;">
+                <div style="font-size: 10pt; font-weight: bold; color: #0f172a;">BALANCE FINANCIERO DE CAJA</div>
+                <div style="font-size: 7.5pt; color: #64748b; margin-top: 3px;">
+                    <strong>Período:</strong> {{ isset($inicio) ? $inicio->format('d/m/Y') : date('01/m/Y') }} 
+                    al 
+                    {{ isset($fin) ? $fin->format('d/m/Y') : date('d/m/Y') }}
+                </div>
+                <div style="font-size: 6.5pt; color: #94a3b8; margin-top: 2px;">
+                    Generado: {{ date('d/m/Y H:i:s') }}
                 </div>
             </td>
         </tr>
     </table>
 
-    <h3>Bitácora Detallada de Transacciones Comerciales</h3>
-    <table class="table">
+    <!-- KPIS DE MÉRICA PRINCIPALES -->
+    <table class="kpi-table">
+        <tr>
+            <td style="width: 32%; padding-right: 4px;">
+                <div class="kpi-card" style="border-left: 3px solid #0284c7;">
+                    <div class="kpi-title">Total</div>
+                    <div class="kpi-amount" style="color: #0284c7;">${{ number_format($totalVentas ?? 0, 2) }}</div>
+                </div>
+            </td>
+            <td style="width: 36%; padding: 0 2px;">
+                <div class="kpi-card" style="border-left: 3px solid #059669;">
+                    <div class="kpi-title">Servicios (Fletes / Mano Obra)</div>
+                    @php 
+                        $fletes = 0; $manoObra = 0;
+                        $coleccionVentas = $ventas ?? collect();
+                        foreach($coleccionVentas as $v) {
+                            if(isset($v->detalles)) {
+                                foreach($v->detalles as $d) {
+                                    if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) $fletes += $d->subtotal;
+                                    elseif(str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) $manoObra += $d->subtotal;
+                                }
+                            }
+                        }
+                    @endphp
+                    <div class="kpi-amount" style="color: #059669;">${{ number_format($fletes + $manoObra, 2) }}</div>
+                </div>
+            </td>
+            <!-- <td style="width: 32%; padding-left: 4px;">
+                <div class="kpi-card" style="border-left: 3px solid #d97706;">
+                    <div class="kpi-title">Volumen Operaciones</div>
+                    <div class="kpi-amount" style="color: #d97706;">
+                        {{ isset($ventas) && $ventas ? $ventas->count() : 0 }} <span style="font-size: 7pt; color: #64748b; font-weight: normal;">ventas</span>
+                    </div>
+                </div>
+            </td> -->
+        </tr>
+    </table>
+
+    <!-- ANALÍTICAS DE DOS COLUMNAS -->
+    <table>
+        <tr>
+            <!-- COLUMNA 1: RECAUDACIÓN -->
+            <td style="width: 49%; vertical-align: top; padding-right: 5px;">
+                <div class="section-header">Método de Pago</div>
+                <div class="analytics-box">
+                    <table>
+                        @php $pagosList = $pagosPorMetodo ?? []; @endphp
+                        @foreach($pagosList as $metodo => $monto)
+                        @php $pct = ($totalVentas ?? 0) > 0 ? ($monto / $totalVentas) * 100 : 0; @endphp
+                        <tr>
+                            <td style="padding: 2px 0; font-size: 7.5pt; font-weight: bold; width: 32%;" class="nowrap">{{ ucfirst($metodo) }}</td>
+                            <td style="padding: 2px 0; width: 43%;">
+                                <div class="bar-bg">
+                                    <div class="bar-fill-blue" style="width: {{ max($pct, 2) }}%;"></div>
+                                </div>
+                            </td>
+                            <td style="padding: 2px 0; font-size: 7pt; font-weight: bold; text-align: right; width: 25%; font-family: monospace;" class="nowrap">
+                                ${{ number_format($monto, 0) }}
+                            </td>
+                        </tr>
+                        @endforeach
+                    </table>
+                </div>
+            </td>
+
+            <!-- COLUMNA 2: TOP PRODUCTOS -->
+            <td style="width: 49%; vertical-align: top; padding-left: 5px;">
+                <div class="section-header">Demanda Comercial (Top Productos)</div>
+                <div class="analytics-box">
+                    @php 
+                        $topProdList = $topProductos ?? [];
+                        $maxCantidad = !empty($topProdList) ? max($topProdList) : 1; 
+                    @endphp
+                    <table>
+                        @forelse($topProdList as $nombre => $cantidad)
+                        @php $pctProd = ($cantidad / $maxCantidad) * 100; @endphp
+                        <tr>
+                            <td style="padding: 2px 0; font-size: 7.5pt; font-weight: bold; width: 45%;" class="nowrap">
+                                {{ \Illuminate\Support\Str::limit($nombre, 18) }}
+                            </td>
+                            <td style="padding: 2px 0; width: 35%;">
+                                <div class="bar-bg">
+                                    <div class="bar-fill-dark" style="width: {{ max($pctProd, 2) }}%;"></div>
+                                </div>
+                            </td>
+                            <td style="padding: 2px 0; font-size: 7pt; font-weight: bold; text-align: right; width: 20%; font-family: monospace;" class="nowrap">
+                                {{ $cantidad }} u
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: #94a3b8; font-size: 7.5pt; padding: 6px;">
+                                Sin mercancías despachadas.
+                            </td>
+                        </tr>
+                        @endforelse
+                    </table>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- BITÁCORA DETALLADA DE VENTAS -->
+    <div class="section-header">Bitácora Detallada de Ventas</div>
+    
+    <table class="data-table">
         <thead>
             <tr>
-                <th>Folio</th>
-                <th>Cliente Destinatario</th>
-                <th>Fecha Registro</th>
-                <th>Método</th>
-                <th class="text-right">Monto Total</th>
+                <th style="width: 20%;">Folio</th>
+                <th style="width: 34%;">Cliente</th>
+                <th style="width: 22%;">Fecha & Hora</th>
+                <th style="width: 12%;">Método</th>
+                <th style="width: 12%; text-align: right;">Monto Bruto</th>
             </tr>
         </thead>
         <tbody>
-            @foreach($ventas as $venta)
+            @forelse($coleccionVentas as $venta)
                 <tr>
-                    <td style="font-family: monospace; font-size: 11px; font-weight: bold;">{{ $venta->folio }}</td>
-                    <td>{{ $venta->cliente_nombre }}</td>
-                    <td>{{ $venta->created_at->format('d/m/Y H:i') }}</td>
-                    <td><span style="font-size: 8px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569; font-weight: bold;">{{ strtoupper($venta->metodo_pago) }}</span></td>
-                    <td class="text-right" style="font-weight: bold; color: #16a34a;">${{ number_format($venta->total, 2) }}</td>
+                    <td class="font-mono nowrap" style="color: #0284c7;">{{ $venta->folio }}</td>
+                    <td class="nowrap"><strong>{{ \Illuminate\Support\Str::limit($venta->cliente_nombre ?? 'Público General', 26) }}</strong></td>
+                    <td style="color: #64748b;" class="nowrap">{{ $venta->created_at->format('d/m/Y H:i') }}</td>
+                    <td class="nowrap">
+                        <span style="font-size: 6pt; background: #e2e8f0; padding: 1px 4px; border-radius: 2px; font-weight: bold; color: #334155;">
+                            {{ strtoupper($venta->metodo_pago) }}
+                        </span>
+                    </td>
+                    <td style="text-align: right;" class="font-mono nowrap">${{ number_format($venta->total, 2) }}</td>
                 </tr>
-            @endforeach
+            @empty
+                <tr>
+                    <td colspan="5" style="text-align: center; color: #94a3b8; padding: 10px;">
+                        No existen registros de transacciones comerciales en el período seleccionado.
+                    </td>
+                </tr>
+            @endforelse
         </tbody>
     </table>
 
+    <!-- PIE DE PÁGINA FIX EN CADA HOJA -->
     <div class="footer">
-        <p>Informe Analítico de Auditoría de Sucursal - Andamios y Madera Viramontes</p>
+        <table>
+            <tr>
+                <td style="width: 60%; text-align: left;">
+                    Documento Oficial de Auditoría — <strong>Andamios y Madera Viramontes</strong> | {{ $sucursalNombre ?? 'Matriz General' }}
+                </td>
+                <td style="width: 40%; text-align: right;">
+                    Generado el {{ date('d/m/Y H:i:s') }}
+                </td>
+            </tr>
+        </table>
     </div>
+
 </body>
 </html>

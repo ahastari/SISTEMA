@@ -26,7 +26,7 @@
     
     /* Panel Lateral de Cobro Inteligente */
     .pos-cart-panel {
-        width: 400px;
+        width: 420px;
         background: var(--bs-body-bg);
         border-radius: 16px;
         box-shadow: 0 4px 20px rgba(0,0,0,0.05);
@@ -104,12 +104,14 @@
     .cart-item-qty-actions {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
     }
-    .cart-item-qty-actions span {
-        font-weight: 600;
-        min-width: 20px;
+    .cart-qty-input {
+        width: 50px;
         text-align: center;
+        font-weight: bold;
+        font-size: 13px;
+        padding: 2px 4px;
     }
 
     /* Indicadores de Caja */
@@ -140,7 +142,6 @@
         pointer-events: none;
     }
 
-    /* Responsive */
     @media (max-width: 991.98px) {
         .pos-layout {
             flex-direction: column;
@@ -309,6 +310,16 @@
                 <h6 class="mb-0 fw-bold text-body"><i class="bi bi-bag-check-fill text-primary me-2"></i>Artículos a Vender</h6>
                 <span class="badge bg-secondary rounded-pill px-2" id="contadorItems">0 items</span>
             </div>
+
+            <!-- Botones de Cargos Especiales (Flete / Mano de Obra) -->
+            <div class="p-2 bg-body border-bottom d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary flex-fill fw-bold" onclick="agregarServicioEspecial('flete')">
+                    <i class="bi bi-truck me-1"></i> + Flete
+                </button>
+                <button class="btn btn-sm btn-outline-warning flex-fill fw-bold" onclick="agregarServicioEspecial('mano_obra')">
+                    <i class="bi bi-tools me-1"></i> + Mano de Obra
+                </button>
+            </div>
             
             <div id="carritoItems">
                 <div class="text-center text-secondary py-5 my-2">
@@ -336,11 +347,50 @@
                 <div class="mb-1">
                     <select id="metodoPago" class="form-select form-select-sm bg-body text-body">
                         <option value="" selected disabled>Selecciona el método...</option>
-                        <option value="efectivo">Efectivo Físico</option>
-                        <option value="transferencia">Transferencia Bancaria</option>
-                        <option value="tarjeta">Terminal de Tarjeta</option>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="transferencia">Transferencia</option>
+                        <option value="tarjeta">Terminal</option>
                         <option value="mixto">Pago Mixto</option>
                     </select>
+                </div>
+
+                <!-- DESGLOSE DINÁMICO DE PAGO MIXTO -->
+                <div id="seccionPagoMixto" class="p-2 border rounded-3 mb-2 bg-body-tertiary" style="display: none;">
+                    <small class="fw-bold text-primary d-block mb-2" style="font-size: 11px;">
+                        <i class="bi bi-diagram-3-fill me-1"></i> Configurar Combinación de Pago
+                    </small>
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <select id="mixtoMetodo1" class="form-select form-select-sm bg-body text-body">
+                                <option value="efectivo" selected>Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="transferencia">Transferencia</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body">$</span>
+                                <input type="number" id="mixtoMonto1" class="form-control bg-body fw-bold" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <select id="mixtoMetodo2" class="form-select form-select-sm bg-body text-body">
+                                <option value="tarjeta" selected>Tarjeta</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="efectivo">Efectivo</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body">$</span>
+                                <input type="number" id="mixtoMonto2" class="form-control bg-body fw-bold" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mb-1" id="seccionCambio" style="display: none; background: var(--bs-secondary-bg); padding: 10px; border-radius: 10px;">
@@ -387,6 +437,7 @@
     </div>
 @endif
 
+<!-- MODALES MANTENIDOS -->
 <div class="modal fade" id="modalAbrirCaja" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
@@ -402,7 +453,6 @@
                         <select name="turno" class="form-select form-select-sm bg-body text-body" required>
                             <option value="mañana">Matutino (Mañana)</option>
                             <option value="tarde">Vespertino (Tarde)</option>
-                            <option value="noche">Nocturno (Noche)</option>
                         </select>
                     </div>
                     <div class="mb-2">
@@ -426,13 +476,31 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4" style="background: var(--bs-body-bg);">
             <div class="modal-header bg-danger text-white border-0 py-2.5">
-                <h6 class="modal-title fw-bold" id="modalCerrarCajaLabel"><i class="bi bi-lock-fill me-2"></i> Arqueo y Cierre de Turno</h6>
+                <h6 class="modal-title fw-bold" id="modalCerrarCajaLabel"><i class="bi bi-lock-fill me-2"></i>Cierre de Turno</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('puntoventa.cerrarCaja') }}" method="POST">
                 @csrf
                 <div class="modal-body p-3 p-sm-4 bg-body-tertiary">
                     @if($corteActivo)
+                        @php
+                            // Calcular acumulados de Flete y Mano de Obra para las ventas de este turno
+                            $montoFleteModal = 0;
+                            $montoManoObraModal = 0;
+
+                            if($corteActivo->ventas) {
+                                foreach($corteActivo->ventas as $v) {
+                                    foreach($v->detalles as $d) {
+                                        if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
+                                            $montoFleteModal += $d->subtotal;
+                                        } elseif(str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) {
+                                            $montoManoObraModal += $d->subtotal;
+                                        }
+                                    }
+                                }
+                            }
+                        @endphp
+
                         <div class="card border shadow-sm mb-3 rounded-3" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
                             <div class="card-body p-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -446,7 +514,7 @@
                             </div>
                         </div>
 
-                        <h6 class="text-secondary small fw-bold mb-2 text-uppercase tracking-wider" style="font-size: 11px;">Ventas por Método de Pago</h6>
+                        <h6 class="text-secondary small fw-bold mb-2 text-uppercase tracking-wider" style="font-size: 11px;">Ventas y Servicios Cobrados</h6>
                         <div class="list-group shadow-sm mb-3 rounded-3" style="border: 1px solid var(--bs-border-color);">
                             <div class="list-group-item d-flex justify-content-between align-items-center bg-body text-body border-0">
                                 <div><i class="bi bi-cash text-success me-2"></i> Efectivo</div>
@@ -460,6 +528,21 @@
                                 <div><i class="bi bi-credit-card text-primary me-2"></i> Tarjetas</div>
                                 <span class="fw-bold" id="m-v-tarjeta">${{ number_format($corteActivo->total_tarjetas, 2) }}</span>
                             </div>
+
+                            <!-- DESGLOSE DE FLETE Y MANO DE OBRA -->
+                            @if($montoFleteModal > 0)
+                            <div class="list-group-item d-flex justify-content-between align-items-center bg-body text-body border-0 border-top" style="border-color: var(--bs-border-color) !important;">
+                                <div class="text-info-emphasis"><i class="bi bi-truck text-info me-2"></i> Cobrado por Fletes</div>
+                                <span class="fw-bold text-info-emphasis">${{ number_format($montoFleteModal, 2) }}</span>
+                            </div>
+                            @endif
+
+                            @if($montoManoObraModal > 0)
+                            <div class="list-group-item d-flex justify-content-between align-items-center bg-body text-body border-0 border-top" style="border-color: var(--bs-border-color) !important;">
+                                <div class="text-warning-emphasis"><i class="bi bi-tools text-warning me-2"></i> Cobrado por Mano de Obra</div>
+                                <span class="fw-bold text-warning-emphasis">${{ number_format($montoManoObraModal, 2) }}</span>
+                            </div>
+                            @endif
                         </div>
 
                         <h6 class="text-secondary small fw-bold mb-2 text-uppercase tracking-wider" style="font-size: 11px;">Movimientos de Efectivo</h6>
@@ -479,7 +562,7 @@
                         </div>
 
                         <div class="p-3 rounded-3 text-center mb-3 shadow-sm bg-dark">
-                            <span class="text-white-50 small text-uppercase d-block mb-1" style="font-size: 10px; letter-spacing: 0.3px;">Efectivo Esperado en Caja Físico</span>
+                            <span class="text-white-50 small text-uppercase d-block mb-1" style="font-size: 10px; letter-spacing: 0.3px;">Efectivo Esperado en Caja</span>
                             @php
                                 $ingresosEfe = $corteActivo->movimientos->where('tipo', 'ingreso')->where('metodo', 'efectivo')->sum('monto');
                                 $egresosEfe = $corteActivo->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
@@ -535,11 +618,11 @@
                         </div>
                     </div>
                     <div class="mb-2">
-                        <label class="form-label small fw-semibold text-body">Canal de Caja</label>
+                        <label class="form-label small fw-semibold text-body">Metodo</label>
                         <select name="metodo" class="form-select form-select-sm bg-body text-body">
-                            <option value="efectivo" selected>Cajón de Efectivo</option>
-                            <option value="transferencia">Transferencia Bancaria</option>
-                            <option value="tarjeta">Tarjeta</option>
+                            <option value="efectivo" selected>Efectivo</option>
+                            <option value="transferencia">Transferencia</option>
+                            <option value="tarjeta">Terminal</option>
                         </select>
                     </div>
                 </div>
@@ -580,7 +663,7 @@ function agregarProducto(id) {
     const producto = productos.find(p => p.id === id);
     if (!producto) return;
 
-    const item = carrito.find(i => i.id === id);
+    const item = carrito.find(i => i.id === id && !i.esEspecial);
     if (item) {
         if (item.cantidad < producto.stock) {
             item.cantidad++;
@@ -595,7 +678,41 @@ function agregarProducto(id) {
             codigo: producto.codigo,
             precio: producto.precio_venta || producto.precio_dia,
             cantidad: 1, 
-            stock: producto.stock
+            stock: producto.stock,
+            esEspecial: false
+        });
+    }
+    renderizarCarrito();
+}
+
+function agregarServicioEspecial(tipo) {
+    let titulo = tipo === 'flete' ? 'Servicio de Flete / Envío' : 'Servicio de Mano de Obra / Instalación';
+    let codigo = tipo === 'flete' ? 'FLE-000' : 'MOB-000';
+    
+    let monto = prompt(`Ingrese el costo total para ${titulo}:`, "100.00");
+    if (monto === null) return;
+    
+    monto = parseFloat(monto);
+    if (isNaN(monto) || monto <= 0) {
+        alert('Por favor ingrese un monto válido.');
+        return;
+    }
+
+    // ID negativo único para evitar colisión con IDs de BD
+    let idEspecial = tipo === 'flete' ? -1 : -2;
+    let itemExistente = carrito.find(i => i.id === idEspecial);
+
+    if (itemExistente) {
+        itemExistente.precio = monto;
+    } else {
+        carrito.push({
+            id: idEspecial,
+            nombre: titulo,
+            codigo: codigo,
+            precio: monto,
+            cantidad: 1,
+            stock: 999,
+            esEspecial: true
         });
     }
     renderizarCarrito();
@@ -606,22 +723,27 @@ function eliminarItem(id) {
     renderizarCarrito();
 }
 
-function actualizarCantidad(id, nuevaCantidad) {
+function cambiarCantidadTeclado(id, input) {
+    let nuevaCantidad = parseInt(input.value) || 1;
     const item = carrito.find(i => i.id === id);
     if (!item) return;
+
     if (nuevaCantidad < 1) {
-        eliminarItem(id);
-        return;
+        nuevaCantidad = 1;
+        input.value = 1;
     }
-    if (nuevaCantidad > item.stock) {
-        alert('Stock insuficiente');
-        return;
+
+    if (!item.esEspecial && nuevaCantidad > item.stock) {
+        alert('Stock insuficiente (Máximo: ' + item.stock + ')');
+        nuevaCantidad = item.stock;
+        input.value = item.stock;
     }
+
     item.cantidad = nuevaCantidad;
-    renderizarCarrito();
+    renderizarCarrito(false); // Renderizar sin perder el foco del input activo
 }
 
-function renderizarCarrito() {
+function renderizarCarrito(redibujarHTML = true) {
     const container = document.getElementById('carritoItems');
     const contador = document.getElementById('contadorItems');
     let subtotal = 0;
@@ -641,31 +763,35 @@ function renderizarCarrito() {
         return;
     }
 
-    let html = '';
-    carrito.forEach((item) => {
-        const totalItem = item.precio * item.cantidad;
-        subtotal += totalItem;
-        html += `
-            <div class="cart-item">
-                <div style="max-width: 60%;" class="text-truncate">
-                    <div class="fw-bold text-body small text-truncate">
-                        <span class="badge bg-secondary font-monospace p-1 me-1" style="font-size: 9px;">${item.codigo}</span> ${item.nombre}
+    if (redibujarHTML) {
+        let html = '';
+        carrito.forEach((item) => {
+            html += `
+                <div class="cart-item">
+                    <div style="max-width: 55%;" class="text-truncate">
+                        <div class="fw-bold text-body small text-truncate">
+                            <span class="badge ${item.esEspecial ? 'bg-warning text-dark' : 'bg-secondary'} font-monospace p-1 me-1" style="font-size: 9px;">${item.codigo}</span> ${item.nombre}
+                        </div>
+                        <small class="text-secondary">$${parseFloat(item.precio).toFixed(2)} c/u</small>
                     </div>
-                    <small class="text-secondary">$${parseFloat(item.precio).toFixed(2)} c/u</small>
+                    <div class="cart-item-qty-actions">
+                        <input type="number" class="form-control form-control-sm cart-qty-input bg-body text-body border" 
+                               value="${item.cantidad}" min="1" ${item.esEspecial ? 'disabled' : ''} 
+                               oninput="cambiarCantidadTeclado(${item.id}, this)">
+                        <button class="btn btn-sm btn-link text-danger ms-1 p-0" onclick="eliminarItem(${item.id})">
+                            <i class="bi bi-trash3-fill"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="cart-item-qty-actions">
-                    <button class="btn btn-sm btn-outline-secondary p-1 py-0 rounded text-body fw-bold" onclick="actualizarCantidad(${item.id}, ${item.cantidad - 1})">-</button>
-                    <span class="text-body">${item.cantidad}</span>
-                    <button class="btn btn-sm btn-outline-secondary p-1 py-0 rounded text-body fw-bold" onclick="actualizarCantidad(${item.id}, ${item.cantidad + 1})">+</button>
-                    <button class="btn btn-sm btn-link text-danger ms-1 p-0" onclick="eliminarItem(${item.id})">
-                        <i class="bi bi-trash3-fill"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    carrito.forEach((item) => {
+        subtotal += item.precio * item.cantidad;
     });
 
-    container.innerHTML = html;
     contador.textContent = carrito.reduce((sum, i) => sum + i.cantidad, 0) + ' items';
 
     const requiereFactura = document.getElementById('requiereFactura').checked;
@@ -683,7 +809,7 @@ const reqFacturaCheck = document.getElementById('requiereFactura');
 if (reqFacturaCheck) {
     reqFacturaCheck.addEventListener('change', function() {
         document.getElementById('campoRFC').style.display = this.checked ? 'block' : 'none';
-        renderizarCarrito();
+        renderizarCarrito(false);
     });
 }
 
@@ -691,15 +817,19 @@ const selectMetodoPago = document.getElementById('metodoPago');
 if (selectMetodoPago) {
     selectMetodoPago.addEventListener('change', function() {
         const seccionCambio = document.getElementById('seccionCambio');
+        const seccionMixto = document.getElementById('seccionPagoMixto');
         const inputRecibido = document.getElementById('montoRecibido');
         
-        if (this.value === 'efectivo' || this.value === 'mixto') {
+        if (this.value === 'efectivo') {
             seccionCambio.style.display = 'block';
+            seccionMixto.style.display = 'none';
             if (inputRecibido) inputRecibido.focus();
+        } else if (this.value === 'mixto') {
+            seccionCambio.style.display = 'none';
+            seccionMixto.style.display = 'block';
         } else {
             seccionCambio.style.display = 'none';
-            if (inputRecibido) inputRecibido.value = '';
-            document.getElementById('cambioCliente').textContent = '$0.00';
+            seccionMixto.style.display = 'none';
         }
     });
 }
@@ -746,22 +876,62 @@ function realizarVenta() {
         return;
     }
 
-    if (metodoPago === 'efectivo' || metodoPago === 'mixto') {
-        const totalRaw = document.getElementById('totalCarrito').textContent.replace('$', '').replace(',', '');
-        const total = parseFloat(totalRaw) || 0;
+    const totalRaw = document.getElementById('totalCarrito').textContent.replace('$', '').replace(',', '');
+    const totalVenta = parseFloat(totalRaw) || 0;
+
+    if (metodoPago === 'efectivo') {
         const recibido = parseFloat(document.getElementById('montoRecibido').value) || 0;
-        
-        if (recibido < total) {
+        if (recibido < totalVenta) {
             alert('El monto recibido es menor al total de la venta.');
             document.getElementById('montoRecibido').focus();
             return;
         }
     }
 
-    // CORRECCIÓN: Forzamos el parseo booleano a entero limpio (1 o 0) para que pase sin problemas la validación de Laravel
+    let detalleMixto = [];
+    let sumaPagoMixto = 0;
+
+    if (metodoPago === 'mixto') {
+        const m1 = document.getElementById('mixtoMetodo1').value;
+        const monto1 = parseFloat(document.getElementById('mixtoMonto1').value) || 0;
+        const m2 = document.getElementById('mixtoMetodo2').value;
+        const monto2 = parseFloat(document.getElementById('mixtoMonto2').value) || 0;
+
+        if (m1 === m2) {
+            alert('En pago mixto debes elegir dos métodos de pago diferentes.');
+            return;
+        }
+
+        sumaPagoMixto = monto1 + monto2;
+        if (sumaPagoMixto < totalVenta) {
+            alert('La suma de los dos pagos ($' + sumaPagoMixto.toFixed(2) + ') no cubre el total ($' + totalVenta.toFixed(2) + ').');
+            return;
+        }
+
+        detalleMixto = [{ metodo: m1, monto: monto1 }, { metodo: m2, monto: monto2 }];
+    }
+
+    const inputEfectivo = document.getElementById('montoRecibido');
+    const valorIngresado = inputEfectivo ? parseFloat(inputEfectivo.value) : 0;
+
+    let finalMontoRecibido = totalVenta;
+    if (metodoPago === 'efectivo') {
+        finalMontoRecibido = (!isNaN(valorIngresado) && valorIngresado > 0) ? valorIngresado : totalVenta;
+    } else if (metodoPago === 'mixto') {
+        finalMontoRecibido = sumaPagoMixto;
+    }
+
     const data = {
-        items: carrito.map(i => ({ id: i.id, cantidad: i.cantidad })),
+        items: carrito.map(i => ({ 
+            id: i.id, 
+            cantidad: i.cantidad,
+            precio: i.precio,
+            nombre: i.nombre,
+            esEspecial: i.esEspecial 
+        })),
         metodo_pago: metodoPago,
+        pagos_mixtos: detalleMixto,
+        monto_recibido: finalMontoRecibido,
         cliente_id: clienteId || null,
         requiere_factura: requiereFactura ? 1 : 0, 
         rfc_cliente: requiereFactura ? rfcCliente : null
@@ -780,24 +950,37 @@ function realizarVenta() {
         body: JSON.stringify(data)
     })
     .then(async response => {
-        // CORRECCIÓN UX AUDITORÍA: Si el backend responde con un error de validación (422, 500, etc.), leemos el mensaje detallado en lugar de romper el flujo
         const responseData = await response.json();
         if (!response.ok) {
-            throw new Error(responseData.message || 'Error detectado en el servidor al validar la venta.');
+            throw new Error(responseData.message || 'Error detectado al validar la venta.');
         }
         return responseData;
     })
     .then(data => {
         if (data.success) {
             carrito.forEach(item => {
-                const prodLocal = productos.find(p => p.id === item.id);
-                if (prodLocal) {
-                    prodLocal.stock -= item.cantidad;
-                    const elStockHTML = document.getElementById(`stock-val-${item.id}`);
-                    if (elStockHTML) elStockHTML.textContent = prodLocal.stock;
+                if (!item.esEspecial) {
+                    const prodLocal = productos.find(p => p.id === item.id);
+                    if (prodLocal) {
+                        prodLocal.stock -= item.cantidad;
+                        const elStockHTML = document.getElementById(`stock-val-${item.id}`);
+                        if (elStockHTML) elStockHTML.textContent = prodLocal.stock;
+                    }
                 }
             });
 
+            // Actualizar montos en vivo en el modal de cierre
+            if (data.modal_data) {
+                const m = data.modal_data;
+                if (document.getElementById('m-ventas-total')) document.getElementById('m-ventas-total').textContent = m.total_ventas;
+                if (document.getElementById('m-v-efectivo')) document.getElementById('m-v-efectivo').textContent = '$' + m.total_efectivo;
+                if (document.getElementById('m-v-transferencia')) document.getElementById('m-v-transferencia').textContent = '$' + m.total_transferencias;
+                if (document.getElementById('m-v-tarjeta')) document.getElementById('m-v-tarjeta').textContent = '$' + m.total_tarjetas;
+                if (document.getElementById('m-v-flete')) document.getElementById('m-v-flete').textContent = '$' + m.total_flete;
+                if (document.getElementById('m-v-mano-obra')) document.getElementById('m-v-mano-obra').textContent = '$' + m.total_mano_obra;
+                if (document.getElementById('m-total-esperado')) document.getElementById('m-total-esperado').textContent = m.efectivo_esperado;
+            }
+            
             const elTotalVentasCaja = document.getElementById('caja-total-ventas');
             if (elTotalVentasCaja && data.total) {
                 let ventasActuales = parseFloat(elTotalVentasCaja.textContent.replace(/[^0-9.-]+/g,"")) || 0;
@@ -811,7 +994,6 @@ function realizarVenta() {
             
             const elModal = document.getElementById('modalTicket');
             if (elModal) {
-                // Intentar obtener una instancia ya existente o crear una nueva de forma segura
                 let modalTicket = bootstrap.Modal.getInstance(elModal);
                 if (!modalTicket) {
                     modalTicket = new bootstrap.Modal(elModal);
@@ -824,20 +1006,25 @@ function realizarVenta() {
             if (selectMetodoPago) selectMetodoPago.value = "";
             const inputRecibido = document.getElementById('montoRecibido');
             if (inputRecibido) inputRecibido.value = "";
-            document.getElementById('seccionCambio').style.display = "none";
-            document.getElementById('cambioCliente').textContent = "$0.00";
+
+            if (document.getElementById('mixtoMonto1')) document.getElementById('mixtoMonto1').value = "";
+            if (document.getElementById('mixtoMonto2')) document.getElementById('mixtoMonto2').value = "";
+
+            if (document.getElementById('seccionCambio')) document.getElementById('seccionCambio').style.display = "none";
+            if (document.getElementById('seccionPagoMixto')) document.getElementById('seccionPagoMixto').style.display = "none";
+
+            if (document.getElementById('cambioCliente')) document.getElementById('cambioCliente').textContent = "$0.00";
         } else {
             alert(data.message || 'Error al procesar la venta');
         }
     })
     .catch(error => {
-        // Ahora el alert te imprimirá el mensaje de excepción real arrojado por la BD o el validador
         alert('Fallo en la operación: ' + error.message);
         console.error('Error:', error);
     })
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-check-lg"></i> Realizar Venta';
+        btn.innerHTML = '<i class="bi bi-shield-check me-2"></i> Registrar y Emitir Ticket';
     });
 }
 

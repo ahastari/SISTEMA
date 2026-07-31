@@ -104,9 +104,9 @@ class PuntoVentaController extends Controller
         
         $request->validate([
             'items' => 'required|array|min:1',
-            'items.*.id' => 'required|exists:equipos,id',
-            'items.*.cantidad' => 'required|integer|min:1',
             'metodo_pago' => 'required|in:efectivo,transferencia,tarjeta,mixto',
+            'monto_recibido' => 'nullable|numeric|min:0',
+            'pagos_mixtos' => 'nullable|array',
             'cliente_id' => 'nullable|exists:clientes,id',
             'cliente_nombre' => 'nullable|string|max:255',
             'requiere_factura' => 'nullable', 
@@ -128,30 +128,40 @@ class PuntoVentaController extends Controller
             $items = [];
 
             foreach ($request->items as $item) {
-                $equipo = Equipo::find($item['id']);
+                $esEspecial = isset($item['esEspecial']) && $item['esEspecial'];
 
-                // 🔒 Verificar stock en la sucursal correcta
-                if ($sucursalId !== 'global') {
-                    $stockDisponible = $equipo->getStockEnSucursal($sucursalId);
-                    if ($stockDisponible < $item['cantidad']) {
-                        throw new \Exception("Stock insuficiente en esta sucursal para {$equipo->nombre}. Disponible: {$stockDisponible}");
+                if (!$esEspecial) {
+                    $equipo = Equipo::find($item['id']);
+                    if (!$equipo) throw new \Exception("Producto no encontrado.");
+
+                    if ($sucursalId !== 'global') {
+                        $stockDisponible = $equipo->getStockEnSucursal($sucursalId);
+                        if ($stockDisponible < $item['cantidad']) {
+                            throw new \Exception("Stock insuficiente para {$equipo->nombre}. Disponible: {$stockDisponible}");
+                        }
+                        $equipo->actualizarStockEnSucursal($sucursalId, $item['cantidad'], 'restar');
+                    } else {
+                        if ($equipo->stock < $item['cantidad']) {
+                            throw new \Exception("Stock insuficiente para {$equipo->nombre}");
+                        }
+                        $equipo->stock -= $item['cantidad'];
+                        $equipo->save();
                     }
-                    // Descontar del stock de la sucursal
-                    $equipo->actualizarStockEnSucursal($sucursalId, $item['cantidad'], 'restar');
+
+                    $precio = $equipo->precio_venta ?? $equipo->precio_dia;
+                    $equipoId = $equipo->id;
                 } else {
-                    if ($equipo->stock < $item['cantidad']) {
-                        throw new \Exception("Stock insuficiente para {$equipo->nombre}");
-                    }
-                    $equipo->stock -= $item['cantidad'];
-                    $equipo->save();
+                    // Ítems especiales (Flete / Mano de obra)
+                    $precio = (float) $item['precio'];
+                    $equipoId = null; // No apunta a equipo en BD
                 }
 
-                $precio = $equipo->precio_venta ?? $equipo->precio_dia;
                 $subtotalItem = $precio * $item['cantidad'];
                 $subtotal += $subtotalItem;
 
                 $items[] = [
-                    'equipo_id' => $equipo->id,
+                    'equipo_id' => $equipoId,
+                    'concepto_especial' => $esEspecial ? $item['nombre'] : null, // Por si manejas guardado de nombres personalizados
                     'cantidad' => $item['cantidad'],
                     'precio_unitario' => $precio,
                     'subtotal' => $subtotalItem
@@ -161,6 +171,9 @@ class PuntoVentaController extends Controller
             $requiereFactura = filter_var($request->requiere_factura, FILTER_VALIDATE_BOOLEAN);
             $iva = $requiereFactura ? $subtotal * 0.16 : 0;
             $total = $subtotal + $iva;
+
+            $montoRecibido = $request->monto_recibido > 0 ? $request->monto_recibido : $total;
+            $cambio = $montoRecibido - $total;
 
             $venta = Venta::create([
                 'folio' => Venta::generarFolio(),
@@ -172,6 +185,9 @@ class PuntoVentaController extends Controller
                 'iva' => $iva,
                 'total' => $total,
                 'metodo_pago' => $request->metodo_pago,
+                'monto_recibido' => $montoRecibido,
+                'cambio' => $cambio,
+                'pagos_mixtos' => $request->metodo_pago === 'mixto' ? $request->pagos_mixtos : null,
                 'observaciones' => $request->observaciones ?? null,
                 'estado' => 'completada',
                 'requiere_factura' => $requiereFactura,
@@ -184,15 +200,41 @@ class PuntoVentaController extends Controller
             }
 
             $corteActivo->total_ventas += $total;
-            
-            if ($request->metodo_pago == 'efectivo') {
-                $corteActivo->total_efectivo += $total;
-            } elseif ($request->metodo_pago == 'transferencia') {
-                $corteActivo->total_transferencias += $total;
-            } elseif ($request->metodo_pago == 'tarjeta') {
-                $corteActivo->total_tarjetas += $total;
+
+            if ($request->metodo_pago === 'mixto' && is_array($request->pagos_mixtos)) {
+                foreach ($request->pagos_mixtos as $pago) {
+                    if ($pago['metodo'] === 'efectivo') $corteActivo->total_efectivo += $pago['monto'];
+                    elseif ($pago['metodo'] === 'transferencia') $corteActivo->total_transferencias += $pago['monto'];
+                    elseif ($pago['metodo'] === 'tarjeta') $corteActivo->total_tarjetas += $pago['monto'];
+                }
+            } else {
+                if ($request->metodo_pago == 'efectivo') $corteActivo->total_efectivo += $total;
+                elseif ($request->metodo_pago == 'transferencia') $corteActivo->total_transferencias += $total;
+                elseif ($request->metodo_pago == 'tarjeta') $corteActivo->total_tarjetas += $total;
             }
+
             $corteActivo->save();
+
+            // 🔥 RECALCULAR MONTOS DEL MODAL DE CIERRE EN TIEMPO REAL
+            $montoFleteModal = 0;
+            $montoManoObraModal = 0;
+
+            // Recargar ventas, detalles y movimientos actualizados
+            $corteActivo->load('ventas.detalles', 'movimientos');
+
+            foreach ($corteActivo->ventas as $v) {
+                foreach ($v->detalles as $d) {
+                    if (str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
+                        $montoFleteModal += $d->subtotal;
+                    } elseif (str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) {
+                        $montoManoObraModal += $d->subtotal;
+                    }
+                }
+            }
+
+            $ingresosEfe = $corteActivo->movimientos->where('tipo', 'ingreso')->where('metodo', 'efectivo')->sum('monto');
+            $egresosEfe = $corteActivo->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
+            $efeEsperado = $corteActivo->monto_inicial + $corteActivo->total_efectivo + $ingresosEfe - $egresosEfe;
 
             DB::commit();
 
@@ -200,7 +242,17 @@ class PuntoVentaController extends Controller
                 'success' => true,
                 'message' => 'Venta realizada exitosamente',
                 'venta_id' => $venta->id,
-                'total' => (float) $venta->total
+                'total' => (float) $venta->total,
+                // 🚀 ESTE OBJETO ALIMENTA AL MODAL DE CIERRE VÍA JS SIN RECARGAR
+                'modal_data' => [
+                    'total_ventas' => number_format($corteActivo->total_ventas, 2),
+                    'total_efectivo' => number_format($corteActivo->total_efectivo, 2),
+                    'total_transferencias' => number_format($corteActivo->total_transferencias, 2),
+                    'total_tarjetas' => number_format($corteActivo->total_tarjetas, 2),
+                    'total_flete' => number_format($montoFleteModal, 2),
+                    'total_mano_obra' => number_format($montoManoObraModal, 2),
+                    'efectivo_esperado' => number_format($efeEsperado, 2),
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -214,7 +266,8 @@ class PuntoVentaController extends Controller
 
     public function ticket(Venta $venta)
     {
-        $venta->load('detalles.equipo', 'cliente');
+        // 👈 Modificar para incluir 'sucursal'
+        $venta->load(['detalles.equipo', 'cliente', 'sucursal']); 
         return view('puntoventa.ticket', compact('venta'));
     }
 
@@ -244,7 +297,7 @@ class PuntoVentaController extends Controller
         try {
             DB::beginTransaction();
 
-            $venta = Venta::with('detalles')->findOrFail($id);
+            $venta = Venta::with(['detalles.equipo', 'cliente', 'sucursal'])->findOrFail($id);
 
             if ($venta->estado === 'cancelada') {
                 return back()->with('error', 'Esta transacción comercial ya fue cancelada con anterioridad.');
@@ -292,7 +345,7 @@ class PuntoVentaController extends Controller
 
     public function cortes()
     {
-        $cortes = CorteCaja::with('user')
+        $cortes = CorteCaja::with(['user', 'movimientos', 'ventas.detalles']) // 👈 Carga profunda de ventas y sus detalles
             ->where('user_id', auth()->id())
             ->latest()
             ->paginate(15);
@@ -409,54 +462,77 @@ class PuntoVentaController extends Controller
         return back()->with('success', 'Movimiento registrado exitosamente');
     }
 
-    public function reportes()
+    public function reportes(Request $request)
     {
         $sucursalId = session('activo_sucursal_id');
-        
+
+        // Capturar rango de fechas (Por defecto: mes actual)
+        $inicio = \Carbon\Carbon::parse($request->get('fecha_inicio', date('Y-m-01')))->startOfDay();
+        $fin = \Carbon\Carbon::parse($request->get('fecha_fin', date('Y-m-d')))->endOfDay();
+
+        // 1. Top Productos del Rango Seleccionado
         $topQuery = DB::table('detalle_ventas')
-            ->join('equipos', 'detalle_ventas.equipo_id', '=', 'equipos.id')
-            ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id');
-        
+            ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
+            ->leftJoin('equipos', 'detalle_ventas.equipo_id', '=', 'equipos.id')
+            ->where('ventas.estado', 'completada')
+            ->whereBetween('ventas.created_at', [$inicio, $fin]);
+
         if ($sucursalId !== 'global') {
             $topQuery->where('ventas.sucursal_id', $sucursalId);
         }
-        
+
         $topProductosData = $topQuery
-            ->select('equipos.nombre', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido'))
-            ->groupBy('equipos.id', 'equipos.nombre')
+            ->select(
+                DB::raw('COALESCE(equipos.nombre, detalle_ventas.concepto_especial, "Servicio") as nombre_item'), 
+                DB::raw('SUM(detalle_ventas.cantidad) as total_vendido')
+            )
+            ->groupBy('nombre_item')
             ->orderBy('total_vendido', 'desc')
             ->take(6)
             ->get();
 
-        $topProductosNombres = $topProductosData->pluck('nombre')->toArray();
+        $topProductosNombres = $topProductosData->pluck('nombre_item')->toArray();
         $topProductosCantidades = $topProductosData->pluck('total_vendido')->toArray();
 
-        // Ventas del día por hora
-        $ventasHoyQuery = Venta::where('estado', 'completada')->whereDate('created_at', now());
-        if ($sucursalId !== 'global') {
-            $ventasHoyQuery->where('sucursal_id', $sucursalId);
+        // Si no hay datos, inicializamos arrays vacíos limpios
+        if (empty($topProductosNombres)) {
+            $topProductosNombres = ['Sin registros en rango'];
+            $topProductosCantidades = [0];
         }
-        
-        $ventasHoyData = $ventasHoyQuery
-            ->select(DB::raw('HOUR(created_at) as hora'), DB::raw('SUM(total) as total_monto'))
-            ->groupBy(DB::raw('HOUR(created_at)'))
-            ->orderBy('hora')
+
+        // 2. Ventas agrupadas por fecha dentro del rango seleccionado
+        $ventasPeriodoQuery = Venta::where('estado', 'completada')
+            ->whereBetween('created_at', [$inicio, $fin]);
+
+        if ($sucursalId !== 'global') {
+            $ventasPeriodoQuery->where('sucursal_id', $sucursalId);
+        }
+
+        $ventasAgrupadas = $ventasPeriodoQuery
+            ->select(DB::raw('DATE(created_at) as fecha'), DB::raw('SUM(total) as total_monto'))
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('fecha')
             ->get();
 
         $horasDia = [];
         $montosDia = [];
-        for ($i = 7; $i <= 20; $i++) {
-            $horasDia[] = str_pad($i, 2, '0', STR_PAD_LEFT) . ':00';
-            $registro = $ventasHoyData->firstWhere('hora', $i);
-            $montosDia[] = $registro ? (float)$registro->total_monto : 0;
+
+        foreach ($ventasAgrupadas as $reg) {
+            $horasDia[] = \Carbon\Carbon::parse($reg->fecha)->format('d/m/Y');
+            $montosDia[] = (float) $reg->total_monto;
         }
 
-        // Ventas del año por mes
+        if (empty($horasDia)) {
+            $horasDia = [$inicio->format('d/m/Y')];
+            $montosDia = [0];
+        }
+
+        // 3. Ventas por mes del año actual
         $ventasMesQuery = Venta::where('estado', 'completada')->whereYear('created_at', date('Y'));
         if ($sucursalId !== 'global') {
             $ventasMesQuery->where('sucursal_id', $sucursalId);
         }
-        
+
         $ventasMesData = $ventasMesQuery
             ->select(DB::raw('MONTH(created_at) as mes'), DB::raw('SUM(total) as total_monto'))
             ->groupBy(DB::raw('MONTH(created_at)'))
@@ -502,46 +578,54 @@ class PuntoVentaController extends Controller
         }
         
         $ventas = $ventasQuery->get();
-
         $totalVentas = $ventas->sum('total');
-        $totalItems = $ventas->sum(function($v) { return $v->detalles->sum('cantidad'); });
-        $promedioVenta = $ventas->count() > 0 ? $totalVentas / $ventas->count() : 0;
 
-        $totalCostos = 0;
-        foreach ($ventas as $venta) {
-            foreach ($venta->detalles as $detalle) {
-                $precioCompra = $detalle->equipo->precio_compra ?? ($detalle->precio_unitario * 0.60);
-                $totalCostos += $precioCompra * $detalle->cantidad;
-            }
-        }
-        $gananciaNeta = $totalVentas - $totalCostos;
-
-        $pagosPorMetodo = [
-            'efectivo' => $ventas->where('metodo_pago', 'efectivo')->sum('total'),
-            'transferencia' => $ventas->where('metodo_pago', 'transferencia')->sum('total'),
-            'tarjeta' => $ventas->where('metodo_pago', 'tarjeta')->sum('total'),
-            'mixto' => $ventas->where('metodo_pago', 'mixto')->sum('total'),
-        ];
-
+        // Top Productos Físicos
         $topProductos = [];
         foreach ($ventas as $venta) {
             foreach ($venta->detalles as $detalle) {
-                $nombre = $detalle->equipo->nombre;
-                if (!isset($topProductos[$nombre])) {
-                    $topProductos[$nombre] = 0;
+                if (!$detalle->concepto_especial && $detalle->equipo) {
+                    $nombre = $detalle->equipo->nombre;
+                    $topProductos[$nombre] = ($topProductos[$nombre] ?? 0) + $detalle->cantidad;
                 }
-                $topProductos[$nombre] += $detalle->cantidad;
             }
         }
         arsort($topProductos);
-        $topProductos = array_slice($topProductos, 0, 7);
+        $topProductos = array_slice($topProductos, 0, 5);
 
-        $sucursalNombre = session('activo_sucursal_nombre', 'Todas las sucursales');
-        $titulo = "Informe Ejecutivo - {$sucursalNombre} (" . $inicio->format('d/m/Y') . " - " . $fin->format('d/m/Y') . ")";
+        $pagosPorMetodo = [
+            'efectivo'      => $ventas->where('metodo_pago', 'efectivo')->sum('total'),
+            'transferencia' => $ventas->where('metodo_pago', 'transferencia')->sum('total'),
+            'tarjeta'       => $ventas->where('metodo_pago', 'tarjeta')->sum('total'),
+            'mixto'         => $ventas->where('metodo_pago', 'mixto')->sum('total'),
+        ];
+
+        // 🚀 OBTENER OBJETO DE SUCURSAL Y LOGO
+        $sucursalObj = null;
+        $logoBase64 = null;
+        $sucursalNombre = session('activo_sucursal_nombre', 'Matriz / Administración General');
+
+        if ($sucursalId !== 'global') {
+            $sucursalObj = \App\Models\Sucursal::find($sucursalId);
+            
+            if ($sucursalObj) {
+                $sucursalNombre = $sucursalObj->nombre;
+                
+                // Convertir logo a Base64 para garantizar renderizado en DomPDF
+                if ($sucursalObj->logo && file_exists(public_path('storage/' . $sucursalObj->logo))) {
+                    $path = public_path('storage/' . $sucursalObj->logo);
+                    $type = pathinfo($path, PATHINFO_EXTENSION);
+                    $data = file_get_contents($path);
+                    $logoBase64 = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                }
+            }
+        }
+
+        $titulo = "Informe Financiero de Auditoría";
 
         $pdf = Pdf::loadView('puntoventa.reporte_pdf', compact(
-            'ventas', 'titulo', 'totalVentas', 'totalItems', 'totalCostos', 'gananciaNeta',
-            'promedioVenta', 'pagosPorMetodo', 'topProductos', 'inicio', 'fin'
+            'ventas', 'titulo', 'totalVentas', 'pagosPorMetodo', 'topProductos', 
+            'inicio', 'fin', 'sucursalNombre', 'sucursalObj', 'logoBase64'
         ));
         
         return $pdf->download('Balance_Financiero_' . $inicio->format('Ymd') . '_' . $fin->format('Ymd') . '.pdf');

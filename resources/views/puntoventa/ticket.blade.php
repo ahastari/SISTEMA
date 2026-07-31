@@ -7,14 +7,14 @@
     <style>
         /* Estilos optimizados para impresora térmica */
         body {
-            font-family: 'Courier New', Courier, monospace; /* Fuente monoespaciada ideal para tickets */
+            font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
             margin: 0;
             padding: 0;
             background-color: #f0f0f0;
         }
         .ticket {
-            width: 80mm; /* Ancho estándar de impresora térmica */
+            width: 80mm;
             max-width: 100%;
             background: #fff;
             margin: 20px auto;
@@ -31,7 +31,7 @@
         .border-top { border-top: 1px dashed #000; padding-top: 5px; }
         .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 5px; }
         th, td { padding: 2px 0; }
         th { border-bottom: 1px dashed #000; font-weight: bold; }
         
@@ -52,7 +52,6 @@
         }
         .btn-secondary { background: #6c757d; }
 
-        /* Ocultar elementos de la interfaz al imprimir */
         @media print {
             body { background-color: white; margin: 0; padding: 0; }
             .ticket { margin: 0; padding: 0; box-shadow: none; width: 100%; }
@@ -63,23 +62,33 @@
 <body>
 
     <div class="ticket">
+        <!-- CABECERA DINÁMICA DE SUCURSAL -->
         <div class="text-center mb-2">
-            <h2 style="margin: 0;">MI EMPRESA</h2>
-            <div class="mb-1">Dirección de la sucursal</div>
-            <div>Tel: (123) 456-7890</div>
+            <h2 style="margin: 0; font-size: 16px;">{{ $venta->sucursal->nombre ?? 'MI EMPRESA' }}</h2>
+            <div class="mb-1">{{ $venta->sucursal->direccion ?? 'Dirección no especificada' }}</div>
+            @if(isset($venta->sucursal->telefono))
+                <div>Tel: {{ $venta->sucursal->telefono }}</div>
+            @endif
         </div>
 
+        <!-- DATOS DE LA VENTA -->
         <div class="border-top border-bottom mt-2">
             <div class="mb-1"><span class="bold">Folio:</span> {{ $venta->folio }}</div>
             <div class="mb-1"><span class="bold">Fecha:</span> {{ $venta->created_at->format('d/m/Y H:i') }}</div>
+            
             @if($venta->cliente)
                 <div class="mb-1"><span class="bold">Cliente:</span> {{ $venta->cliente->nombre_completo }}</div>
+                @if($venta->requiere_factura && $venta->rfc_cliente)
+                    <div class="mb-1"><span class="bold">RFC:</span> {{ $venta->rfc_cliente }}</div>
+                @endif
             @else
                 <div class="mb-1"><span class="bold">Cliente:</span> Público General</div>
             @endif
-            <div><span class="bold">Método:</span> {{ strtoupper($venta->metodo_pago) }}</div>
+            
+            <div><span class="bold">Método de Pago:</span> {{ strtoupper($venta->metodo_pago) }}</div>
         </div>
 
+        <!-- DETALLE DE PRODUCTOS -->
         <table>
             <thead>
                 <tr>
@@ -93,7 +102,8 @@
                 <tr>
                     <td class="text-left" style="vertical-align: top;">{{ $detalle->cantidad }}</td>
                     <td class="text-left">
-                        {{ $detalle->equipo->nombre }}
+                        {{-- Prioriza el concepto especial (Flete/Mano de obra) o el nombre del producto en BD --}}
+                        {{ $detalle->concepto_especial ?? $detalle->equipo->nombre ?? 'Concepto de Venta' }}
                         <br>
                         <small>${{ number_format($detalle->precio_unitario, 2) }} c/u</small>
                     </td>
@@ -103,6 +113,7 @@
             </tbody>
         </table>
 
+        <!-- TOTALES Y DESGLOSE FISCAL -->
         <div class="border-top mt-2">
             @if($venta->requiere_factura)
                 <table style="margin: 0;">
@@ -119,12 +130,59 @@
             
             <table style="margin: 0; font-size: 14px;">
                 <tr>
-                    <td class="text-right bold" style="padding-top: 5px;">TOTAL:</td>
-                    <td class="text-right bold" style="width: 35%; padding-top: 5px;">${{ number_format($venta->total, 2) }}</td>
+                    <td class="text-right bold" style="padding-top: 3px;">TOTAL:</td>
+                    <td class="text-right bold" style="width: 35%; padding-top: 3px;">${{ number_format($venta->total, 2) }}</td>
                 </tr>
             </table>
         </div>
 
+        <!-- DESGLOSE DE PAGO Y CAMBIO -->
+        <div class="border-top mt-2">
+            <div class="bold mb-1">Desglose de Pago:</div>
+            <table style="margin: 0;">
+                @if(strtolower($venta->metodo_pago) === 'mixto' && !empty($venta->pagos_mixtos))
+                    @foreach($venta->pagos_mixtos as $pago)
+                        <tr>
+                            <td class="text-left" style="font-size: 11px;">
+                                • {{ ucfirst($pago['metodo'] ?? $pago->metodo) }}:
+                            </td>
+                            <td class="text-right" style="font-size: 11px;">
+                                ${{ number_format($pago['monto'] ?? $pago->monto, 2) }}
+                            </td>
+                        </tr>
+                    @endforeach
+                @else
+                    <tr>
+                        <td class="text-left" style="font-size: 11px;">
+                            • {{ ucfirst($venta->metodo_pago) }}:
+                        </td>
+                        <td class="text-right" style="font-size: 11px;">
+                            ${{ number_format($venta->total, 2) }}
+                        </td>
+                    </tr>
+                @endif
+
+                @php
+                    $pagoCon = (float) ($venta->monto_recibido > 0 ? $venta->monto_recibido : $venta->total);
+                    $cambioVal = (float) ($venta->cambio ?? ($pagoCon - $venta->total));
+                @endphp
+
+                <!-- SECCIÓN PAGÓ CON Y CAMBIO -->
+                <tr>
+                    <td class="text-left bold" style="padding-top: 4px; font-size: 11px;">Pagó con:</td>
+                    <td class="text-right bold" style="padding-top: 4px; font-size: 11px;">
+                        ${{ number_format($pagoCon, 2) }}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-left bold" style="font-size: 11px;">Cambio:</td>
+                    <td class="text-right bold" style="font-size: 11px;">
+                        ${{ number_format(max(0, $cambioVal), 2) }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <!-- PIE DE PÁGINA -->
         <div class="text-center mt-2 border-top" style="padding-top: 10px;">
             <p style="margin: 0;">¡Gracias por su compra!</p>
             <p style="margin: 5px 0 0 0; font-size: 10px;">Este documento es un comprobante de venta.</p>
