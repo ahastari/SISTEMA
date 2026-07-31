@@ -3,71 +3,120 @@
 
 <head>
     <meta charset="UTF-8">
-    <head>
-    <meta charset="UTF-8">
-    <!-- 🔥 SCRIPT DE BLOQUEO PARA EVITAR EL FLASH BLANCO -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@yield('title', 'Sistema') | {{ \App\Helpers\ContentHelper::getNombreMostrar() }}</title>
+
+    <!-- 🔥 SCRIPT DE BLOQUEO INSTANTÁNEO (EVITA FLASH BLANCO Y PARPADEO DEL MENU) -->
     <script>
         (function() {
+            // 1. Tema oscuro/claro
             const savedTheme = localStorage.getItem('theme');
             const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
             document.documentElement.setAttribute('data-bs-theme', theme);
+
+            // 2. Estado del Sidebar (Evita que se abra/cierre al cambiar de página)
+            if (localStorage.getItem('sidebar-collapsed') === 'true') {
+                document.documentElement.classList.add('init-sidebar-collapsed');
+            }
         })();
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'Sistema') | {{ \App\Helpers\ContentHelper::getNombreMostrar() }}</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <style>
-
         body {
             transition: background-color 0.3s ease, color 0.3s ease;
         }
         
-        .required-asterisk {
-            color: red;
-            margin-left: 2px;
-        }
-        .required-label::after {
-            content: " *";
-            color: red;
-            font-weight: bold;
-        }
+        .required-asterisk { color: red; margin-left: 2px; }
+        .required-label::after { content: " *"; color: red; font-weight: bold; }
 
-        /* Botón flotante */
         .floating-btn {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
+            width: 56px; height: 56px; border-radius: 50%;
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            z-index: 1050;
+            transition: transform 0.2s ease, box-shadow 0.2s ease; z-index: 1050;
         }
-        .floating-btn:hover {
-            transform: scale(1.08);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
-        }
+        .floating-btn:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
 
-        /* Estilos Sidebar y Layout */
+        /* ESTILOS BASE SIDEBAR */
         #sidebar {
             width: 260px;
-            transition: margin-left 0.3s ease-in-out;
+            transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
             z-index: 1040;
+            overflow-x: hidden;
         }
 
-        @media (min-width: 992px) {
-            #sidebar.collapsed {
-                margin-left: -260px;
+        /* REGLA GENERAL COLAPSADO (MINI-SIDEBAR CON SOLO ICONOS) */
+        html.init-sidebar-collapsed #sidebar,
+        #sidebar.collapsed {
+            width: 70px !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
+
+        html.init-sidebar-collapsed #sidebar .sidebar-text,
+        html.init-sidebar-collapsed #sidebar .sidebar-brand-title,
+        html.init-sidebar-collapsed #sidebar hr,
+        #sidebar.collapsed .sidebar-text,
+        #sidebar.collapsed .sidebar-brand-title,
+        #sidebar.collapsed hr {
+            display: none !important;
+        }
+
+        #sidebar.collapsed .sidebar-logo-container img,
+        html.init-sidebar-collapsed #sidebar .sidebar-logo-container img {
+            max-height: 40px !important;
+            width: 100% !important;
+        }
+
+        #sidebar.collapsed .nav-link,
+        html.init-sidebar-collapsed #sidebar .nav-link {
+            text-align: center;
+            padding: 10px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #sidebar.collapsed .nav-link i,
+        html.init-sidebar-collapsed #sidebar .nav-link i {
+            margin-right: 0 !important;
+            font-size: 1.3rem;
+        }
+
+        /* 📱 RESPONSIVE AUTOMÁTICO PARA PANTALLAS PEQUEÑAS (Laptops pequeñas / Tablets < 1200px) */
+        @media (max-width: 1199.98px) {
+            #sidebar:not(.user-expanded) {
+                width: 70px !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
             }
-        }
 
-        .nav-link.active-submenu {
-            background-color: rgba(13, 110, 253, 0.15);
-            border-left: 3px solid #0d6efd;
-            color: #0d6efd !important;
+            #sidebar:not(.user-expanded) .sidebar-text,
+            #sidebar:not(.user-expanded) .sidebar-brand-title,
+            #sidebar:not(.user-expanded) hr {
+                display: none !important;
+            }
+
+            #sidebar:not(.user-expanded) .sidebar-logo-container img {
+                max-height: 40px !important;
+                width: 100% !important;
+            }
+
+            #sidebar:not(.user-expanded) .nav-link {
+                text-align: center;
+                padding: 10px 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            #sidebar:not(.user-expanded) .nav-link i {
+                margin-right: 0 !important;
+                font-size: 1.3rem;
+            }
         }
     </style>
 </head>
@@ -76,88 +125,92 @@
 
 <div class="d-flex min-vh-100 position-relative">
 
+    <!-- SIDEBAR -->
     <aside id="sidebar" class="bg-dark text-white vh-100 p-3 shadow position-sticky top-0 d-flex flex-column flex-shrink-0" data-bs-theme="dark">
-        
-        <div class="text-center mb-3">
+        <!-- LOGO DE SUCURSAL / MATRIZ -->
+        <div class="text-center mb-2 sidebar-logo-container">
             @php
-                $logoMostrar = \App\Helpers\ContentHelper::getLogoActual();
+                $logoRelativePath = \App\Helpers\ContentHelper::getLogoActual();
             @endphp
             
-            @if($logoMostrar)
+            @if(!empty($logoRelativePath))
                 <img
-                    src="{{ asset('storage/' . $logoMostrar) }}"
-                    class="img-fluid rounded-3"
-                    style="max-height: 75px; object-fit: contain;"
-                    alt="Logo"
+                    src="{{ asset('storage/' . $logoRelativePath) }}"
+                    class="img-fluid rounded-3 mx-auto d-block"
+                    alt="Logo Empresa"
+                    onerror="this.style.display='none'; document.getElementById('placeholderLogo').classList.remove('d-none'); document.getElementById('placeholderLogo').classList.add('d-inline-flex');"
                 >
+                <div id="placeholderLogo" class="d-none align-items-center justify-content-center bg-secondary bg-opacity-25 rounded-circle mx-auto" style="width: 48px; height: 48px;">
+                    <i class="bi bi-building fs-4 text-white-50"></i>
+                </div>
             @else
-                <div class="d-inline-flex align-items-center justify-content-center bg-secondary bg-opacity-25 rounded-circle" style="width: 60px; height: 60px;">
-                    <i class="bi bi-building fs-3 text-white-50"></i>
+                <div class="d-inline-flex align-items-center justify-content-center bg-secondary bg-opacity-25 rounded-circle mx-auto" style="width: 48px; height: 48px;">
+                    <i class="bi bi-building fs-4 text-white-50"></i>
                 </div>
             @endif
         </div>
 
-        <h6 class="text-center text-uppercase fw-bold text-wrap px-2 mb-4 tracking-tight" style="color: #f8fafc; font-size: 13px; letter-spacing: 0.5px;">
+        <h6 class="text-center text-uppercase fw-bold text-wrap px-2 mb-3 tracking-tight sidebar-brand-title" style="color: #f8fafc; font-size: 12px; letter-spacing: 0.5px;">
             {{ \App\Helpers\ContentHelper::getNombreMostrar() }}
         </h6>
 
         <hr class="text-white-50 my-2">
 
-        <ul class="nav flex-column mb-auto overflow-y-auto">
+        <!-- MENÚ PRINCIPAL -->
+        <ul class="nav nav-pills flex-column mb-auto overflow-y-auto">
             <li class="nav-item mb-1">
-                <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : 'text-white' }}" title="Dashboard">
                     <i class="bi bi-speedometer2 me-2"></i>
-                    Dashboard
+                    <span class="sidebar-text">Dashboard</span>
                 </a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="{{ route('rentas.index') }}" class="nav-link {{ request()->routeIs('rentas.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('rentas.index') }}" class="nav-link {{ request()->routeIs('rentas.*') ? 'active' : 'text-white' }}" title="Rentas">
                     <i class="bi bi-file-earmark-text me-2"></i>
-                    Rentas
+                    <span class="sidebar-text">Rentas</span>
                 </a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="{{ route('inventario.index') }}" class="nav-link {{ request()->routeIs('inventario.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('inventario.index') }}" class="nav-link {{ request()->routeIs('inventario.*') ? 'active' : 'text-white' }}" title="Inventario">
                     <i class="bi bi-box-seam me-2"></i>
-                    Inventario
+                    <span class="sidebar-text">Inventario</span>
                 </a>
             </li>
 
-            <!-- Movimientos entre sucursales -->
-            <li class="nav-item mb-2">
-                <a href="{{ route('movimientos.index') }}" class="nav-link {{ request()->routeIs('movimientos.*') ? 'text-primary fw-bold' : 'text-white' }}">
+            <li class="nav-item mb-1">
+                <a href="{{ route('movimientos.index') }}" class="nav-link {{ request()->routeIs('movimientos.*') ? 'active' : 'text-white' }}" title="Movimientos">
                     <i class="bi bi-arrow-left-right me-2"></i>
-                    Movimientos
+                    <span class="sidebar-text">Movimientos</span>
                 </a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="{{ route('obras.index') }}" class="nav-link {{ request()->routeIs('obras.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('obras.index') }}" class="nav-link {{ request()->routeIs('obras.*') ? 'active' : 'text-white' }}" title="Obras">
                     <i class="bi bi-building me-2"></i>
-                    Obras
+                    <span class="sidebar-text">Obras</span>
                 </a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="{{ route('puntoventa.index') }}" class="nav-link {{ request()->routeIs('puntoventa.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('puntoventa.index') }}" class="nav-link {{ request()->routeIs('puntoventa.*') ? 'active' : 'text-white' }}" title="Punto de Venta">
                     <i class="bi bi-cart3 me-2"></i>
-                    Punto de Venta
+                    <span class="sidebar-text">Punto de Venta</span>
                 </a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="{{ route('clientes.index') }}" class="nav-link {{ request()->routeIs('clientes.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('clientes.index') }}" class="nav-link {{ request()->routeIs('clientes.*') ? 'active' : 'text-white' }}" title="Clientes">
                     <i class="bi bi-people me-2"></i>
-                    Clientes
+                    <span class="sidebar-text">Clientes</span>
                 </a>
             </li>
 
             <li class="nav-item mb-1">
-                <a href="{{ route('configuracion.index') }}" class="nav-link {{ request()->routeIs('configuracion.*') ? 'text-primary fw-bold' : 'text-white' }}">
+                <a href="{{ route('configuracion.index') }}" class="nav-link {{ request()->routeIs('configuracion.*') ? 'active' : 'text-white' }}" title="Configuración">
                     <i class="bi bi-sliders me-2"></i>
-                    Configuración
+                    <span class="sidebar-text">Configuración</span>
                 </a>
             </li>
         </ul>
@@ -238,123 +291,55 @@
 
 </div>
 
-<!-- Botón flotante con dropdown -->
-<div class="position-fixed bottom-0 end-0 p-3 p-md-4" style="z-index: 1050;">
-    <div class="dropdown dropup">
-        <button class="btn btn-primary floating-btn dropdown-toggle d-flex align-items-center justify-content-center" 
-                type="button" 
-                data-bs-toggle="dropdown" 
-                aria-expanded="false"
-                title="Acciones rápidas">
-            <i class="bi bi-plus-lg fs-3"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-2 mb-2" style="min-width: 220px;">
-            <li>
-                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('movimientos.create') }}">
-                    <span class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
-                        <i class="bi bi-arrow-left-right text-primary"></i>
-                    </span>
-                    <div>
-                        <span class="d-block fw-semibold">Nuevo Movimiento</span>
-                        <small class="text-muted">Transferir entre sucursales</small>
-                    </div>
-                </a>
-            </li>
-            <li>
-                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('movimientos.index') }}">
-                    <span class="bg-info bg-opacity-10 rounded-circle p-2 me-3">
-                        <i class="bi bi-clock-history text-info"></i>
-                    </span>
-                    <div>
-                        <span class="d-block fw-semibold">Historial</span>
-                        <small class="text-muted">Ver todos los movimientos</small>
-                    </div>
-                </a>
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('inventario.create') }}">
-                    <span class="bg-success bg-opacity-10 rounded-circle p-2 me-3">
-                        <i class="bi bi-box-seam text-success"></i>
-                    </span>
-                    <div>
-                        <span class="d-block fw-semibold">Nuevo Producto</span>
-                        <small class="text-muted">Agregar al inventario</small>
-                    </div>
-                </a>
-            </li>
-            <li>
-                <a class="dropdown-item d-flex align-items-center py-2" href="{{ route('rentas.create') }}">
-                    <span class="bg-warning bg-opacity-10 rounded-circle p-2 me-3">
-                        <i class="bi bi-file-earmark-text text-warning"></i>
-                    </span>
-                    <div>
-                        <span class="d-block fw-semibold">Nueva Renta</span>
-                        <small class="text-muted">Registrar renta de equipo</small>
-                    </div>
-                </a>
-            </li>
-        </ul>
-    </div>
-</div>
-
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // 1. Toggle Sidebar
+        document.addEventListener('DOMContentLoaded', function() {
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
+        const htmlDoc = document.documentElement;
 
+        // Función para verificar y aplicar estado según el ancho de pantalla
+        const checkResponsiveSidebar = () => {
+            const isSmallScreen = window.innerWidth < 1200; // Umbral de pantalla chica/mediana
+            const savedState = localStorage.getItem('sidebar-collapsed');
+
+            if (isSmallScreen) {
+                // En pantalla chica se colapsa automáticamente a íconos
+                sidebar.classList.add('collapsed');
+                htmlDoc.classList.add('init-sidebar-collapsed');
+            } else {
+                // En pantalla grande respeta la preferencia guardada por el usuario
+                if (savedState === 'true') {
+                    sidebar.classList.add('collapsed');
+                    htmlDoc.classList.add('init-sidebar-collapsed');
+                } else {
+                    sidebar.classList.remove('collapsed');
+                    htmlDoc.classList.remove('init-sidebar-collapsed');
+                }
+            }
+        };
+
+        // Ejecutar al cargar la página
+        checkResponsiveSidebar();
+
+        // Reaccionar dinámicamente si el usuario redimensiona la ventana
+        window.addEventListener('resize', checkResponsiveSidebar);
+
+        // Permitir abrir/cerrar manualmente con el botón hamburguesa
         if (sidebarToggle && sidebar) {
             sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('collapsed');
-            });
-        }
-
-        // 2. Control de Tema Oscuro / Claro
-        const htmlElement = document.getElementById('htmlElement');
-        const themeToggleBtn = document.getElementById('themeToggle');
-        const themeIcon = document.getElementById('themeIcon');
-
-        if (themeToggleBtn && htmlElement && themeIcon) {
-            const getPreferredTheme = () => {
-                const storedTheme = localStorage.getItem('theme');
-                if (storedTheme) {
-                    return storedTheme;
-                }
-                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            };
-
-            const setTheme = (theme) => {
-                htmlElement.setAttribute('data-bs-theme', theme);
-                localStorage.setItem('theme', theme);
-
-                if (theme === 'dark') {
-                    themeIcon.className = 'bi bi-sun-fill';
-                    themeToggleBtn.classList.remove('btn-outline-secondary');
-                    themeToggleBtn.classList.add('btn-outline-warning', 'text-warning');
+                const isCollapsed = sidebar.classList.toggle('collapsed');
+                
+                if (isCollapsed) {
+                    htmlDoc.classList.add('init-sidebar-collapsed');
+                    sidebar.classList.remove('user-expanded');
                 } else {
-                    themeIcon.className = 'bi bi-moon-stars-fill';
-                    themeToggleBtn.classList.remove('btn-outline-warning', 'text-warning');
-                    themeToggleBtn.classList.add('btn-outline-secondary');
+                    htmlDoc.classList.remove('init-sidebar-collapsed');
+                    sidebar.classList.add('user-expanded');
                 }
-            };
-
-            // Cargar tema inicial
-            setTheme(getPreferredTheme());
-
-            // Evento Click
-            themeToggleBtn.addEventListener('click', () => {
-                const currentTheme = htmlElement.getAttribute('data-bs-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                setTheme(newTheme);
+                
+                localStorage.setItem('sidebar-collapsed', isCollapsed);
             });
         }
-
-        // 3. Inicializar tooltips de Bootstrap si existen
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
     });
 </script>
 

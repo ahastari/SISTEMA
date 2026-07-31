@@ -79,13 +79,29 @@ class ContentHelper
     {
         $sucursalData = self::getSucursalActiva();
         
-        // Si es una sucursal específica y tiene logo, usar ese
-        if ($sucursalData['id'] !== 'global' && !empty($sucursalData['logo'])) {
-            return $sucursalData['logo'];
-        }
+        $logo = '';
         
-        // Si no, usar el logo de la empresa
-        return self::getCompanyData('empresa_logo', '');
+        // 1. Intentar obtener logo de sucursal
+        if ($sucursalData['id'] !== 'global' && !empty($sucursalData['logo'])) {
+            $logo = $sucursalData['logo'];
+        } else {
+            // 2. Intentar obtener logo corporativo de la empresa
+            $logo = self::getCompanyData('empresa_logo', '');
+        }
+
+        if (empty($logo)) {
+            return '';
+        }
+
+        // Limpiar "storage/" o "public/" si venían incluidos en el string de BD
+        $cleanPath = str_replace(['public/', 'storage/'], '', $logo);
+
+        // Validar que el archivo físico realmente exista en storage/app/public
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($cleanPath)) {
+            return $cleanPath;
+        }
+
+        return '';
     }
 
     /**
