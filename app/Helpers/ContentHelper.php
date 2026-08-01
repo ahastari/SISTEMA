@@ -72,36 +72,49 @@ class ContentHelper
         return $sucursalData;
     }
 
-    /**
+   /**
      * Obtener el logo a mostrar según contexto (sucursal o empresa)
      */
     public static function getLogoActual(): string
     {
         $sucursalData = self::getSucursalActiva();
-        
         $logo = '';
-        
-        // 1. Intentar obtener logo de sucursal
+
+        // 1. Intentar obtener el logo de la sucursal activa
         if ($sucursalData['id'] !== 'global' && !empty($sucursalData['logo'])) {
-            $logo = $sucursalData['logo'];
-        } else {
-            // 2. Intentar obtener logo corporativo de la empresa
+            $pathPrueba = str_replace(['public/', 'storage/'], '', $sucursalData['logo']);
+            // Solo usar si el archivo físico realmente existe en storage/app/public
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($pathPrueba)) {
+                $logo = $sucursalData['logo'];
+            }
+        } 
+
+        // 2. Si no hay logo de sucursal o el archivo no existe, usar el logo corporativo
+        if (empty($logo)) {
             $logo = self::getCompanyData('empresa_logo', '');
+        }
+
+        // 3. Fallback final: Buscar cualquier sucursal con un archivo de logo válido en disco
+        if (empty($logo)) {
+            $sucursales = \App\Models\Sucursal::whereNotNull('logo')->where('logo', '!=', '')->get();
+            foreach ($sucursales as $s) {
+                $p = str_replace(['public/', 'storage/'], '', $s->logo);
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($p)) {
+                    $logo = $s->logo;
+                    break;
+                }
+            }
         }
 
         if (empty($logo)) {
             return '';
         }
 
-        // Limpiar "storage/" o "public/" si venían incluidos en el string de BD
+        // Sanitizar y devolver la URL web
         $cleanPath = str_replace(['public/', 'storage/'], '', $logo);
+        $cleanPath = ltrim($cleanPath, '/\\');
 
-        // Validar que el archivo físico realmente exista en storage/app/public
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($cleanPath)) {
-            return $cleanPath;
-        }
-
-        return '';
+        return asset('storage/' . $cleanPath);
     }
 
     /**

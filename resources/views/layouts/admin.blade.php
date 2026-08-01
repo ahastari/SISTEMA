@@ -9,14 +9,17 @@
     <!-- 🔥 SCRIPT DE BLOQUEO INSTANTÁNEO (EVITA FLASH BLANCO Y PARPADEO DEL MENU) -->
     <script>
         (function() {
-            // 1. Tema oscuro/claro
+            // 1. Cargar tema de forma inmediata
             const savedTheme = localStorage.getItem('theme');
             const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
             document.documentElement.setAttribute('data-bs-theme', theme);
 
-            // 2. Estado del Sidebar (Evita que se abra/cierre al cambiar de página)
-            if (localStorage.getItem('sidebar-collapsed') === 'true') {
+            // 2. Cargar estado del Sidebar
+            const isSmallScreen = window.innerWidth < 1200;
+            const savedSidebar = localStorage.getItem('sidebar-collapsed');
+
+            if (isSmallScreen || savedSidebar === 'true') {
                 document.documentElement.classList.add('init-sidebar-collapsed');
             }
         })();
@@ -46,6 +49,15 @@
             transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
             z-index: 1040;
             overflow-x: hidden;
+        }
+
+        /* CONTROL DE TAMAÑO DE LOGO DESPLEGADO */
+        .sidebar-logo-container img {
+            max-height: 100px !important;
+            width: 85% !important;
+            max-width: 200px !important;
+            object-fit: contain;
+            transition: all 0.25s ease;
         }
 
         /* REGLA GENERAL COLAPSADO (MINI-SIDEBAR CON SOLO ICONOS) */
@@ -86,7 +98,7 @@
             font-size: 1.3rem;
         }
 
-        /* 📱 RESPONSIVE AUTOMÁTICO PARA PANTALLAS PEQUEÑAS (Laptops pequeñas / Tablets < 1200px) */
+        /* RESPONSIVE AUTOMÁTICO PARA PANTALLAS PEQUEÑAS (< 1200px) */
         @media (max-width: 1199.98px) {
             #sidebar:not(.user-expanded) {
                 width: 70px !important;
@@ -127,18 +139,20 @@
 
     <!-- SIDEBAR -->
     <aside id="sidebar" class="bg-dark text-white vh-100 p-3 shadow position-sticky top-0 d-flex flex-column flex-shrink-0" data-bs-theme="dark">
+        
         <!-- LOGO DE SUCURSAL / MATRIZ -->
         <div class="text-center mb-2 sidebar-logo-container">
             @php
-                $logoRelativePath = \App\Helpers\ContentHelper::getLogoActual();
+                $logoUrl = \App\Helpers\ContentHelper::getLogoActual();
             @endphp
             
-            @if(!empty($logoRelativePath))
+            @if(!empty($logoUrl))
                 <img
-                    src="{{ asset('storage/' . $logoRelativePath) }}"
+                    src="{{ $logoUrl }}"
                     class="img-fluid rounded-3 mx-auto d-block"
                     alt="Logo Empresa"
-                    onerror="this.style.display='none'; document.getElementById('placeholderLogo').classList.remove('d-none'); document.getElementById('placeholderLogo').classList.add('d-inline-flex');"
+                    style="max-height: 90px; object-fit: contain;"
+                    onerror="console.error('No se pudo cargar el logo desde URL:', this.src); this.style.display='none'; document.getElementById('placeholderLogo').classList.remove('d-none'); document.getElementById('placeholderLogo').classList.add('d-inline-flex');"
                 >
                 <div id="placeholderLogo" class="d-none align-items-center justify-content-center bg-secondary bg-opacity-25 rounded-circle mx-auto" style="width: 48px; height: 48px;">
                     <i class="bi bi-building fs-4 text-white-50"></i>
@@ -232,6 +246,7 @@
                 </div>
 
                 <div class="d-flex align-items-center">
+                    <!-- BOTÓN CAMBIO DE TEMA OSCURO / CLARO -->
                     <button class="btn btn-outline-secondary btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center me-3" 
                             id="themeToggle" 
                             type="button" 
@@ -292,22 +307,20 @@
 </div>
 
 <script>
-        document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
         const htmlDoc = document.documentElement;
 
-        // Función para verificar y aplicar estado según el ancho de pantalla
+        // 1. LÓGICA RESPONSIVE Y ESTADO DEL SIDEBAR
         const checkResponsiveSidebar = () => {
-            const isSmallScreen = window.innerWidth < 1200; // Umbral de pantalla chica/mediana
+            const isSmallScreen = window.innerWidth < 1200;
             const savedState = localStorage.getItem('sidebar-collapsed');
 
             if (isSmallScreen) {
-                // En pantalla chica se colapsa automáticamente a íconos
                 sidebar.classList.add('collapsed');
                 htmlDoc.classList.add('init-sidebar-collapsed');
             } else {
-                // En pantalla grande respeta la preferencia guardada por el usuario
                 if (savedState === 'true') {
                     sidebar.classList.add('collapsed');
                     htmlDoc.classList.add('init-sidebar-collapsed');
@@ -318,13 +331,9 @@
             }
         };
 
-        // Ejecutar al cargar la página
         checkResponsiveSidebar();
-
-        // Reaccionar dinámicamente si el usuario redimensiona la ventana
         window.addEventListener('resize', checkResponsiveSidebar);
 
-        // Permitir abrir/cerrar manualmente con el botón hamburguesa
         if (sidebarToggle && sidebar) {
             sidebarToggle.addEventListener('click', function() {
                 const isCollapsed = sidebar.classList.toggle('collapsed');
@@ -338,6 +347,45 @@
                 }
                 
                 localStorage.setItem('sidebar-collapsed', isCollapsed);
+            });
+        }
+
+        // 2. CONMUTADOR DE TEMA OSCURO / CLARO
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+
+        if (themeToggleBtn && themeIcon) {
+            const getPreferredTheme = () => {
+                const storedTheme = localStorage.getItem('theme');
+                if (storedTheme) {
+                    return storedTheme;
+                }
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            };
+
+            const applyTheme = (theme) => {
+                htmlDoc.setAttribute('data-bs-theme', theme);
+                localStorage.setItem('theme', theme);
+
+                if (theme === 'dark') {
+                    themeIcon.className = 'bi bi-sun-fill';
+                    themeToggleBtn.classList.remove('btn-outline-secondary');
+                    themeToggleBtn.classList.add('btn-outline-warning', 'text-warning');
+                } else {
+                    themeIcon.className = 'bi bi-moon-stars-fill';
+                    themeToggleBtn.classList.remove('btn-outline-warning', 'text-warning');
+                    themeToggleBtn.classList.add('btn-outline-secondary');
+                }
+            };
+
+            // Aplicar tema guardado al cargar la página
+            applyTheme(getPreferredTheme());
+
+            // Evento click para alternar entre oscuro y claro
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = htmlDoc.getAttribute('data-bs-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                applyTheme(newTheme);
             });
         }
     });

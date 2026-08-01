@@ -267,7 +267,7 @@
         
         <li class="nav-item">
             <button class="nav-link {{ auth()->user()->isGerente() && !auth()->user()->isAdmin() ? 'active' : '' }}" id="sucursales-tab" data-bs-toggle="tab" data-bs-target="#panel-sucursales" type="button" role="tab">
-                <i class="bi bi-geo-alt me-2"></i>Sucursales y Tiendas
+                <i class="bi bi-geo-alt me-2"></i>Sucursales
             </button>
         </li>
         
@@ -275,7 +275,7 @@
         @if(auth()->user()->isAdmin())
             <li class="nav-item">
                 <button class="nav-link" id="usuarios-tab" data-bs-toggle="tab" data-bs-target="#panel-usuarios" type="button" role="tab">
-                    <i class="bi bi-people me-2"></i>Usuarios y Operadores
+                    <i class="bi bi-people me-2"></i>Usuarios
                 </button>
             </li>
         @endif
@@ -479,7 +479,7 @@
         <div class="tab-pane fade" id="panel-usuarios" role="tabpanel">
             <div class="panel-box rounded-4 shadow-sm">
                 <div class="panel-title-area d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-                    <h6 class="panel-title fw-bold text-body m-0">Operadores de Caja e Inventario Autorizados</h6>
+                    <h6 class="panel-title fw-bold text-body m-0">Usuarios Registrados </h6>
                     <button class="btn btn-dark btn-sm shadow-sm rounded-3 fw-bold" data-bs-toggle="modal" data-bs-target="#modalCrearUsuario">
                         <i class="bi bi-person-plus-fill me-1"></i> Registrar Empleado
                     </button>
@@ -490,9 +490,9 @@
                         <table class="user-table table mb-0 align-middle" style="font-size: 13px;">
                             <thead class="bg-body-tertiary">
                                 <tr>
-                                    <th class="ps-3 py-2 text-secondary">Nombre Operador</th>
+                                    <th class="ps-3 py-2 text-secondary">Nombre </th>
                                     <th class="text-secondary">Email Corporativo</th>
-                                    <th class="text-secondary">Sucursal Laboral</th>
+                                    <th class="text-secondary">Sucursal Asignada</th>
                                     <th class="text-secondary">Rol Sistema</th>
                                     <th class="text-secondary">Estado</th>
                                     <th class="text-end pe-3 text-secondary">Acciones</th>
@@ -699,7 +699,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
             <div class="modal-header bg-dark text-white border-0 py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-person-plus me-2"></i>Alta de Operador de Sistema</h6>
+                <h6 class="modal-title fw-bold"><i class="bi bi-person-plus me-2"></i>Registro de Usuario</h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('configuracion.usuarios.store') }}" method="POST" enctype="multipart/form-data">
@@ -721,7 +721,7 @@
                         <div class="col-6">
                             <label class="form-label small fw-semibold text-body">Rol Autorizado <span class="text-danger">*</span></label>
                             <select name="role" class="form-select form-select-sm bg-body text-body" required>
-                                <option value="cajero" selected>Cajero / POS</option>
+                                <option value="cajero" selected>Cajero</option>
                                 <option value="gerente">Gerente de Sucursal</option>
                                 <option value="admin">Administrador Global</option>
                             </select>
@@ -741,9 +741,9 @@
                         <input type="file" name="foto" class="form-control" accept="image/*">
                     </div>
                 </div>
-                <div class="modal-footer border-0 p-3 bg-white">
+                <div class="modal-footer border-0 p-3">
                     <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success px-4 fw-bold">Guardar y Enlazar</button>
+                    <button type="submit" class="btn btn-success px-4 fw-bold">Guardar</button>
                 </div>
             </form>
         </div>
