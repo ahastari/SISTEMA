@@ -89,7 +89,7 @@
             font-weight: 700; 
         }
         .kpi-amount { 
-            font-size: 12pt; 
+            font-size: 11pt; 
             font-weight: 800; 
             margin-top: 2px; 
             font-family: 'Courier New', Courier, monospace;
@@ -147,6 +147,32 @@
 </head>
 <body>
 
+    <!-- BLOQUE DE CÁLCULO SEGURO PREVIO A TODO EL HTML -->
+    @php 
+        $coleccionVentas = $ventas ?? collect();
+        $totalVentaPDF = $totalVentas ?? $coleccionVentas->sum('total');
+        $fletes = 0; 
+        $manoObra = 0;
+        $costoProduccionPDF = 0;
+
+        foreach($coleccionVentas as $v) {
+            if(isset($v->detalles)) {
+                foreach($v->detalles as $d) {
+                    if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
+                        $fletes += $d->subtotal;
+                    } elseif(str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) {
+                        $manoObra += $d->subtotal;
+                    } else {
+                        // Costo de adquisición/producción
+                        $costoUnit = $d->costo ?? ($d->equipo->costo ?? 0);
+                        $costoProduccionPDF += ($costoUnit * $d->cantidad);
+                    }
+                }
+            }
+        }
+        $utilidadPDF = $totalVentaPDF - $costoProduccionPDF;
+    @endphp
+
     <!-- ENCABEZADO PRINCIPAL CON LOGO Y DATOS DE SUCURSAL -->
     <table class="header-table">
         <tr>
@@ -161,7 +187,6 @@
                     SUCURSAL: <strong>{{ strtoupper($sucursalNombre ?? 'Matriz General') }}</strong>
                 </div>
 
-                <!-- DATOS DE LA SUCURSAL DE BD -->
                 @if(isset($sucursalObj) && $sucursalObj)
                     <div class="branch-details">
                         @if($sucursalObj->direccion)
@@ -177,9 +202,9 @@
             <td style="width: 42%; text-align: right; vertical-align: top;">
                 <div style="font-size: 10pt; font-weight: bold; color: #0f172a;">BALANCE FINANCIERO DE CAJA</div>
                 <div style="font-size: 7.5pt; color: #64748b; margin-top: 3px;">
-                    <strong>Período:</strong> {{ isset($inicio) ? $inicio->format('d/m/Y') : date('01/m/Y') }} 
+                    <strong>Período:</strong> {{ isset($inicio) ? (\Carbon\Carbon::parse($inicio)->format('d/m/Y')) : date('01/m/Y') }} 
                     al 
-                    {{ isset($fin) ? $fin->format('d/m/Y') : date('d/m/Y') }}
+                    {{ isset($fin) ? (\Carbon\Carbon::parse($fin)->format('d/m/Y')) : date('d/m/Y') }}
                 </div>
                 <div style="font-size: 6.5pt; color: #94a3b8; margin-top: 2px;">
                     Generado: {{ date('d/m/Y H:i:s') }}
@@ -188,55 +213,46 @@
         </tr>
     </table>
 
-    <!-- KPIS DE MÉRICA PRINCIPALES -->
+    <!-- KPIS DE MÉTRICAS PRINCIPALES -->
     <table class="kpi-table">
         <tr>
-            <td style="width: 32%; padding-right: 4px;">
+            <td style="width: 25%; padding-right: 3px;">
                 <div class="kpi-card" style="border-left: 3px solid #0284c7;">
-                    <div class="kpi-title">Total</div>
-                    <div class="kpi-amount" style="color: #0284c7;">${{ number_format($totalVentas ?? 0, 2) }}</div>
+                    <div class="kpi-title">Total Venta</div>
+                    <div class="kpi-amount" style="color: #0284c7;">${{ number_format($totalVentaPDF, 2) }}</div>
                 </div>
             </td>
-            <td style="width: 36%; padding: 0 2px;">
-                <div class="kpi-card" style="border-left: 3px solid #059669;">
-                    <div class="kpi-title">Servicios (Fletes / Mano Obra)</div>
-                    @php 
-                        $fletes = 0; $manoObra = 0;
-                        $coleccionVentas = $ventas ?? collect();
-                        foreach($coleccionVentas as $v) {
-                            if(isset($v->detalles)) {
-                                foreach($v->detalles as $d) {
-                                    if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) $fletes += $d->subtotal;
-                                    elseif(str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) $manoObra += $d->subtotal;
-                                }
-                            }
-                        }
-                    @endphp
-                    <div class="kpi-amount" style="color: #059669;">${{ number_format($fletes + $manoObra, 2) }}</div>
-                </div>
-            </td>
-            <!-- <td style="width: 32%; padding-left: 4px;">
+            <td style="width: 25%; padding: 0 2px;">
                 <div class="kpi-card" style="border-left: 3px solid #d97706;">
-                    <div class="kpi-title">Volumen Operaciones</div>
-                    <div class="kpi-amount" style="color: #d97706;">
-                        {{ isset($ventas) && $ventas ? $ventas->count() : 0 }} <span style="font-size: 7pt; color: #64748b; font-weight: normal;">ventas</span>
-                    </div>
+                    <div class="kpi-title">Costo Producción</div>
+                    <div class="kpi-amount" style="color: #d97706;">${{ number_format($costoProduccionPDF, 2) }}</div>
                 </div>
-            </td> -->
+            </td>
+            <td style="width: 25%; padding: 0 2px;">
+                <div class="kpi-card" style="border-left: 3px solid #059669;">
+                    <div class="kpi-title">Utilidad Bruta Est.</div>
+                    <div class="kpi-amount" style="color: #059669;">${{ number_format($utilidadPDF, 2) }}</div>
+                </div>
+            </td>
+            <td style="width: 25%; padding-left: 3px;">
+                <div class="kpi-card" style="border-left: 3px solid #4f46e5;">
+                    <div class="kpi-title">Fletes / MO</div>
+                    <div class="kpi-amount" style="color: #4f46e5;">${{ number_format($fletes + $manoObra, 2) }}</div>
+                </div>
+            </td>
         </tr>
     </table>
 
     <!-- ANALÍTICAS DE DOS COLUMNAS -->
     <table>
         <tr>
-            <!-- COLUMNA 1: RECAUDACIÓN -->
             <td style="width: 49%; vertical-align: top; padding-right: 5px;">
                 <div class="section-header">Método de Pago</div>
                 <div class="analytics-box">
                     <table>
                         @php $pagosList = $pagosPorMetodo ?? []; @endphp
-                        @foreach($pagosList as $metodo => $monto)
-                        @php $pct = ($totalVentas ?? 0) > 0 ? ($monto / $totalVentas) * 100 : 0; @endphp
+                        @forelse($pagosList as $metodo => $monto)
+                        @php $pct = $totalVentaPDF > 0 ? ($monto / $totalVentaPDF) * 100 : 0; @endphp
                         <tr>
                             <td style="padding: 2px 0; font-size: 7.5pt; font-weight: bold; width: 32%;" class="nowrap">{{ ucfirst($metodo) }}</td>
                             <td style="padding: 2px 0; width: 43%;">
@@ -248,12 +264,17 @@
                                 ${{ number_format($monto, 0) }}
                             </td>
                         </tr>
-                        @endforeach
+                        @empty
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: #94a3b8; font-size: 7.5pt; padding: 6px;">
+                                Sin métodos registrados.
+                            </td>
+                        </tr>
+                        @endforelse
                     </table>
                 </div>
             </td>
 
-            <!-- COLUMNA 2: TOP PRODUCTOS -->
             <td style="width: 49%; vertical-align: top; padding-left: 5px;">
                 <div class="section-header">Demanda Comercial (Top Productos)</div>
                 <div class="analytics-box">
@@ -308,7 +329,9 @@
                 <tr>
                     <td class="font-mono nowrap" style="color: #0284c7;">{{ $venta->folio }}</td>
                     <td class="nowrap"><strong>{{ \Illuminate\Support\Str::limit($venta->cliente_nombre ?? 'Público General', 26) }}</strong></td>
-                    <td style="color: #64748b;" class="nowrap">{{ $venta->created_at->format('d/m/Y H:i') }}</td>
+                    <td style="color: #64748b;" class="nowrap">
+                        {{ is_object($venta->created_at) ? $venta->created_at->format('d/m/Y H:i') : \Carbon\Carbon::parse($venta->created_at)->format('d/m/Y H:i') }}
+                    </td>
                     <td class="nowrap">
                         <span style="font-size: 6pt; background: #e2e8f0; padding: 1px 4px; border-radius: 2px; font-weight: bold; color: #334155;">
                             {{ strtoupper($venta->metodo_pago) }}
@@ -326,7 +349,6 @@
         </tbody>
     </table>
 
-    <!-- PIE DE PÁGINA FIX EN CADA HOJA -->
     <div class="footer">
         <table>
             <tr>

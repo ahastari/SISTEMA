@@ -88,6 +88,14 @@
                     </div>
 
                     <div class="row g-2">
+                        <div class="col-12 col-md-4 mb-2">
+                            <label class="form-label small fw-semibold text-body">Costo Adquisición (Unitario)</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body-tertiary text-secondary">$</span>
+                                <input type="number" name="costo" step="0.01" class="form-control form-control-sm bg-body text-body select-on-focus @error('costo') is-invalid @enderror" 
+                                    value="{{ old('costo', $equipo->costo) }}" placeholder="0.00" min="0">
+                            </div>
+                        </div>
                         <div class="col-12 col-md-6 mb-2" id="container_precio_renta" style="{{ $isRenta ? '' : 'display: none;' }}">
                             <label class="form-label small fw-semibold text-body">Tarifa de Renta (Por Día) <span class="text-danger">*</span></label>
                             <div class="input-group input-group-sm">
@@ -113,51 +121,82 @@
         <div class="col-12 col-lg-4">
             
             <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
-                <div class="card-header bg-body-tertiary border-bottom py-2 px-3 rounded-top-3">
-                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-box-seam me-2"></i>Clasificación y Stock</h6>
+            <div class="card-header bg-body-tertiary border-bottom py-2 px-3 rounded-top-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-box-seam me-2"></i>Clasificación y Stock</h6>
+            </div>
+            <div class="card-body p-3">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-body">Categoría <span class="text-danger">*</span></label>
+                    <select name="categoria_id" class="form-select form-select-sm bg-body text-body @error('categoria_id') is-invalid @enderror" required>
+                        <option value="">Seleccione...</option>
+                        @foreach($categorias as $categoria)
+                            <option value="{{ $categoria->id }}" {{ old('categoria_id', $equipo->categoria_id) == $categoria->id ? 'selected' : '' }}>
+                                {{ $categoria->nombre }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="card-body p-3">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Categoría <span class="text-danger">*</span></label>
-                        <select name="categoria_id" class="form-select form-select-sm bg-body text-body @error('categoria_id') is-invalid @enderror" required>
-                            <option value="">Seleccione...</option>
-                            @foreach($categorias as $categoria)
-                                <option value="{{ $categoria->id }}" {{ old('categoria_id', $equipo->categoria_id) == $categoria->id ? 'selected' : '' }}>
-                                    {{ $categoria->nombre }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Unidad de Medida <span class="text-danger">*</span></label>
-                        <select name="unidad_medida_id" class="form-select form-select-sm bg-body text-body @error('unidad_medida_id') is-invalid @enderror" required>
-                            <option value="">Seleccione...</option>
-                            @foreach($unidades as $unidad)
-                                <option value="{{ $unidad->id }}" {{ old('unidad_medida_id', $equipo->unidad_medida_id) == $unidad->id ? 'selected' : '' }}>
-                                    {{ $unidad->nombre }} ({{ $unidad->abreviatura }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-body">Unidad de Medida <span class="text-danger">*</span></label>
+                    <select name="unidad_medida_id" class="form-select form-select-sm bg-body text-body @error('unidad_medida_id') is-invalid @enderror" required>
+                        <option value="">Seleccione...</option>
+                        @foreach($unidades as $unidad)
+                            <option value="{{ $unidad->id }}" {{ old('unidad_medida_id', $equipo->unidad_medida_id) == $unidad->id ? 'selected' : '' }}>
+                                {{ $unidad->nombre }} ({{ $unidad->abreviatura }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
-                    <hr class="my-2 text-secondary">
+                <hr class="my-2 text-secondary">
 
+                <!-- 🔥 SOLO SE MUESTRA EL DESGLOSE SI ESTÁ EN MÁS DE 1 SUCURSAL -->
+                @if($esMultiSucursal)
+                    <label class="form-label small fw-bold text-primary mb-2 d-block">
+                        <i class="bi bi-building me-1"></i> Stock Desglosado por Sucursal
+                    </label>
+                    
+                    @foreach($equipo->sucursales as $suc)
+                        @php
+                            $valStock = $suc->pivot->stock;
+                            $valMin = $suc->pivot->stock_minimo;
+                        @endphp
+                        <div class="border rounded-3 p-2 mb-2 bg-body-tertiary">
+                            <span class="d-block fw-bold small text-body mb-1">
+                                <i class="bi bi-geo-alt text-primary me-1"></i>{{ $suc->nombre }}
+                            </span>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label text-secondary mb-1" style="font-size: 10px;">Stock Actual</label>
+                                    <input type="number" name="stocks_sucursales[{{ $suc->id }}]" class="form-control form-control-sm bg-body text-body fw-bold select-on-focus" 
+                                        value="{{ old('stocks_sucursales.'.$suc->id, $valStock) }}" min="0" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-danger mb-1" style="font-size: 10px;">Alerta Mínima</label>
+                                    <input type="number" name="stocks_minimos_sucursales[{{ $suc->id }}]" class="form-control form-control-sm bg-body text-danger fw-bold select-on-focus" 
+                                        value="{{ old('stocks_minimos_sucursales.'.$suc->id, $valMin) }}" min="0" required>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                <!-- 🔒 SI SOLO ESTÁ EN 1 SUCURSAL (O SE TRABAJA EN UNA SUCURSAL ESPECÍFICA): MODO EDIT NORMAL -->
+                @else
                     <div class="row g-2">
                         <div class="col-6 mb-2">
                             <label class="form-label small fw-semibold text-body">Stock Actual <span class="text-danger">*</span></label>
                             <input type="number" name="stock" class="form-control form-control-sm bg-body text-body select-on-focus @error('stock') is-invalid @enderror" 
-                                   value="{{ old('stock', $equipo->stock) }}" placeholder="0" min="0" required>
+                                value="{{ old('stock', $equipo->stock) }}" placeholder="0" min="0" required>
                         </div>
                         <div class="col-6 mb-2">
                             <label class="form-label small fw-semibold text-danger">Alerta Mínima <span class="text-danger">*</span></label>
                             <input type="number" name="stock_minimo" class="form-control form-control-sm bg-body text-danger fw-bold select-on-focus @error('stock_minimo') is-invalid @enderror" 
-                                   value="{{ old('stock_minimo', $equipo->stock_minimo) }}" placeholder="0" min="0" required>
+                                value="{{ old('stock_minimo', $equipo->stock_minimo) }}" placeholder="0" min="0" required>
                         </div>
                     </div>
-                </div>
+                @endif
             </div>
-
+        </div>
             <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
                 <div class="card-body p-3">
                     <label class="form-label small fw-semibold text-body">Fotografía del Producto</label>

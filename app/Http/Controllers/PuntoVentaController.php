@@ -149,6 +149,7 @@ class PuntoVentaController extends Controller
                     }
 
                     $precio = $equipo->precio_venta ?? $equipo->precio_dia;
+                    $costoAdquisicion = $equipo->costo ?? 0;
                     $equipoId = $equipo->id;
                 } else {
                     // Ítems especiales (Flete / Mano de obra)
@@ -163,6 +164,7 @@ class PuntoVentaController extends Controller
                     'equipo_id' => $equipoId,
                     'concepto_especial' => $esEspecial ? $item['nombre'] : null, // Por si manejas guardado de nombres personalizados
                     'cantidad' => $item['cantidad'],
+                    'costo' => $costoAdquisicion,
                     'precio_unitario' => $precio,
                     'subtotal' => $subtotalItem
                 ];
@@ -465,19 +467,23 @@ class PuntoVentaController extends Controller
     public function reportes(Request $request)
     {
         $sucursalId = session('activo_sucursal_id');
+        $user = auth()->user();
+        $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
 
         // Capturar rango de fechas (Por defecto: mes actual)
         $inicio = \Carbon\Carbon::parse($request->get('fecha_inicio', date('Y-m-01')))->startOfDay();
         $fin = \Carbon\Carbon::parse($request->get('fecha_fin', date('Y-m-d')))->endOfDay();
 
-        // 1. Top Productos del Rango Seleccionado
+        // 1. TOP PRODUCTOS EN RANGO
         $topQuery = DB::table('detalle_ventas')
             ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
             ->leftJoin('equipos', 'detalle_ventas.equipo_id', '=', 'equipos.id')
             ->where('ventas.estado', 'completada')
             ->whereBetween('ventas.created_at', [$inicio, $fin]);
 
-        if ($sucursalId !== 'global') {
+        // 🔒 FILTRO SEGÚN ROL Y SUCURSAL
+        if (!$isGlobalAdmin) {
+            // Gerente/Cajero: SOLO lo de su sucursal asignada
             $topQuery->where('ventas.sucursal_id', $sucursalId);
         }
 
@@ -494,17 +500,16 @@ class PuntoVentaController extends Controller
         $topProductosNombres = $topProductosData->pluck('nombre_item')->toArray();
         $topProductosCantidades = $topProductosData->pluck('total_vendido')->toArray();
 
-        // Si no hay datos, inicializamos arrays vacíos limpios
         if (empty($topProductosNombres)) {
             $topProductosNombres = ['Sin registros en rango'];
             $topProductosCantidades = [0];
         }
 
-        // 2. Ventas agrupadas por fecha dentro del rango seleccionado
+        // 2. VENTAS POR FECHA EN RANGO (FLUX DIARIO)
         $ventasPeriodoQuery = Venta::where('estado', 'completada')
             ->whereBetween('created_at', [$inicio, $fin]);
 
-        if ($sucursalId !== 'global') {
+        if (!$isGlobalAdmin) {
             $ventasPeriodoQuery->where('sucursal_id', $sucursalId);
         }
 
@@ -527,9 +532,10 @@ class PuntoVentaController extends Controller
             $montosDia = [0];
         }
 
-        // 3. Ventas por mes del año actual
+        // 3. HISTÓRICO ANUAL POR MES
         $ventasMesQuery = Venta::where('estado', 'completada')->whereYear('created_at', date('Y'));
-        if ($sucursalId !== 'global') {
+        
+        if (!$isGlobalAdmin) {
             $ventasMesQuery->where('sucursal_id', $sucursalId);
         }
 
@@ -559,7 +565,9 @@ class PuntoVentaController extends Controller
     public function generarReporte(Request $request)
     {
         $sucursalId = session('activo_sucursal_id');
-        
+        $user = auth()->user();
+        $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
+
         $request->validate([
             'tipo' => 'required|in:personalizado,diario,semanal,mes,anual',
             'fecha_inicio' => 'required|date',
@@ -573,7 +581,8 @@ class PuntoVentaController extends Controller
             ->where('estado', 'completada')
             ->whereBetween('created_at', [$inicio, $fin]);
         
-        if ($sucursalId !== 'global') {
+        if (!$isGlobalAdmin) {
+            // Gerente/Cajero: Filtro estricto por su sucursal
             $ventasQuery->where('sucursal_id', $sucursalId);
         }
         
@@ -600,18 +609,16 @@ class PuntoVentaController extends Controller
             'mixto'         => $ventas->where('metodo_pago', 'mixto')->sum('total'),
         ];
 
-        // 🚀 OBTENER OBJETO DE SUCURSAL Y LOGO
         $sucursalObj = null;
         $logoBase64 = null;
-        $sucursalNombre = session('activo_sucursal_nombre', 'Matriz / Administración General');
+        $sucursalNombre = session('activo_sucursal_nombre', 'Consola / Matriz General');
 
-        if ($sucursalId !== 'global') {
+        if ($sucursalId && $sucursalId !== 'global') {
             $sucursalObj = \App\Models\Sucursal::find($sucursalId);
             
             if ($sucursalObj) {
                 $sucursalNombre = $sucursalObj->nombre;
                 
-                // Convertir logo a Base64 para garantizar renderizado en DomPDF
                 if ($sucursalObj->logo && file_exists(public_path('storage/' . $sucursalObj->logo))) {
                     $path = public_path('storage/' . $sucursalObj->logo);
                     $type = pathinfo($path, PATHINFO_EXTENSION);

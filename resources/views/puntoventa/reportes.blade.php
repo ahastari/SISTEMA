@@ -84,37 +84,57 @@
     </div>
 
     @php
-        // Parseo y formateo de fechas a nivel Carbon
         $rawInicio = request('fecha_inicio', date('Y-m-01'));
         $rawFin = request('fecha_fin', date('Y-m-d'));
 
         $inicio = \Carbon\Carbon::parse($rawInicio)->startOfDay();
         $fin = \Carbon\Carbon::parse($rawFin)->endOfDay();
 
-        $ventasPeriodo = \App\Models\Venta::with('detalles')
-            ->where('estado', 'completada')
-            ->whereBetween('created_at', [$inicio, $fin])
-            ->get();
+        $sucursalId = session('activo_sucursal_id');
+        $user = auth()->user();
+        $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
 
+        // 1. CONSULTA DE VENTAS
+        $queryVentas = \App\Models\Venta::with(['detalles.equipo'])
+            ->where('estado', 'completada')
+            ->whereBetween('created_at', [$inicio, $fin]);
+
+        if (!$isGlobalAdmin) {
+            $queryVentas->where('sucursal_id', $sucursalId);
+        }
+
+        $ventasPeriodo = $queryVentas->get();
         $facturacionTotal = $ventasPeriodo->sum('total');
 
         $montoFletes = 0;
         $montoManoObra = 0;
+        $costoProduccionTotal = 0;
+
         foreach($ventasPeriodo as $v) {
             foreach($v->detalles as $d) {
                 if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
                     $montoFletes += $d->subtotal;
                 } elseif(str_contains(strtolower($d->concepto_especial ?? ''), 'mano de obra')) {
                     $montoManoObra += $d->subtotal;
+                } else {
+                    $costoUnitario = $d->costo ?? ($d->equipo->costo ?? 0);
+                    $costoProduccionTotal += ($costoUnitario * $d->cantidad);
                 }
             }
         }
 
-        $descuadresPeriodo = abs(\App\Models\CorteCaja::where('diferencia', '<', 0)
-            ->whereBetween('fecha_apertura', [$inicio, $fin])
-            ->sum('diferencia'));
-    @endphp
+        $utilidadBruta = $facturacionTotal - $costoProduccionTotal;
 
+        // 2. 🔥 DEFINICIÓN DE LA VARIABLE $descuadresPeriodo (RESUELVE EL ERROR)
+        $qCortes = \App\Models\CorteCaja::where('diferencia', '<', 0)
+            ->whereBetween('fecha_apertura', [$inicio, $fin]);
+
+        if (!$isGlobalAdmin && \Illuminate\Support\Facades\Schema::hasColumn('cortes_caja', 'sucursal_id')) {
+            $qCortes->where('sucursal_id', $sucursalId);
+        }
+
+        $descuadresPeriodo = abs($qCortes->sum('diferencia') ?? 0);
+    @endphp
     <!-- FILTRO DE FECHAS CON AUTO-SUBMIT Y VISTA EN DD/MM/YYYY -->
     <div class="filter-card mb-4 shadow-sm">
         <div class="row g-2 align-items-end">
@@ -151,11 +171,23 @@
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="kpi-card border-start border-4 border-primary shadow-sm">
                 <div class="d-flex justify-content-between align-items-center">
-                    <span class="kpi-title">TOTAL</span>
+                    <span class="kpi-title">TOTAL VENDIDO</span>
                     <i class="bi bi-currency-dollar text-primary fs-5"></i>
                 </div>
                 <h3 class="kpi-value font-mono text-primary">${{ number_format($facturacionTotal, 2) }}</h3>
                 <small class="text-secondary" style="font-size: 11px;">Del {{ $inicio->format('d/m/Y') }} al {{ $fin->format('d/m/Y') }}</small>
+            </div>
+        </div>
+
+        <!-- COSTO DE PRODUCCIÓN / ADQUISICIÓN -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card border-start border-4 border-warning shadow-sm">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="kpi-title">Costo Producción</span>
+                    <i class="bi bi-box-seam-fill text-warning fs-5"></i>
+                </div>
+                <h3 class="kpi-value font-mono text-warning">${{ number_format($costoProduccionTotal, 2) }}</h3>
+                <small class="text-secondary" style="font-size: 11px;">Costo base de mercancía</small>
             </div>
         </div>
 
@@ -208,7 +240,7 @@
                             <th class="ps-3">Método / Canal</th>
                             <th class="text-center">Transacciones</th>
                             <th class="text-end">Monto Bruto Ingresado</th>
-                            <th class="pe-3 text-end">% Participación</th>
+                            <!-- <th class="pe-3 text-end">% Participación</th> -->
                         </tr>
                     </thead>
                     <tbody>
@@ -222,25 +254,25 @@
                             <td class="ps-3 fw-semibold"><i class="bi bi-cash text-success me-2"></i>Efectivo</td>
                             <td class="text-center font-mono">{{ $ventasPeriodo->where('metodo_pago', 'efectivo')->count() }}</td>
                             <td class="text-end font-mono fw-bold text-body">${{ number_format($efeTotal, 2) }}</td>
-                            <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($efeTotal / $facturacionTotal) * 100, 1) : 0 }}%</td>
+                            <!-- <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($efeTotal / $facturacionTotal) * 100, 1) : 0 }}%</td> -->
                         </tr>
                         <tr>
                             <td class="ps-3 fw-semibold"><i class="bi bi-credit-card text-primary me-2"></i>Terminal</td>
                             <td class="text-center font-mono">{{ $ventasPeriodo->where('metodo_pago', 'tarjeta')->count() }}</td>
                             <td class="text-end font-mono fw-bold text-body">${{ number_format($tarTotal, 2) }}</td>
-                            <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($tarTotal / $facturacionTotal) * 100, 1) : 0 }}%</td>
+                            <!-- <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($tarTotal / $facturacionTotal) * 100, 1) : 0 }}%</td> -->
                         </tr>
                         <tr>
                             <td class="ps-3 fw-semibold"><i class="bi bi-bank text-info me-2"></i>Transferencia</td>
                             <td class="text-center font-mono">{{ $ventasPeriodo->where('metodo_pago', 'transferencia')->count() }}</td>
                             <td class="text-end font-mono fw-bold text-body">${{ number_format($traTotal, 2) }}</td>
-                            <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($traTotal / $facturacionTotal) * 100, 1) : 0 }}%</td>
+                            <!-- <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($traTotal / $facturacionTotal) * 100, 1) : 0 }}%</td> -->
                         </tr>
                         <tr>
                             <td class="ps-3 fw-semibold"><i class="bi bi-diagram-3 text-warning me-2"></i>Pago Mixto Combinado</td>
                             <td class="text-center font-mono">{{ $ventasPeriodo->where('metodo_pago', 'mixto')->count() }}</td>
                             <td class="text-end font-mono fw-bold text-body">${{ number_format($mixTotal, 2) }}</td>
-                            <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($mixTotal / $facturacionTotal) * 100, 1) : 0 }}%</td>
+                            <!-- <td class="pe-3 text-end font-mono text-secondary">{{ $facturacionTotal > 0 ? number_format(($mixTotal / $facturacionTotal) * 100, 1) : 0 }}%</td> -->
                         </tr>
                     </tbody>
                 </table>
@@ -284,6 +316,7 @@
 </div>
 
 <!-- SCRIPT AUTOMÁTICO DE RECARGA EN 'CHANGE' + APEXCHARTS -->
+<!-- SCRIPT AUTOMÁTICO DE RECARGA + APEXCHARTS CORREGIDO -->
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
@@ -324,8 +357,8 @@
             colors: ['#f59e0b'],
             dataLabels: { enabled: false },
             stroke: { curve: 'smooth', width: 2 },
-            series: [{ name: 'Ventas ($)', data: @json($montosDia) }],
-            xaxis: { categories: @json($horasDia), labels: { style: { colors: labelColor } } },
+            series: [{ name: 'Ventas ($)', data: @json($montosDia ?? []) }],
+            xaxis: { categories: @json($horasDia ?? []), labels: { style: { colors: labelColor } } },
             yaxis: { labels: { style: { colors: labelColor } } }
         });
         new ApexCharts(document.querySelector("#chartVentasDia"), optDia).render();
@@ -336,20 +369,20 @@
             colors: ['#3b82f6'],
             plotOptions: { bar: { borderRadius: 4, columnWidth: '45%' } },
             dataLabels: { enabled: false },
-            series: [{ name: 'Facturado ($)', data: @json($montosMes) }],
-            xaxis: { categories: @json($mesesNombres), labels: { style: { colors: labelColor } } },
+            series: [{ name: 'Facturado ($)', data: @json($montosMes ?? []) }],
+            xaxis: { categories: @json($mesesNombres ?? []), labels: { style: { colors: labelColor } } },
             yaxis: { labels: { style: { colors: labelColor } } }
         });
         new ApexCharts(document.querySelector("#chartVentasMes"), optMes).render();
 
-        // Gráfica Productos Top
+        // Gráfica Productos Top (Sintaxis limpia)
         var optProd = Object.assign({}, chartOptions, {
             chart: { type: 'bar', height: 260, toolbar: { show: false }, background: 'transparent' },
             colors: ['#10b981'],
             plotOptions: { bar: { horizontal: true, barHeight: '45%', borderRadius: 4 } },
             dataLabels: { enabled: true, formatter: function(v) { return v + " pzas"; } },
-            series: [{ name: 'Vendidos', data: @json($topProductosCantidades) }],
-            xaxis: { categories: @json($topProductosNombres), labels: { style: { colors: labelColor } } },
+            series: [{ name: 'Vendidos', data: @json($topProductosCantidades ?? []) }],
+            xaxis: { categories: @json($topProductosNombres ?? []), labels: { style: { colors: labelColor } } },
             yaxis: { labels: { style: { colors: labelColor } } }
         });
         new ApexCharts(document.querySelector("#chartProductosReales"), optProd).render();

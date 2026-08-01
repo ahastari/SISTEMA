@@ -83,6 +83,16 @@
                     </div>
 
                     <div class="row g-2">
+                        <div class="col-12 col-md-4 mb-2">
+                            <label class="form-label small fw-semibold text-body">Costo Adquisición (Unitario)</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body-tertiary text-secondary">$</span>
+                                <input type="number" name="costo" step="0.01" class="form-control form-control-sm bg-body text-body select-on-focus @error('costo') is-invalid @enderror" 
+                                    value="{{ old('costo', '0.00') }}" placeholder="0.00" min="0">
+                            </div>
+                            <small class="text-secondary" style="font-size: 10px;">Costo base de compra/fabricación.</small>
+                        </div>
+
                         <div class="col-12 col-md-6 mb-2" id="container_precio_renta">
                             <label class="form-label small fw-semibold text-body">Tarifa de Renta (Por Día) <span class="text-danger">*</span></label>
                             <div class="input-group input-group-sm">
@@ -108,58 +118,72 @@
         <div class="col-12 col-lg-4">
             
             <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
-                <div class="card-header bg-body-tertiary border-bottom py-2 px-3 rounded-top-3">
-                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-box-seam me-2"></i>Clasificación y Stock</h6>
+            <div class="card-header bg-body-tertiary border-bottom py-2 px-3 rounded-top-3">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-box-seam me-2"></i>Clasificación y Stock</h6>
+            </div>
+            <div class="card-body p-3">
+                
+                <!-- SI ES ADMIN EN CONSOLA GLOBAL, PERMITIR ELEGIR SUCURSAL INICIAL -->
+                @if($sucursalActual === 'global')
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-body">Asignar Stock Inicial a Sucursal <span class="text-danger">*</span></label>
+                    <select name="sucursal_id" class="form-select form-select-sm bg-body text-body" required>
+                        <option value="">Seleccione sucursal...</option>
+                        @foreach($sucursales as $suc)
+                            <option value="{{ $suc->id }}" {{ loop->first ? 'selected' : '' }}>{{ $suc->nombre }}</option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="card-body p-3">
-                    
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Categoría <span class="text-danger">*</span></label>
-                        <div class="input-group input-group-sm">
-                            <select name="categoria_id" class="form-select bg-body text-body @error('categoria_id') is-invalid @enderror" required>
-                                <option value="">Seleccione...</option>
-                                @foreach($categorias as $categoria)
-                                    <option value="{{ $categoria->id }}" {{ old('categoria_id') == $categoria->id ? 'selected' : '' }}>{{ $categoria->nombre }}</option>
-                                @endforeach
-                            </select>
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCategoria" title="Nueva Categoría">
-                                <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline ms-1">Nueva</span>
-                            </button>
-                        </div>
+                @else
+                    <input type="hidden" name="sucursal_id" value="{{ $sucursalActual }}">
+                @endif
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-body">Categoría <span class="text-danger">*</span></label>
+                    <div class="input-group input-group-sm">
+                        <select name="categoria_id" class="form-select bg-body text-body @error('categoria_id') is-invalid @enderror" required>
+                            <option value="">Seleccione...</option>
+                            @foreach($categorias as $categoria)
+                                <option value="{{ $categoria->id }}" {{ old('categoria_id') == $categoria->id ? 'selected' : '' }}>{{ $categoria->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCategoria" title="Nueva Categoría">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
                     </div>
+                </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Unidad de Medida <span class="text-danger">*</span></label>
-                        <div class="input-group input-group-sm">
-                            <select name="unidad_medida_id" class="form-select bg-body text-body @error('unidad_medida_id') is-invalid @enderror" required>
-                                <option value="">Seleccione...</option>
-                                @foreach($unidades as $unidad)
-                                    <option value="{{ $unidad->id }}" {{ old('unidad_medida_id') == $unidad->id ? 'selected' : '' }}>{{ $unidad->nombre }} ({{ $unidad->abreviatura }})</option>
-                                @endforeach
-                            </select>
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalUnidad" title="Nueva Unidad">
-                                <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline ms-1">Nueva</span>
-                            </button>
-                        </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-body">Unidad de Medida <span class="text-danger">*</span></label>
+                    <div class="input-group input-group-sm">
+                        <select name="unidad_medida_id" class="form-select bg-body text-body @error('unidad_medida_id') is-invalid @enderror" required>
+                            <option value="">Seleccione...</option>
+                            @foreach($unidades as $unidad)
+                                <option value="{{ $unidad->id }}" {{ old('unidad_medida_id') == $unidad->id ? 'selected' : '' }}>{{ $unidad->nombre }} ({{ $unidad->abreviatura }})</option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalUnidad" title="Nueva Unidad">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
                     </div>
+                </div>
 
-                    <hr class="my-2 text-secondary">
+                <hr class="my-2 text-secondary">
 
-                    <div class="row g-2">
-                        <div class="col-6 mb-2">
-                            <label class="form-label small fw-semibold text-body">Stock Inicial <span class="text-danger">*</span></label>
-                            <input type="number" name="stock" class="form-control form-control-sm bg-body text-body select-on-focus @error('stock') is-invalid @enderror" 
-                                   value="{{ old('stock') }}" placeholder="0" min="0" required>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <label class="form-label small fw-semibold text-danger">Alerta Mínima <span class="text-danger">*</span></label>
-                            <input type="number" name="stock_minimo" class="form-control form-control-sm bg-body text-danger fw-bold select-on-focus @error('stock_minimo') is-invalid @enderror" 
-                                   value="{{ old('stock_minimo') }}" placeholder="0" min="0" required>
-                        </div>
+                <div class="row g-2">
+                    <div class="col-6 mb-2">
+                        <label class="form-label small fw-semibold text-body">Stock Inicial <span class="text-danger">*</span></label>
+                        <input type="number" name="stock" class="form-control form-control-sm bg-body text-body select-on-focus @error('stock') is-invalid @enderror" 
+                            value="{{ old('stock', 0) }}" placeholder="0" min="0" required>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label small fw-semibold text-danger">Alerta Mínima <span class="text-danger">*</span></label>
+                        <input type="number" name="stock_minimo" class="form-control form-control-sm bg-body text-danger fw-bold select-on-focus @error('stock_minimo') is-invalid @enderror" 
+                            value="{{ old('stock_minimo', 5) }}" placeholder="0" min="0" required>
                     </div>
                 </div>
             </div>
-
+        </div>
             <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
                 <div class="card-body p-3">
                     <label class="form-label small fw-semibold text-body">Fotografía del Producto</label>

@@ -70,101 +70,124 @@
         </div>
 
         <div class="d-none d-md-block">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
-                    <thead class="bg-body-tertiary text-body border-bottom">
-                        <tr>
-                            <th class="text-center py-2" style="width: 60px;">Imagen</th>
-                            <th class="py-2">Código Interno</th>
-                            <th class="py-2">Cód. Barras</th>
-                            <th class="py-2">Nombre</th>
-                            <th class="py-2">Categoría</th>
-                            <th class="py-2">Stock</th>
-                            <th class="py-2">Estado</th>
-                            <th class="text-center py-2">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($equipos as $equipo)
-                        <tr>
-                            <td class="text-center">
-                                @if($equipo->imagen && Storage::disk('public')->exists($equipo->imagen))
-                                    <img src="{{ Storage::url($equipo->imagen) }}" alt="{{ $equipo->nombre }}" style="width: 42px; height: 42px; object-fit: cover; border-radius: 8px;" class="shadow-sm">
-                                @else
-                                    <div class="bg-body-secondary d-inline-flex align-items-center justify-content-center shadow-sm" style="width: 42px; height: 42px; border-radius: 8px;">
-                                        <i class="bi bi-box-seam text-secondary fs-5"></i>
-                                    </div>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary font-monospace">{{ $equipo->codigo }}</span>
-                            </td>
-                            <td>
-                                @if($equipo->codigo_barras)
-                                    <div class="d-flex align-items-center text-body">
-                                        <i class="bi bi-upc-scan me-2 text-secondary fs-6"></i>
-                                        <span class="font-monospace fw-bold" style="letter-spacing: 0.5px;">{{ $equipo->codigo_barras }}</span>
-                                    </div>
-                                @else
-                                    <span class="text-secondary small">N/A</span>
-                                @endif
-                            </td>
-                            <td class="fw-semibold text-body">{{ $equipo->nombre }}</td>
-                            <td>
-                                @if($equipo->categoria)
-                                    <span class="badge rounded-pill" style="background-color: {{ $equipo->categoria->color ?? '#6c757d' }}; color: white; font-weight: 500;">
-                                        {{ $equipo->categoria->nombre }}
-                                    </span>
-                                @else
-                                    <span class="text-secondary small">N/A</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($equipo->stock <= 0)
-                                    <span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> {{ $equipo->stock }}</span>
-                                @elseif($equipo->stock <= $equipo->stock_minimo)
-                                    <span class="text-warning fw-bold"><i class="bi bi-exclamation-triangle me-1"></i> {{ $equipo->stock }}</span>
-                                @else
-                                    <span class="text-success fw-bold"><i class="bi bi-check-circle me-1"></i> {{ $equipo->stock }}</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($equipo->activo)
-                                    <span class="text-success small fw-bold"><i class="bi bi-circle-fill" style="font-size: 7px;"></i> Activo</span>
-                                @else
-                                    <span class="text-danger small fw-bold"><i class="bi bi-circle-fill" style="font-size: 7px;"></i> Inactivo</span>
-                                @endif
-                            </td>
-                            <td class="text-center">
-                                <div class="d-flex justify-content-center gap-1">
-                                    <a href="{{ route('inventario.show', $equipo->id) }}" class="btn btn-sm btn-outline-primary border-0 p-1" title="Ver Detalles">
-                                        <i class="bi bi-eye fs-6"></i>
-                                    </a>
-                                    <a href="{{ route('inventario.edit', $equipo->id) }}" class="btn btn-sm btn-outline-warning border-0 p-1" title="Editar Producto">
-                                        <i class="bi bi-pencil fs-6"></i>
-                                    </a>
-                                    <form action="{{ route('inventario.destroy', $equipo->id) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Eliminar Producto" onclick="return confirm('¿Estás seguro de que deseas eliminar este producto permanentemente?')">
-                                            <i class="bi bi-trash fs-6"></i>
-                                        </button>
-                                    </form>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
+                <thead class="bg-body-tertiary text-body border-bottom">
+                    <tr>
+                        <th class="text-center py-2" style="width: 60px;">Imagen</th>
+                        <th class="py-2">Código Interno</th>
+                        <th class="py-2">Cód. Barras</th>
+                        <th class="py-2">Nombre</th>
+                        <th class="py-2">Categoría</th>
+                        <th class="py-2">Costo de producción</th>
+                        @if($isGlobalAdmin)
+                            <th class="py-2">Distribución por Sucursal</th>
+                        @endif
+                        <th class="py-2">Stock {{ $isGlobalAdmin ? 'Total' : '' }}</th>
+                        <th class="py-2">Estado</th>
+                        <th class="text-center py-2">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($equipos as $equipo)
+                    <tr>
+                        <td class="text-center">
+                            @if($equipo->imagen && Storage::disk('public')->exists($equipo->imagen))
+                                <img src="{{ Storage::url($equipo->imagen) }}" alt="{{ $equipo->nombre }}" style="width: 42px; height: 42px; object-fit: cover; border-radius: 8px;" class="shadow-sm">
+                            @else
+                                <div class="bg-body-secondary d-inline-flex align-items-center justify-content-center shadow-sm" style="width: 42px; height: 42px; border-radius: 8px;">
+                                    <i class="bi bi-box-seam text-secondary fs-5"></i>
                                 </div>
-                            </td>
-                        </tr>
-                        @empty
-                        <tr>
-                            <td colspan="8" class="text-center py-5 text-secondary">
-                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                No hay productos registrados o que coincidan con la búsqueda.
-                            </td>
-                        </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary font-monospace">{{ $equipo->codigo }}</span>
+                        </td>
+                        <td>
+                            @if($equipo->codigo_barras)
+                                <div class="d-flex align-items-center text-body">
+                                    <i class="bi bi-upc-scan me-2 text-secondary fs-6"></i>
+                                    <span class="font-monospace fw-bold" style="letter-spacing: 0.5px;">{{ $equipo->codigo_barras }}</span>
+                                </div>
+                            @else
+                                <span class="text-secondary small">N/A</span>
+                            @endif
+                        </td>
+                        <td class="fw-semibold text-body">{{ $equipo->nombre }}</td>
+                        <td>
+                            @if($equipo->categoria)
+                                <span class="badge rounded-pill" style="background-color: {{ $equipo->categoria->color ?? '#6c757d' }}; color: white; font-weight: 500;">
+                                    {{ $equipo->categoria->nombre }}
+                                </span>
+                            @else
+                                <span class="text-secondary small">N/A</span>
+                            @endif
+                        </td>
+                        <!-- COLUMNA COSTO -->
+                        <td class="fw-bold font-monospace text-body">
+                            ${{ number_format($equipo->costo ?? 0, 2) }}
+                        </td>
+                        <!-- DESGLOSE POR SUCURSAL SOLO PARA ADMIN GLOBAL -->
+                        @if($isGlobalAdmin)
+                        <td>
+                            <div class="d-flex flex-wrap gap-1" style="max-width: 250px;">
+                                @forelse($equipo->sucursales as $suc)
+                                    <span class="badge bg-body-tertiary text-body border font-monospace" style="font-size: 10px;">
+                                        <i class="bi bi-building text-primary me-1"></i>{{ $suc->nombre }}: 
+                                        <strong class="{{ $suc->pivot->stock <= 0 ? 'text-danger' : 'text-success' }}">{{ $suc->pivot->stock }}</strong>
+                                    </span>
+                                @empty
+                                    <span class="text-muted small">Sin asignar</span>
+                                @endforelse
+                            </div>
+                        </td>
+                        @endif
+                        <td>
+                            @if($equipo->stock <= 0)
+                                <span class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i> {{ $equipo->stock }}</span>
+                            @elseif($equipo->stock <= $equipo->stock_minimo)
+                                <span class="text-warning fw-bold"><i class="bi bi-exclamation-triangle me-1"></i> {{ $equipo->stock }}</span>
+                            @else
+                                <span class="text-success fw-bold"><i class="bi bi-check-circle me-1"></i> {{ $equipo->stock }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($equipo->activo)
+                                <span class="text-success small fw-bold"><i class="bi bi-circle-fill" style="font-size: 7px;"></i> Activo</span>
+                            @else
+                                <span class="text-danger small fw-bold"><i class="bi bi-circle-fill" style="font-size: 7px;"></i> Inactivo</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center gap-1">
+                                <a href="{{ route('inventario.show', $equipo->id) }}" class="btn btn-sm btn-outline-primary border-0 p-1" title="Ver Detalles">
+                                    <i class="bi bi-eye fs-6"></i>
+                                </a>
+                                <a href="{{ route('inventario.edit', $equipo->id) }}" class="btn btn-sm btn-outline-warning border-0 p-1" title="Editar Producto">
+                                    <i class="bi bi-pencil fs-6"></i>
+                                </a>
+                                <form action="{{ route('inventario.destroy', $equipo->id) }}" method="POST" class="d-inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Eliminar Producto" onclick="return confirm('¿Estás seguro de que deseas eliminar este producto permanentemente?')">
+                                        <i class="bi bi-trash fs-6"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="{{ $isGlobalAdmin ? '10' : '9' }}" class="text-center py-5 text-secondary">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            No hay productos registrados o que coincidan con la búsqueda.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
+    </div>
 
         <div class="d-md-none">
             @forelse($equipos as $equipo)

@@ -369,10 +369,8 @@ class EquipoController extends Controller
     {
         $categorias = Categoria::where('activa', true)->orderBy('nombre')->get();
         $unidades = UnidadMedida::where('activa', true)->orderBy('nombre')->get();
-        
-        // Para admin global, mostrar sucursales disponibles
         $sucursales = \App\Models\Sucursal::where('activa', true)->get();
-        $sucursalActual = session('activo_sucursal_id');
+        $sucursalActual = session('activo_sucursal_id', 'global');
         
         return view('inventario.create', compact('categorias', 'unidades', 'sucursales', 'sucursalActual'));
     }
@@ -389,6 +387,7 @@ class EquipoController extends Controller
             'unidad_medida_id' => 'required|exists:unidades_medida,id',
             'operaciones' => 'required|array|min:1',
             'operaciones.*' => 'in:renta,venta',
+            'costo' => 'nullable|numeric|min:0',
             'precio_dia' => 'nullable|numeric|min:0',
             'precio_venta' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
@@ -396,7 +395,7 @@ class EquipoController extends Controller
             'imagen' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'descripcion' => 'nullable|string',
             'activo' => 'nullable|boolean',
-            'sucursal_id' => 'nullable|exists:sucursales,id',
+            'sucursal_id' => 'nullable',
         ]);
 
         $ops = $request->operaciones;
@@ -411,6 +410,7 @@ class EquipoController extends Controller
         $equipo->categoria_id = $request->categoria_id;
         $equipo->unidad_medida_id = $request->unidad_medida_id;
         $equipo->tipo_operacion = $tipo_operacion;
+        $equipo->costo = $request->costo ?? 0;
         $equipo->precio_dia = $request->precio_dia ?? 0;
         $equipo->precio_venta = $request->precio_venta ?? 0;
         $equipo->stock = $request->stock;
@@ -425,16 +425,24 @@ class EquipoController extends Controller
 
         $equipo->save();
 
-        // 🔒 ASIGNAR STOCK A LA SUCURSAL CORRESPONDIENTE
+        // 🔒 DETERMINAR A QUÉ SUCURSAL ASIGNAR EL STOCK INICIAL
         $sucursalId = $request->sucursal_id ?? session('activo_sucursal_id');
         
-        if ($sucursalId && $sucursalId !== 'global') {
-            $equipo->sucursales()->attach($sucursalId, [
-                'stock' => $request->stock,
-                'stock_minimo' => $request->stock_minimo,
+        // Si no se especificó o está en 'global', asignar a la primera sucursal activa
+        if (!$sucursalId || $sucursalId === 'global') {
+            $primeraSucursal = \App\Models\Sucursal::where('activa', true)->first();
+            $sucursalId = $primeraSucursal ? $primeraSucursal->id : null;
+        }
+
+        if ($sucursalId) {
+            $equipo->sucursales()->syncWithoutDetaching([
+                $sucursalId => [
+                    'stock' => $request->stock,
+                    'stock_minimo' => $request->stock_minimo,
+                ]
             ]);
             
-            // Sincronizar el stock total una vez adjuntado a la sucursal
+            // Sincronizar el acumulado total
             $equipo->sincronizarStockTotal();
         }
 
@@ -445,12 +453,32 @@ class EquipoController extends Controller
     /**
      * Formulario para editar equipo
      */
+    /**
+     * Formulario para editar equipo
+     */
     public function edit(Equipo $equipo)
     {
+        $equipo->load('sucursales');
         $categorias = Categoria::where('activa', true)->orderBy('nombre')->get();
         $unidades = UnidadMedida::where('activa', true)->orderBy('nombre')->get();
+        $sucursales = \App\Models\Sucursal::where('activa', true)->get();
+        $sucursalActual = session('activo_sucursal_id', 'global');
         
-        return view('inventario.edit', compact('equipo', 'categorias', 'unidades'));
+        // 🔥 EVALUAR SI ES MULTISUCURSAL (Estar en Consola Global Y que el producto esté en más de 1 sucursal)
+        $esMultiSucursal = ($sucursalActual === 'global' && $equipo->sucursales->count() > 1);
+
+        // Si es edición normal (1 sola sucursal o estar dentro de una sucursal específica)
+        if ($sucursalActual !== 'global') {
+            $equipo->stock = $equipo->getStockEnSucursal($sucursalActual);
+            $equipo->stock_minimo = $this->getStockMinimoEnSucursal($equipo, $sucursalActual);
+        } elseif (!$esMultiSucursal && $equipo->sucursales->count() === 1) {
+            // Precargar el stock exacto de esa única sucursal
+            $unicaSucursal = $equipo->sucursales->first();
+            $equipo->stock = $unicaSucursal->pivot->stock;
+            $equipo->stock_minimo = $unicaSucursal->pivot->stock_minimo;
+        }
+        
+        return view('inventario.edit', compact('equipo', 'categorias', 'unidades', 'sucursales', 'sucursalActual', 'esMultiSucursal'));
     }
 
     /**
@@ -458,22 +486,39 @@ class EquipoController extends Controller
      */
     public function update(Request $request, Equipo $equipo)
     {
-        $validated = $request->validate([
+        $sucursalId = session('activo_sucursal_id', 'global');
+        $equipo->load('sucursales');
+
+        // Determinar si la petición procesa desglose multisucursal
+        $esMultiSucursal = ($sucursalId === 'global' && $request->has('stocks_sucursales') && is_array($request->stocks_sucursales));
+
+        $rules = [
             'codigo_barras' => 'nullable|string|max:255|unique:equipos,codigo_barras,' . $equipo->id,
             'nombre' => 'required|string|max:255',
             'categoria_id' => 'required|exists:categorias,id',
             'unidad_medida_id' => 'required|exists:unidades_medida,id',
             'operaciones' => 'required|array|min:1',
             'operaciones.*' => 'in:renta,venta',
+            'costo' => 'nullable|numeric|min:0',
             'precio_dia' => 'nullable|numeric|min:0',
             'precio_venta' => 'nullable|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'stock_minimo' => 'required|integer|min:0',
             'imagen' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'quitar_imagen' => 'nullable|in:0,1',
             'descripcion' => 'nullable|string',
             'activo' => 'nullable|boolean',
-        ]);
+        ];
+
+        if ($esMultiSucursal) {
+            $rules['stocks_sucursales'] = 'required|array';
+            $rules['stocks_sucursales.*'] = 'required|integer|min:0';
+            $rules['stocks_minimos_sucursales'] = 'required|array';
+            $rules['stocks_minimos_sucursales.*'] = 'required|integer|min:0';
+        } else {
+            $rules['stock'] = 'required|integer|min:0';
+            $rules['stock_minimo'] = 'required|integer|min:0';
+        }
+
+        $request->validate($rules);
 
         $ops = $request->operaciones;
         $tipo_operacion = (count($ops) == 2) ? 'ambas' : $ops[0];
@@ -483,13 +528,13 @@ class EquipoController extends Controller
         $equipo->categoria_id = $request->categoria_id;
         $equipo->unidad_medida_id = $request->unidad_medida_id;
         $equipo->tipo_operacion = $tipo_operacion;
+        $equipo->costo = $request->costo ?? 0;
         $equipo->precio_dia = $request->precio_dia ?? 0;
         $equipo->precio_venta = $request->precio_venta ?? 0;
-        $equipo->stock_minimo = $request->stock_minimo;
         $equipo->descripcion = $request->descripcion;
         $equipo->activo = $request->has('activo');
 
-        // Manejar imagen
+        // Manejo de imagen
         if ($request->has('quitar_imagen') && $request->quitar_imagen == '1') {
             if ($equipo->imagen && Storage::disk('public')->exists($equipo->imagen)) {
                 Storage::disk('public')->delete($equipo->imagen);
@@ -505,26 +550,47 @@ class EquipoController extends Controller
             $equipo->imagen = $path;
         }
 
-        // 🔒 ACTUALIZAR STOCK EN SUCURSAL SI NO ES ADMIN GLOBAL
-        $sucursalId = session('activo_sucursal_id');
-        $user = auth()->user();
-        
-        if ($sucursalId !== 'global' && !$user->isAdmin()) {
-            // Usamos 'establecer' para colocar el valor absoluto enviado desde el formulario
-            $equipo->actualizarStockEnSucursal($sucursalId, $request->stock, 'establecer');
-            
-            // Actualizar también la alerta mínima en la tabla pivote de la sucursal actual
-            DB::table('equipo_sucursal')
-                ->where('equipo_id', $equipo->id)
-                ->where('sucursal_id', $sucursalId)
-                ->update(['stock_minimo' => $request->stock_minimo]);
-        } else {
-            $equipo->stock = $request->stock;
-        }
-
         $equipo->save();
 
-        // Sincronizar stock total después de guardar
+        // 🔒 ACTUALIZACIÓN DE STOCK
+        if ($esMultiSucursal) {
+            foreach ($request->stocks_sucursales as $sId => $cantStock) {
+                $minStock = $request->stocks_minimos_sucursales[$sId] ?? 5;
+                $equipo->sucursales()->syncWithoutDetaching([
+                    $sId => [
+                        'stock' => $cantStock,
+                        'stock_minimo' => $minStock,
+                    ]
+                ]);
+            }
+        } else {
+            // Edición normal: determinar la sucursal objetivo
+            if ($sucursalId !== 'global') {
+                $targetSucursalId = $sucursalId;
+            } else {
+                $unicaSucursal = $equipo->sucursales->first();
+                if ($unicaSucursal) {
+                    $targetSucursalId = $unicaSucursal->id;
+                } else {
+                    $primera = \App\Models\Sucursal::where('activa', true)->first();
+                    $targetSucursalId = $primera ? $primera->id : null;
+                }
+            }
+
+            if ($targetSucursalId) {
+                $equipo->actualizarStockEnSucursal($targetSucursalId, $request->stock, 'establecer');
+                DB::table('equipo_sucursal')
+                    ->updateOrInsert(
+                        ['equipo_id' => $equipo->id, 'sucursal_id' => $targetSucursalId],
+                        ['stock_minimo' => $request->stock_minimo]
+                    );
+            } else {
+                $equipo->stock = $request->stock;
+                $equipo->save();
+            }
+        }
+
+        // Sincronizar el acumulado total
         $equipo->sincronizarStockTotal();
 
         $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
