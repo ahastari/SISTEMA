@@ -9,7 +9,7 @@
     :root {
         --login-bg-start: #0f172a;
         --login-bg-end: #1e293b;
-        --card-bg: #ffffff;
+        --card-bg: #ecebeb;
         --brand-blue: #0284c7;
         --brand-blue-hover: #0369a1;
         --text-label: #334155;
