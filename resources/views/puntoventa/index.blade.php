@@ -329,6 +329,29 @@
             </div>
             
             <div class="cart-total">
+
+                <div class="mb-1">
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" id="requiereFactura">
+                        <label class="form-check-label small fw-semibold text-body" for="requiereFactura">¿Requiere Factura?</label>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <select id="clienteVenta" class="form-select form-select-sm bg-body text-body">
+                        <option value="" data-rfc="">Cliente de Mostrador (Público General)</option>
+                        @foreach($clientes as $cliente)
+                            <option value="{{ $cliente->id }}" data-rfc="{{ $cliente->rfc ?? '' }}">
+                                {{ $cliente->nombre_completo }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                
+                <div class="mb-1" id="campoRFC" style="display: none;">
+                    <input type="text" id="rfcCliente" class="form-control form-control-sm bg-body text-body" placeholder="RFC del contribuyente">
+                </div>
+
                 <div class="bg-body p-3 rounded-3 shadow-sm border mb-2" style="border-color: var(--bs-border-color) !important;">
                     <div class="d-flex justify-content-between text-secondary small mb-1">
                         <span>Subtotal Bruto:</span>
@@ -405,26 +428,6 @@
                         <span class="text-secondary small fw-bold">Cambio:</span>
                         <span id="cambioCliente" class="fs-5 fw-bold text-primary">$0.00</span>
                     </div>
-                </div>
-
-                <div class="mb-1">
-                    <div class="form-check form-switch">
-                        <input type="checkbox" class="form-check-input" id="requiereFactura">
-                        <label class="form-check-label small fw-semibold text-body" for="requiereFactura">Desglosar Factura Fiscal</label>
-                    </div>
-                </div>
-                
-                <div class="mb-1" id="campoRFC" style="display: none;">
-                    <input type="text" id="rfcCliente" class="form-control form-control-sm bg-body text-body" placeholder="RFC del contribuyente">
-                </div>
-                
-                <div class="mb-2">
-                    <select id="clienteVenta" class="form-select form-select-sm bg-body text-body">
-                        <option value="">Cliente de Mostrador (Público General)</option>
-                        @foreach($clientes as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->nombre_completo }}</option>
-                        @endforeach
-                    </select>
                 </div>
                 
                 <div>
@@ -813,6 +816,34 @@ if (reqFacturaCheck) {
     });
 }
 
+// Listener para autocompletar el RFC al seleccionar un cliente
+const selectClienteVenta = document.getElementById('clienteVenta');
+if (selectClienteVenta) {
+    selectClienteVenta.addEventListener('change', function() {
+        const optionSeleccionada = this.options[this.selectedIndex];
+        const rfcGuardado = optionSeleccionada.getAttribute('data-rfc') || '';
+        
+        const checkFactura = document.getElementById('requiereFactura');
+        const campoRFC = document.getElementById('campoRFC');
+        const inputRFC = document.getElementById('rfcCliente');
+
+        if (rfcGuardado.trim() !== '') {
+            // Si el cliente tiene RFC registrado, autocompletar y activar switch de factura
+            inputRFC.value = rfcGuardado;
+            checkFactura.checked = true;
+            campoRFC.style.display = 'block';
+        } else {
+            // Si es Cliente General o no tiene RFC, limpiar y ocultar si no lo había activado manualmente
+            inputRFC.value = '';
+            if (!this.value) { // Si regresó a Público General
+                checkFactura.checked = false;
+                campoRFC.style.display = 'none';
+            }
+        }
+        renderizarCarrito(false);
+    });
+}
+
 const selectMetodoPago = document.getElementById('metodoPago');
 if (selectMetodoPago) {
     selectMetodoPago.addEventListener('change', function() {
@@ -1086,10 +1117,54 @@ function filtrarProductos() {
 }
 
 function limpiarYEnfocarPOS() {
+    // 1. Limpiar carrito de compras
+    carrito = [];
+    renderizarCarrito();
+
+    // 2. Resetear selección de cliente a Público General
+    const selectCliente = document.getElementById('clienteVenta');
+    if (selectCliente) {
+        selectCliente.value = '';
+    }
+
+    // 3. Resetear switch de factura y campo RFC
+    const checkFactura = document.getElementById('requiereFactura');
+    const campoRFC = document.getElementById('campoRFC');
+    const inputRFC = document.getElementById('rfcCliente');
+
+    if (checkFactura) checkFactura.checked = false;
+    if (inputRFC) inputRFC.value = '';
+    if (campoRFC) campoRFC.style.display = 'none';
+
+    // 4. Resetear método de pago y secciones dinámicas
+    const selectMetodo = document.getElementById('metodoPago');
+    const inputRecibido = document.getElementById('montoRecibido');
+    const seccionCambio = document.getElementById('seccionCambio');
+    const seccionMixto = document.getElementById('seccionPagoMixto');
+
+    if (selectMetodo) selectMetodo.value = '';
+    if (inputRecibido) inputRecibido.value = '';
+    if (seccionCambio) seccionCambio.style.display = 'none';
+    if (seccionMixto) seccionMixto.style.display = 'none';
+
+    if (document.getElementById('mixtoMonto1')) document.getElementById('mixtoMonto1').value = '';
+    if (document.getElementById('mixtoMonto2')) document.getElementById('mixtoMonto2').value = '';
+    if (document.getElementById('cambioCliente')) document.getElementById('cambioCliente').textContent = '$0.00';
+
+    // 5. Limpiar buscador de productos y devolver el foco para la siguiente venta
     const inputBusqueda = document.getElementById('buscarProducto');
     if (inputBusqueda) {
         inputBusqueda.value = '';
+        filtrarProductos(); // Restablece el catálogo visual de productos
         inputBusqueda.focus();
+    }
+
+    // Garantiza la limpieza al cerrar el modal por cualquier vía de Bootstrap
+    const modalTicketEl = document.getElementById('modalTicket');
+    if (modalTicketEl) {
+        modalTicketEl.addEventListener('hidden.bs.modal', function () {
+            limpiarYEnfocarPOS();
+        });
     }
 }
 </script>
