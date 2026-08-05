@@ -588,7 +588,7 @@
         <div class="tab-pane fade" id="panel-plantillas" role="tabpanel">
             <div class="panel-box rounded-4 shadow-sm">
                 <div class="panel-title-area mb-4 pb-2 border-bottom">
-                    <h6 class="panel-title fw-bold text-body m-0">Estructura Legal de Documentos Imprimibles</h6>
+                    <h6 class="panel-title fw-bold text-body m-0">Estructura Legal de Documentos (Contratos y Pagarés)</h6>
                 </div>
                 
                 <div class="row g-3">
@@ -604,28 +604,29 @@
                                     <input type="text" name="titulo" class="form-control form-control-sm bg-body text-body fw-semibold" value="{{ $p->titulo }}" placeholder="Título oficial del documento">
                                 </div>
                                 <div class="mb-3 flex-grow-1">
-                                    <label class="form-label text-secondary small fw-semibold mb-1">Cuerpo del Documento / Cláusulas Legales</label>
-                                    <textarea name="contenido" class="form-control font-monospace small bg-body text-body" rows="9" style="font-size: 12px; line-height: 1.5; resize: vertical;" required>{{ $p->contenido }}</textarea>
+                                    <label class="form-label text-secondary small fw-semibold mb-1">Texto Legal / Cláusulas Editables</label>
+                                    <textarea name="contenido" class="form-control font-monospace small bg-body text-body" rows="11" style="font-size: 12px; line-height: 1.5; resize: vertical;" required>{{ $p->contenido }}</textarea>
                                 </div>
                                 
                                 <div class="p-3 bg-body border rounded-3 mb-3">
                                     <span class="d-block fw-bold text-body mb-2" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px;">
-                                        <i class="bi bi-code-slash text-secondary me-1"></i> Atajos de Variables Rápidas:
+                                        <i class="bi bi-code-slash text-secondary me-1"></i> Clic para insertar variables dinámicas:
                                     </span>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{cliente}')">{cliente}</button>
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{folio}')">{folio}</button>
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{monto_total}')">{monto_total}</button>
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{monto_neto}')">{monto_neto}</button>
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{deposito}')">{deposito}</button>
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{fecha_fin}')">{fecha_fin}</button>
-                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 11px;" onclick="insertVariable(this, '{empresa}')">{empresa}</button>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{cliente}')">{cliente}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{folio}')">{folio}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{deposito}')">{deposito}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{deposito_letra}')">{deposito_letra}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{monto_total}')">{monto_total}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{fecha_inicio}')">{fecha_inicio}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{fecha_fin}')">{fecha_fin}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{empresa}')">{empresa}</button>
+                                        <button type="button" class="badge btn btn-light border text-dark font-monospace" style="font-size: 10px;" onclick="insertVariable(this, '{ciudad_empresa}')">{ciudad_empresa}</button>
                                     </div>
-                                    <small class="text-secondary d-block mt-2" style="font-size: 11px; line-height: 1.3;"><i class="bi bi-info-circle me-1"></i> Haz clic en los botones superiores para insertar variables automáticamente al texto.</small>
                                 </div>
                                 
                                 <button type="submit" class="btn btn-dark btn-sm w-100 py-2 fw-bold shadow-sm mt-auto">
-                                    <i class="bi bi-cloud-arrow-up-fill me-1"></i> Guardar Cambios de Formato
+                                    <i class="bi bi-cloud-arrow-up-fill me-1"></i> Guardar Plantilla
                                 </button>
                             </form>
                         </div>
@@ -633,8 +634,7 @@
                     @empty
                     <div class="col-12 text-center py-5 border border-dashed rounded-4 bg-body-tertiary">
                         <i class="bi bi-file-earmark-richtext text-secondary fs-1 mb-2"></i>
-                        <h6 class="fw-bold text-body">No hay plantillas base inicializadas</h6>
-                        <p class="text-secondary small mb-0">Ejecuta el seeder <code>PlantillasDocumentosSeeder</code> desde tu terminal para cargar los esquemas iniciales.</p>
+                        <h6 class="fw-bold text-body">No hay plantillas registradas</h6>
                     </div>
                     @endforelse
                 </div>
