@@ -8,14 +8,16 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('movimientos_sucursales', function (Blueprint $table) {
-            // Si la columna ya existe como string, asegúrate de actualizar la documentación de valores válidos.
-            // Si era un ENUM, cambia/modifica la columna:
-            $table->string('estado')->default('pendiente')->change();
+            // Cambiar la columna 'estado' para que sea string con default 'pendiente'
+            $table->string('estado')->default('pendiente')->nullable()->change();
         });
     }
 
     public function down(): void
     {
-        //
+        Schema::table('movimientos_sucursales', function (Blueprint $table) {
+            // Revertir al estado anterior (ejemplo: sin default)
+            $table->string('estado')->nullable()->change();
+        });
     }
 };
