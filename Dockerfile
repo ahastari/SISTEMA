@@ -13,8 +13,13 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY . .
 
+# Instalar dependencias de PHP
 RUN composer install --no-dev --optimize-autoloader
+
+# Compilar assets de Vite
 RUN npm install && npm run build
 
 EXPOSE 8080
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]
+
+# Comando de arranque: corre migraciones, seeders y luego arranca el servidor
+CMD php artisan migrate --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=8080
