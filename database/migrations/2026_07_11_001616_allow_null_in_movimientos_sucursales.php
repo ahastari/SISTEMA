@@ -7,15 +7,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Alteramos la tabla para permitir valores nulos (NULL)
-        DB::statement('ALTER TABLE movimientos_sucursales MODIFY sucursal_origen_id BIGINT UNSIGNED NULL;');
-        DB::statement('ALTER TABLE movimientos_sucursales MODIFY sucursal_destino_id BIGINT UNSIGNED NULL;');
+        // En PostgreSQL se usa ALTER COLUMN y no existe UNSIGNED
+        DB::statement('ALTER TABLE movimientos_sucursales ALTER COLUMN sucursal_origen_id DROP NOT NULL;');
+        DB::statement('ALTER TABLE movimientos_sucursales ALTER COLUMN sucursal_destino_id DROP NOT NULL;');
     }
 
     public function down(): void
     {
-        // Revertir en caso de ser necesario
-        DB::statement('ALTER TABLE movimientos_sucursales MODIFY sucursal_origen_id BIGINT UNSIGNED NOT NULL;');
-        DB::statement('ALTER TABLE movimientos_sucursales MODIFY sucursal_destino_id BIGINT UNSIGNED NOT NULL;');
+        // Revertir para que vuelvan a ser NOT NULL
+        DB::statement('ALTER TABLE movimientos_sucursales ALTER COLUMN sucursal_origen_id SET NOT NULL;');
+        DB::statement('ALTER TABLE movimientos_sucursales ALTER COLUMN sucursal_destino_id SET NOT NULL;');
     }
 };
