@@ -3,8 +3,9 @@ FROM php:8.3-apache
 
 # Instalar dependencias necesarias para Laravel
 RUN apt-get update && apt-get install -y \
-    unzip curl git libpq-dev nodejs npm \
-    && docker-php-ext-install pdo pdo_pgsql bcmath
+    unzip curl git libpq-dev libpng-dev libjpeg-dev libfreetype6-dev nodejs npm \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql bcmath gd
 
 # Copiar Composer desde imagen oficial
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
