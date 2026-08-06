@@ -10,7 +10,10 @@ RUN apt-get update && apt-get install -y \
 # Copiar Composer desde imagen oficial
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Establecer directorio de trabajo
 WORKDIR /var/www/html
+
+# Copiar el código del proyecto
 COPY . .
 
 # Instalar dependencias de PHP
@@ -19,6 +22,11 @@ RUN composer install --no-dev --optimize-autoloader
 # Compilar assets de Vite
 RUN npm install && npm run build
 
+# Crear enlace simbólico para storage y ajustar permisos
+RUN php artisan storage:link \
+    && chmod -R 775 storage bootstrap/cache
+
+# Exponer puerto
 EXPOSE 8080
 
 # Comando de arranque: corre migraciones, seeders y luego arranca el servidor
