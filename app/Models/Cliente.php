@@ -11,7 +11,12 @@ class Cliente extends Model
         'ine_numero', 'ine_documento', 'contrato_firmado', 'comprobante_deposito',
         'telefono_alternativo', 'empresa', 'direccion', 'ciudad',
         'estado', 'codigo_postal', 'observaciones', 
-        'sucursal_id'
+        'sucursal_id', 'activo', 'fecha_ultima_actividad'
+    ];
+
+    protected $casts = [
+        'activo' => 'boolean',
+        'fecha_ultima_actividad' => 'datetime',
     ];
     
     public function rentas()
@@ -32,5 +37,10 @@ class Cliente extends Model
     public function sucursal()
     {
         return $this->belongsTo(Sucursal::class);
+    }
+
+    public function registrarActividad()
+    {
+        $this->update(['fecha_ultima_actividad' => now(), 'activo' => true]);
     }
 }

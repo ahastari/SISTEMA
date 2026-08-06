@@ -6,12 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 
 class Venta extends Model
 {
-    // 🔥 AGREGAMOS MONTO_RECIBIDO, CAMBIO Y PAGOS_MIXTO A FILLABLE
     protected $fillable = [
         'folio', 'corte_caja_id', 'sucursal_id', 'cliente_id', 'cliente_nombre', 
         'subtotal', 'iva', 'total', 'metodo_pago', 'monto_recibido', 'cambio', 'pagos_mixtos',
         'estado', 'observaciones', 'requiere_factura', 'rfc_cliente'
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Venta $venta) {
+            if ($venta->cliente_id && $venta->cliente) {
+                $venta->cliente->registrarActividad();
+            }
+        });
+    }
 
     public function detalles()
     {

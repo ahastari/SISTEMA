@@ -23,12 +23,10 @@ class PuntoVentaController extends Controller
             ->with('movimientos')
             ->first();
 
-        // 🔥 FILTRO APLICADO: Solo productos para VENTA o AMBAS
         $productosQuery = Equipo::where('activo', true)
             ->whereIn('tipo_operacion', ['venta', 'ambas'])
             ->with(['categoria', 'unidadMedida']);
         
-        // 🔒 Filtrar que existan físicamente en la sucursal y con stock
         if ($sucursalId !== 'global') {
             $productosQuery->whereHas('sucursales', function($q) use ($sucursalId) {
                 $q->where('sucursal_id', $sucursalId)
@@ -40,7 +38,6 @@ class PuntoVentaController extends Controller
         
         $productos = $productosQuery->get();
         
-        // 🔒 Sobrescribir el atributo 'stock' para que JavaScript no se confunda
         if ($sucursalId !== 'global') {
             foreach ($productos as $producto) {
                 $producto->stock_global = $producto->stock; // Guardamos el global por precaución
@@ -57,11 +54,9 @@ class PuntoVentaController extends Controller
     {
         $sucursalId = session('activo_sucursal_id');
         
-        // 🔥 FILTRO APLICADO: Solo productos para VENTA o AMBAS
         $query = Equipo::where('activo', true)
             ->whereIn('tipo_operacion', ['venta', 'ambas']);
 
-        // 🔒 Filtrar por sucursal
         if ($sucursalId !== 'global') {
             $query->whereHas('sucursales', function($q) use ($sucursalId) {
                 $q->where('sucursal_id', $sucursalId)
@@ -87,7 +82,6 @@ class PuntoVentaController extends Controller
 
         $productos = $query->with(['categoria', 'unidadMedida'])->get();
         
-        // 🔒 Sobrescribir stock para JSON
         if ($sucursalId !== 'global') {
             foreach ($productos as $producto) {
                 $producto->stock_global = $producto->stock;
@@ -152,9 +146,8 @@ class PuntoVentaController extends Controller
                     $costoAdquisicion = $equipo->costo ?? 0;
                     $equipoId = $equipo->id;
                 } else {
-                    // Ítems especiales (Flete / Mano de obra)
                     $precio = (float) $item['precio'];
-                    $equipoId = null; // No apunta a equipo en BD
+                    $equipoId = null;
                 }
 
                 $subtotalItem = $precio * $item['cantidad'];
@@ -162,7 +155,7 @@ class PuntoVentaController extends Controller
 
                 $items[] = [
                     'equipo_id' => $equipoId,
-                    'concepto_especial' => $esEspecial ? $item['nombre'] : null, // Por si manejas guardado de nombres personalizados
+                    'concepto_especial' => $esEspecial ? $item['nombre'] : null, 
                     'cantidad' => $item['cantidad'],
                     'costo' => $costoAdquisicion,
                     'precio_unitario' => $precio,
@@ -217,11 +210,9 @@ class PuntoVentaController extends Controller
 
             $corteActivo->save();
 
-            // 🔥 RECALCULAR MONTOS DEL MODAL DE CIERRE EN TIEMPO REAL
             $montoFleteModal = 0;
             $montoManoObraModal = 0;
 
-            // Recargar ventas, detalles y movimientos actualizados
             $corteActivo->load('ventas.detalles', 'movimientos');
 
             foreach ($corteActivo->ventas as $v) {
@@ -245,7 +236,6 @@ class PuntoVentaController extends Controller
                 'message' => 'Venta realizada exitosamente',
                 'venta_id' => $venta->id,
                 'total' => (float) $venta->total,
-                // 🚀 ESTE OBJETO ALIMENTA AL MODAL DE CIERRE VÍA JS SIN RECARGAR
                 'modal_data' => [
                     'total_ventas' => number_format($corteActivo->total_ventas, 2),
                     'total_efectivo' => number_format($corteActivo->total_efectivo, 2),
@@ -268,7 +258,6 @@ class PuntoVentaController extends Controller
 
     public function ticket(Venta $venta)
     {
-        // 👈 Modificar para incluir 'sucursal'
         $venta->load(['detalles.equipo', 'cliente', 'sucursal']); 
         return view('puntoventa.ticket', compact('venta'));
     }
@@ -282,7 +271,6 @@ class PuntoVentaController extends Controller
         $ventasQuery = Venta::with(['cliente', 'detalles.equipo'])
             ->whereDate('created_at', $fechaFiltro);
         
-        // 🔒 Filtrar por sucursal si no es admin global
         if ($sucursalId !== 'global') {
             $ventasQuery->where('sucursal_id', $sucursalId);
         }
@@ -308,7 +296,6 @@ class PuntoVentaController extends Controller
             foreach ($venta->detalles as $detalle) {
                 $producto = Equipo::find($detalle->equipo_id);
                 if ($producto) {
-                    // 🔒 Restaurar stock en la sucursal correspondiente
                     if ($sucursalId !== 'global' && $venta->sucursal_id) {
                         $producto->actualizarStockEnSucursal($venta->sucursal_id, $detalle->cantidad, 'sumar');
                     } else {
@@ -347,7 +334,7 @@ class PuntoVentaController extends Controller
 
     public function cortes()
     {
-        $cortes = CorteCaja::with(['user', 'movimientos', 'ventas.detalles']) // 👈 Carga profunda de ventas y sus detalles
+        $cortes = CorteCaja::with(['user', 'movimientos', 'ventas.detalles'])
             ->where('user_id', auth()->id())
             ->latest()
             ->paginate(15);
@@ -372,7 +359,7 @@ class PuntoVentaController extends Controller
 
         CorteCaja::create([
             'user_id' => auth()->id(),
-            'sucursal_id' => session('activo_sucursal_id') !== 'global' ? session('activo_sucursal_id') : null, // 🔒 Asignar sucursal
+            'sucursal_id' => session('activo_sucursal_id') !== 'global' ? session('activo_sucursal_id') : null,
             'turno' => $request->turno,
             'fecha_apertura' => now(),
             'monto_inicial' => $request->monto_inicial,
@@ -470,20 +457,16 @@ class PuntoVentaController extends Controller
         $user = auth()->user();
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
 
-        // Capturar rango de fechas (Por defecto: mes actual)
         $inicio = \Carbon\Carbon::parse($request->get('fecha_inicio', date('Y-m-01')))->startOfDay();
         $fin = \Carbon\Carbon::parse($request->get('fecha_fin', date('Y-m-d')))->endOfDay();
 
-        // 1. TOP PRODUCTOS EN RANGO
         $topQuery = DB::table('detalle_ventas')
             ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
             ->leftJoin('equipos', 'detalle_ventas.equipo_id', '=', 'equipos.id')
             ->where('ventas.estado', 'completada')
             ->whereBetween('ventas.created_at', [$inicio, $fin]);
 
-        // 🔒 FILTRO SEGÚN ROL Y SUCURSAL
         if (!$isGlobalAdmin) {
-            // Gerente/Cajero: SOLO lo de su sucursal asignada
             $topQuery->where('ventas.sucursal_id', $sucursalId);
         }
 
@@ -505,7 +488,6 @@ class PuntoVentaController extends Controller
             $topProductosCantidades = [0];
         }
 
-        // 2. VENTAS POR FECHA EN RANGO (FLUX DIARIO)
         $ventasPeriodoQuery = Venta::where('estado', 'completada')
             ->whereBetween('created_at', [$inicio, $fin]);
 
@@ -532,7 +514,6 @@ class PuntoVentaController extends Controller
             $montosDia = [0];
         }
 
-        // 3. HISTÓRICO ANUAL POR MES
         $ventasMesQuery = Venta::where('estado', 'completada')->whereYear('created_at', date('Y'));
         
         if (!$isGlobalAdmin) {
@@ -582,14 +563,12 @@ class PuntoVentaController extends Controller
             ->whereBetween('created_at', [$inicio, $fin]);
         
         if (!$isGlobalAdmin) {
-            // Gerente/Cajero: Filtro estricto por su sucursal
             $ventasQuery->where('sucursal_id', $sucursalId);
         }
         
         $ventas = $ventasQuery->get();
         $totalVentas = $ventas->sum('total');
 
-        // Top Productos Físicos
         $topProductos = [];
         foreach ($ventas as $venta) {
             foreach ($venta->detalles as $detalle) {

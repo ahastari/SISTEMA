@@ -154,6 +154,7 @@ class ContentHelper
             '{fecha_fin}'       => $renta->fecha_fin ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') : 'N/A',
             '{fecha_actual}'    => \Carbon\Carbon::now()->format('d/m/Y'),
             '{empresa}'         => self::getCompanyData('empresa_nombre', 'la empresa'),
+            '{dueno_empresa}'   => self::getCompanyData('empresa_dueno', 'el representante legal'),
         ];
 
         return str_replace(array_keys($variables), array_values($variables), $content);

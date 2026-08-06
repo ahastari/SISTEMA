@@ -48,6 +48,12 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
+        if ($user->isCajero()) {
+            // El cajero va directo a la pantalla de cobro
+            return redirect()->intended(route('puntoventa.index', absolute: false));
+        }
+
+        // Administradores y Gerentes van al Dashboard
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

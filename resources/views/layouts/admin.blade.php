@@ -130,6 +130,25 @@
                 font-size: 1.3rem;
             }
         }
+
+        #sidebar.collapsed .badge-autorizaciones,
+        html.init-sidebar-collapsed #sidebar .badge-autorizaciones {
+            position: absolute !important;
+            top: 6px;
+            right: 12px;
+            font-size: 9px !important;
+            padding: 3px 5px !important;
+        }
+
+        @media (max-width: 1199.98px) {
+            #sidebar:not(.user-expanded) .badge-autorizaciones {
+                position: absolute !important;
+                top: 6px;
+                right: 12px;
+                font-size: 9px !important;
+                padding: 3px 5px !important;
+            }
+        }
     </style>
 </head>
 
@@ -172,12 +191,15 @@
 
         <!-- MENÚ PRINCIPAL -->
         <ul class="nav nav-pills flex-column mb-auto overflow-y-auto">
+            
+            @if(Auth::user()->isAdmin() || Auth::user()->isGerente())
             <li class="nav-item mb-1">
                 <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : 'text-white' }}" title="Dashboard">
                     <i class="bi bi-speedometer2 me-2"></i>
                     <span class="sidebar-text">Dashboard</span>
                 </a>
             </li>
+            @endif
 
             <li class="nav-item mb-1">
                 <a href="{{ route('rentas.index') }}" class="nav-link {{ request()->routeIs('rentas.*') ? 'active' : 'text-white' }}" title="Rentas">
@@ -185,6 +207,16 @@
                     <span class="sidebar-text">Rentas</span>
                 </a>
             </li>
+
+            @if(Auth::user()->isAdmin() || Auth::user()->isGerente())
+            <li class="nav-item mb-1">
+                <a href="{{ route('autorizaciones.index') }}" class="nav-link position-relative d-flex align-items-center {{ request()->routeIs('autorizaciones.*') ? 'text-warning fw-bold' : 'text-white' }}" title="Autorizaciones">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    <span class="sidebar-text me-auto">Autorizaciones</span>
+                    <span id="badge-autorizaciones" class="badge bg-danger rounded-pill shadow-sm badge-autorizaciones" style="display: none; font-size: 11px;">0</span>
+                </a>
+            </li>
+            @endif
 
             <li class="nav-item mb-1">
                 <a href="{{ route('inventario.index') }}" class="nav-link {{ request()->routeIs('inventario.*') ? 'active' : 'text-white' }}" title="Inventario">
@@ -221,12 +253,14 @@
                 </a>
             </li>
 
+            @if(Auth::user()->isAdmin() || Auth::user()->isGerente())
             <li class="nav-item mb-1">
                 <a href="{{ route('configuracion.index') }}" class="nav-link {{ request()->routeIs('configuracion.*') ? 'active' : 'text-white' }}" title="Configuración">
                     <i class="bi bi-sliders me-2"></i>
                     <span class="sidebar-text">Configuración</span>
                 </a>
             </li>
+            @endif
         </ul>
     </aside>
 
@@ -390,6 +424,36 @@
         }
     });
 </script>
+
+@if(Auth::user()->isAdmin() || Auth::user()->isGerente())
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        function revisarAutorizaciones() {
+            fetch('{{ route("autorizaciones.notificaciones") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('badge-autorizaciones');
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.style.display = 'inline-block';
+                        // Efecto visual sutil cuando cambia
+                        badge.classList.add('animate__animated', 'animate__pulse');
+                        setTimeout(() => badge.classList.remove('animate__animated', 'animate__pulse'), 1000);
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(error => console.error('Error al revisar notificaciones:', error));
+        }
+
+        // Consultar al cargar la página
+        revisarAutorizaciones();
+        
+        // Consultar cada 15 segundos (15000 milisegundos)
+        setInterval(revisarAutorizaciones, 15000);
+    });
+</script>
+@endif
 
 </body>
 </html>

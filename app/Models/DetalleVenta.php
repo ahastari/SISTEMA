@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class DetalleVenta extends Model
 {
-    // ✅ CORRECCIÓN: Forzar el uso del plural correcto de tu tabla en MySQL
     protected $table = 'detalle_ventas'; 
 
     // Permite el registro masivo de los campos desde el PuntoVentaController

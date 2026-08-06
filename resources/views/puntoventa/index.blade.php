@@ -228,7 +228,12 @@
             <ul class="dropdown-menu dropdown-menu-end shadow border border-translucent mt-2" aria-labelledby="configDropdown">
                 <li><a class="dropdown-item py-2" href="{{ route('puntoventa.historial') }}"><i class="bi bi-clock-history me-2 text-secondary"></i> Historial de Ventas (Día)</a></li>
                 <li><a class="dropdown-item py-2" href="{{ route('puntoventa.cortes') }}"><i class="bi bi-cash-stack me-2 text-secondary"></i> Historial de Cortes</a></li>
+                
+                {{-- 🔒 OCULTAR REPORTES FINANCIEROS AL CAJERO --}}
+                @if(Auth::user()->isAdmin() || Auth::user()->isGerente())
                 <li><a class="dropdown-item py-2" href="{{ route('puntoventa.reportes') }}"><i class="bi bi-graph-up-arrow me-2 text-secondary"></i> Dashboard e Informes</a></li>
+                @endif
+                
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item py-2" href="#" data-bs-toggle="modal" data-bs-target="#modalMovimiento"><i class="bi bi-arrow-left-right me-2 text-secondary"></i> Entrada / Salida Efectivo</a></li>
             </ul>

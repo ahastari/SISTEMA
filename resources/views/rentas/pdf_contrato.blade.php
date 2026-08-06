@@ -157,16 +157,17 @@
 <body>
 
 @php
-    // 1. DATO CORPORATIVO PRINCIPAL (Nombre de la Empresa Global)
-    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'ANDAMIOS Y MADERA VIRAMONTES');
+    // 1. DATOS CORPORATIVOS PRINCIPALES DESDE LA BD
+    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'EMPRESA NO CONFIGURADA');
+    $empresaDuenoGlobal  = \App\Helpers\ContentHelper::getCompanyData('empresa_dueno', 'REPRESENTANTE LEGAL');
 
     // 2. OBTENCIÓN DE DATOS DE LA SUCURSAL ASIGNADA
     $sucursal = $renta->sucursal ?? null;
     
     $sucNombre    = $sucursal->nombre ?? 'MATRIZ GENERAL';
-    $sucRfc       = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'VIMM9103023K7');
-    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'AVE. DEL CIPRÉS #314 COL. MASIE');
-    $sucTelefono  = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', '618 455 36 71');
+    $sucRfc       = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'RFC NO CONFIGURADO');
+    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'DIRECCIÓN NO CONFIGURADA');
+    $sucTelefono  = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TELÉFONO NO CONFIGURADO');
     $sucLogoPath  = $sucursal->logo ?? \App\Helpers\ContentHelper::getCompanyData('empresa_logo');
 
     // 3. PARSEO DE PLANTILLAS DE CONTRATO Y PAGARÉ
@@ -187,12 +188,20 @@
 
     $fFinVal = isset($renta->fecha_fin) ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') : (isset($renta->fecha_devolucion_estimada) ? \Carbon\Carbon::parse($renta->fecha_devolucion_estimada)->format('d/m/Y') : date('d/m/Y'));
 
+    // Convertidor a letras
+    $formatter = new \NumberFormatter('es', \NumberFormatter::SPELLOUT);
+    $entero = floor($montoTotalVal);
+    $decimales = round(($montoTotalVal - $entero) * 100);
+    $montoTotalLetrasStr = strtoupper($formatter->format($entero)) . " PESOS " . str_pad($decimales, 2, '0', STR_PAD_LEFT) . "/100 M.N.";
+
     $reemplazos = [
         '{empresa}'          => $empresaNombreGlobal,
+        '{dueno_empresa}'    => $empresaDuenoGlobal,
         '{cliente}'          => $renta->cliente->nombre_completo ?? 'PÚBLICO GENERAL',
         '{folio}'            => $renta->folio ?? 'N/A',
         '{deposito}'         => number_format($depositoVal, 2),
         '{monto_total}'      => number_format($montoTotalVal, 2),
+        '{monto_total_letra}'=> $montoTotalLetrasStr,
         '{monto_neto}'       => number_format($montoNetoVal, 2),
         '{fecha_fin}'        => $fFinVal,
         '{fecha_inicio}'     => isset($renta->created_at) ? \Carbon\Carbon::parse($renta->created_at)->format('d/m/Y') : date('d/m/Y'),
@@ -323,13 +332,14 @@
         <tr>
             <td style="width: 45%; text-align: center; vertical-align: top;">
                 <div class="signature-line"></div>
-                <div class="signature-title">{{ $renta->cliente->nombre_completo ?? 'Juan Carrillo' }}</div>
+                <div class="signature-title">{{ $renta->cliente->nombre_completo ?? 'Línea de firma' }}</div>
                 <div class="signature-sub">Nombre y Firma del Cliente (Aceptante)</div>
             </td>
             <td style="width: 10%;"></td>
             <td style="width: 45%; text-align: center; vertical-align: top;">
                 <div class="signature-line"></div>
-                <div class="signature-title">ING. GODOFREDO VIRAMONTES MEDINA</div>
+                <!-- SE REEMPLAZÓ EL NOMBRE QUEMADO POR LA VARIABLE GLOBAL -->
+                <div class="signature-title">{{ $empresaDuenoGlobal }}</div>
                 <div class="signature-sub">Prestador del Servicio / Representante Legal</div>
             </td>
         </tr>
@@ -374,9 +384,9 @@
     <table class="data-table">
         <tr>
             <td style="width: 15%; font-weight: bold;">NOMBRE:</td>
-            <td style="width: 35%; font-weight: bold;">{{ $renta->cliente->nombre_completo ?? 'Juan Carrillo' }}</td>
+            <td style="width: 35%; font-weight: bold;">{{ $renta->cliente->nombre_completo ?? 'Cliente de Mostrador' }}</td>
             <td style="width: 15%; font-weight: bold;">DIRECCIÓN:</td>
-            <td style="width: 35%;">{{ $renta->cliente->direccion ?? 'DIAMANTE 118' }}</td>
+            <td style="width: 35%;">{{ $renta->cliente->direccion ?? 'No especificada' }}</td>
         </tr>
         <tr>
             <td style="font-weight: bold;">COLONIA:</td>
@@ -386,7 +396,7 @@
         </tr>
         <tr>
             <td style="font-weight: bold;">TELÉFONO:</td>
-            <td colspan="3">{{ $renta->cliente->telefono ?? '6181461516' }}</td>
+            <td colspan="3">{{ $renta->cliente->telefono ?? 'S/T' }}</td>
         </tr>
     </table>
 
@@ -396,12 +406,13 @@
             <td style="width: 45%; text-align: center; vertical-align: top;">
                 <div class="signature-line"></div>
                 <div class="signature-title">ACEPTAMOS</div>
-                <div class="signature-sub">{{ $renta->cliente->nombre_completo ?? 'Juan Carrillo' }}</div>
+                <div class="signature-sub">{{ $renta->cliente->nombre_completo ?? 'Línea de firma' }}</div>
             </td>
             <td style="width: 10%;"></td>
             <td style="width: 45%; text-align: center; vertical-align: top;">
                 <div class="signature-line"></div>
-                <div class="signature-title">ING. GODOFREDO VIRAMONTES MEDINA</div>
+                <!-- SE REEMPLAZÓ EL NOMBRE QUEMADO POR LA VARIABLE GLOBAL -->
+                <div class="signature-title">{{ $empresaDuenoGlobal }}</div>
                 <div class="signature-sub">Prestador del Servicio / Acreedor</div>
             </td>
         </tr>

@@ -31,6 +31,13 @@ class Renta extends Model
         'pagare_firmado_path',
         'fecha_devolucion',
         'fecha_ampliacion',
+        'autorizacion_solicitada',
+        'autorizacion_aprobada',
+        'motivo_autorizacion',
+        'datos_pendientes_finalizacion',
+        'solicitado_por_id',
+        'autorizado_por_id',
+        'facturar',
     ];
 
     protected $casts = [
@@ -38,59 +45,60 @@ class Renta extends Model
         'fecha_fin' => 'date',
         'fecha_devolucion' => 'date',
         'fecha_ampliacion' => 'date',
+        'autorizacion_solicitada' => 'boolean',
+        'autorizacion_aprobada' => 'boolean',
+        'datos_pendientes_finalizacion' => 'array',
     ];
 
-    /**
-     * Relación con Cliente
-     */
+    protected static function booted(): void
+    {
+        static::created(function (Renta $renta) {
+            if ($renta->cliente) {
+                $renta->cliente->registrarActividad();
+            }
+        });
+    }
+
     public function cliente()
     {
         return $this->belongsTo(Cliente::class);
     }
 
-    /**
-     * Relación con Obra
-     */
     public function obra()
     {
         return $this->belongsTo(Obra::class);
     }
 
-    /**
-     * 🔒 NUEVA: Relación con Sucursal
-     */
     public function sucursal()
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
-    /**
-     * Relación con Detalles de Renta
-     */
+    public function solicitadoPor()
+    {
+        return $this->belongsTo(User::class, 'solicitado_por_id');
+    }
+
+    public function autorizadoPor()
+    {
+        return $this->belongsTo(User::class, 'autorizado_por_id');
+    }
+
     public function detalles()
     {
         return $this->hasMany(DetalleRenta::class);
     }
 
-    /**
-     * Relación con Pagos
-     */
     public function pagos()
     {
         return $this->hasMany(Pago::class);
     }
 
-    /**
-     * Relación con Abonos
-     */
     public function abonos()
     {
         return $this->hasMany(Abono::class);
     }
 
-    /**
-     * Generar folio único para la renta
-     */
     public static function generarFolio()
     {
         $year = date('Y');
@@ -106,40 +114,28 @@ class Renta extends Model
         return 'R-' . $year . '-' . $nuevoNumero;
     }
 
-    /**
-     * Calcular días entre dos fechas
-     */
     public static function calcularDias($fechaInicio, $fechaFin)
     {
         $inicio = new \DateTime($fechaInicio);
         $fin = new \DateTime($fechaFin);
         $diferencia = $inicio->diff($fin);
-        return $diferencia->days + 1; // +1 para incluir el día de inicio
+        return $diferencia->days + 1;
     }
 
-    /**
-     * Método para calcular saldo pendiente
-     */
     public function getSaldoPendienteAttribute()
     {
-        // Si la renta está cancelada, la deuda se anula automáticamente
         if ($this->estado === 'cancelada') {
             return 0; 
         }
 
-        // Sumamos todos los pagos realizados a esta renta
         $totalPagado = $this->pagos()->sum('monto');
         
-        // El saldo es: Total de la renta - Depósito - Total Pagado
         $saldo = $this->total - ($this->deposito ?? 0) - $totalPagado;
         
         return max(0, $saldo); // Nunca devolver un saldo negativo
     }
 
-    /**
-     * Método para ampliar días de renta
-     */
-    public function ampliarDias($diasExtra, $motivo = null)
+    public function ampliarDias($diasExtra, $motivo = null, $conIva = false)
     {
         $nuevaFechaFin = $this->fecha_fin->copy()->addDays($diasExtra);
         $this->fecha_fin = $nuevaFechaFin;
@@ -147,24 +143,32 @@ class Renta extends Model
         $this->dias_ampliados += $diasExtra;
         $this->fecha_ampliacion = now();
         
-        // Recalcular total basado en los días extra
-        $nuevoSubtotal = 0;
+        $subtotalAmpliacion = 0;
         foreach ($this->detalles as $detalle) {
-            $nuevoSubtotal += $detalle->equipo->precio_dia * $detalle->cantidad * $diasExtra;
+            // CORRECCIÓN: Solo tomar en cuenta los que NO se han retornado
+            $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+            if ($pendiente > 0) {
+                $costoExtra = $detalle->precio_dia * $pendiente * $diasExtra;
+                $subtotalAmpliacion += $costoExtra;
+
+                $detalle->subtotal += $costoExtra;
+                $detalle->dias += $diasExtra;
+                $detalle->save();
+            }
         }
+
+        $ivaExtra = $conIva ? ($subtotalAmpliacion * 0.16) : 0;
         
-        $this->subtotal += $nuevoSubtotal;
-        $this->iva = $this->subtotal * 0.16;
-        $this->total = $this->subtotal + $this->iva;
+        $this->subtotal += $subtotalAmpliacion;
+        $this->iva += $ivaExtra;
+        $this->total += ($subtotalAmpliacion + $ivaExtra);
         
-        // Registrar motivo en observaciones
         if ($motivo) {
             $this->observaciones = ($this->observaciones ? $this->observaciones . "\n" : '') 
                 . "Ampliación de {$diasExtra} días. Motivo: {$motivo}";
         }
         
         $this->save();
-        $this->calcularSaldoPendiente();
         
         return $this;
     }
@@ -177,17 +181,11 @@ class Renta extends Model
         $this->save();
     }
 
-    /**
-     * Verificar si la renta está vencida
-     */
     public function estaVencida(): bool
     {
         return $this->estado === 'activa' && $this->fecha_fin->isPast();
     }
 
-    /**
-     * Obtener días restantes
-     */
     public function getDiasRestantesAttribute(): int
     {
         if ($this->estado !== 'activa') {
@@ -204,9 +202,6 @@ class Renta extends Model
         return (int) $hoy->diffInDays($fechaFin) + 1;
     }
 
-    /**
-     * Obtener días de retraso
-     */
     public function getDiasRetrasoAttribute(): int
     {
         if ($this->estado !== 'activa') {

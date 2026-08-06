@@ -33,6 +33,7 @@ class PlantillaHelper
         // 2. Mapear todos los datos requeridos por el Contrato y Pagaré de Viramontes
         $reemplazos = [
             '{empresa}'          => ContentHelper::getCompanyData('empresa_nombre') ?? 'ANDAMIOS Y MADERA VIRAMONTES',
+            '{dueno_empresa}'    => ContentHelper::getCompanyData('empresa_dueno') ?? 'REPRESENTANTE LEGAL',
             '{ciudad_empresa}'   => 'Durango, Dgo.',
             '{cliente}'          => $clienteNombre,
             '{cliente_nombre}'   => $clienteNombre,

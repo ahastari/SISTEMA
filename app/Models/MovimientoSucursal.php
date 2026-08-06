@@ -1,5 +1,4 @@
 <?php
-// app/Models/MovimientoSucursal.php
 
 namespace App\Models;
 
@@ -64,6 +63,11 @@ class MovimientoSucursal extends Model
         return $query->where('estado', 'pendiente');
     }
 
+    public function scopeAprobados($query)
+    {
+        return $query->where('estado', 'aprobado');
+    }
+
     public function scopeCompletados($query)
     {
         return $query->where('estado', 'completado');
@@ -75,7 +79,7 @@ class MovimientoSucursal extends Model
                      ->orWhere('sucursal_destino_id', $sucursalId);
     }
 
-    // Métodos de ayuda
+    // Métodos de verificación
     public function esTransferencia()
     {
         return $this->tipo === 'transferencia';
@@ -91,16 +95,18 @@ class MovimientoSucursal extends Model
         return $this->tipo === 'salida';
     }
 
-    public function completar()
+    public function esPendiente()
     {
-        $this->estado = 'completado';
-        $this->fecha_confirmacion = now();
-        $this->save();
+        return $this->estado === 'pendiente';
     }
 
-    public function cancelar()
+    public function esAprobado()
     {
-        $this->estado = 'cancelado';
-        $this->save();
+        return $this->estado === 'aprobado';
+    }
+
+    public function esCompletado()
+    {
+        return $this->estado === 'completado';
     }
 }

@@ -166,23 +166,25 @@
 <body>
 
 @php
-    // 1. DATO CORPORATIVO PRINCIPAL Y SUCURSAL
-    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'ANDAMIOS Y MADERA VIRAMONTES');
+    // 1. DATOS CORPORATIVOS PRINCIPALES DESDE LA BD
+    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'EMPRESA NO CONFIGURADA');
+    $empresaDuenoGlobal  = \App\Helpers\ContentHelper::getCompanyData('empresa_dueno', 'REPRESENTANTE LEGAL');
     
+    // 2. DATOS DE LA SUCURSAL O MATRIZ
     $sucursal     = $renta->sucursal ?? null;
     $sucNombre    = $sucursal->nombre ?? 'MATRIZ GENERAL';
-    $sucRfc       = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'VIMM9103023K7');
-    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'AVE. DEL CIPRÉS #314 COL. MASIE');
-    $sucTelefono  = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', '618 455 36 71');
+    $sucRfc       = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'RFC NO CONFIGURADO');
+    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'DIRECCIÓN NO CONFIGURADA');
+    $sucTelefono  = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TELÉFONO NO CONFIGURADO');
     $sucLogoPath  = $sucursal->logo ?? \App\Helpers\ContentHelper::getCompanyData('empresa_logo');
 
-    // 2. PARSEO DE PLANTILLA DEL PAGARÉ
+    // 3. PARSEO DE PLANTILLA DEL PAGARÉ
     $pPagare = \App\Models\PlantillaDocumento::where('tipo', 'pagare_renta')->first() 
             ?? \App\Models\PlantillaDocumento::where('tipo', 'pagare')->first();
 
     $textoPagare = $pPagare ? $pPagare->contenido : "Por este pagaré me (nos) obligo (amos) incondicionalmente a pagar a la orden de {empresa} en Durango, Dgo. el día {fecha_fin} la cantidad de \${monto_neto} ({monto_total_letra}), valor recibido a mi (nuestra) entera satisfacción.\n\nEn caso de demora parcialmente insoluto sin que por ello se considere prorrogado el plazo fijado, el deudor pagará intereses moratorios al 5% mensual sobre el saldo insoluto.";
 
-    // 3. REEMPLAZO AUTOMÁTICO DE MONTOS Y ETIQUETAS
+    // 4. REEMPLAZO AUTOMÁTICO DE MONTOS Y ETIQUETAS
     $montoTotalVal = (float)($renta->total ?? 0);
     $depositoVal   = (float)($renta->deposito_garantia ?? ($renta->deposito ?? 0));
     $montoNetoVal  = max(0, $montoTotalVal - $depositoVal);
@@ -197,6 +199,7 @@
 
     $reemplazos = [
         '{empresa}'          => $empresaNombreGlobal,
+        '{dueno_empresa}'    => $empresaDuenoGlobal,
         '{cliente}'          => $renta->cliente->nombre_completo ?? 'PÚBLICO GENERAL',
         '{folio}'            => $renta->folio ?? 'N/A',
         '{deposito}'         => number_format($depositoVal, 2),
@@ -290,12 +293,13 @@
         <td style="width: 45%; text-align: center; vertical-align: top;">
             <div class="signature-line"></div>
             <div class="signature-title">ACEPTAMOS</div>
-            <div class="signature-sub">{{ $renta->cliente->nombre_completo ?? 'Juan Carrillo' }}</div>
+            <div class="signature-sub">{{ $renta->cliente->nombre_completo ?? 'Línea de firma' }}</div>
         </td>
         <td style="width: 10%;"></td>
         <td style="width: 45%; text-align: center; vertical-align: top;">
             <div class="signature-line"></div>
-            <div class="signature-title">ING. GODOFREDO VIRAMONTES MEDINA</div>
+            <!-- SE REEMPLAZÓ EL NOMBRE QUEMADO POR LA VARIABLE GLOBAL -->
+            <div class="signature-title">{{ $empresaDuenoGlobal }}</div>
             <div class="signature-sub">Prestador del Servicio / Acreedor</div>
         </td>
     </tr>

@@ -39,17 +39,20 @@ class ObraController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'nombre' => 'required|string|max:255',
             'direccion' => 'required|string',
             'cliente_id' => 'required|exists:clientes,id',
-            'colonia' => 'nullable|string',
-            'ciudad' => 'nullable|string',
-            'estado' => 'nullable|string',
-            'codigo_postal' => 'nullable|string',
-            'telefono_obra' => 'nullable|string',
-            'contacto_obra' => 'nullable|string',
+            'colonia' => 'nullable|string|max:255',
+            'ciudad' => 'nullable|string|max:100',
+            'estado' => 'nullable|string|max:100',
+            'codigo_postal' => 'nullable|string|max:10',
+            'telefono_obra' => 'nullable|numeric|digits:10', // Validar exactamente 10 dígitos numéricos
+            'contacto_obra' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string',
+        ], [
+            'telefono_obra.digits' => 'El teléfono de la obra debe tener exactamente 10 dígitos.',
+            'telefono_obra.numeric' => 'El teléfono de la obra solo debe contener números.',
         ]);
 
         $sucursalId = session('activo_sucursal_id');
@@ -96,10 +99,20 @@ class ObraController extends Controller
 
     public function update(Request $request, Obra $obra)
     {
-        $request->validate([
+        $validated = $request->validate([
             'nombre' => 'required|string|max:255',
             'direccion' => 'required|string',
             'cliente_id' => 'required|exists:clientes,id',
+            'colonia' => 'nullable|string|max:255',
+            'ciudad' => 'nullable|string|max:100',
+            'estado' => 'nullable|string|max:100',
+            'codigo_postal' => 'nullable|string|max:10',
+            'telefono_obra' => 'nullable|numeric|digits:10', // Validar exactamente 10 dígitos numéricos
+            'contacto_obra' => 'nullable|string|max:255',
+            'observaciones' => 'nullable|string',
+        ], [
+            'telefono_obra.digits' => 'El teléfono de la obra debe tener exactamente 10 dígitos.',
+            'telefono_obra.numeric' => 'El teléfono de la obra solo debe contener números.',
         ]);
 
         $activa = $request->has('activa') ? 1 : 0;

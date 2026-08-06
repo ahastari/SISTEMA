@@ -11,10 +11,10 @@ use App\Http\Controllers\UnidadMedidaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PuntoVentaController;
 use App\Http\Controllers\ConfiguracionController;
-use App\Http\Controllers\EmpresaConfigController;
 use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\UsuarioConfigController;
 use App\Http\Controllers\MovimientoSucursalController;
+use App\Http\Controllers\AutorizacionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,6 +52,9 @@ Route::middleware('auth')->group(function () {
 */
 Route::middleware('auth')->group(function () {
     Route::resource('clientes', ClienteController::class);
+
+    Route::patch('/clientes/{cliente}/reactivar', [ClienteController::class, 'reactivar'])
+        ->name('clientes.reactivar');
 });
 
 /*
@@ -110,7 +113,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/rentas/{renta}/estado', [RentaController::class, 'getEstadoRenta'])->name('rentas.estado');
 
     // Gestion de entregas parciales
-    Route::post('/rentas/{renta}/devolucion-parcial', [App\Http\Controllers\RentaController::class, 'devolucionParcial'])->name('rentas.devolucionParcial');
+    Route::post('/rentas/{renta}/devolucion-parcial', [RentaController::class, 'devolucionParcial'])->name('rentas.devolucionParcial');
 });
 
 /*
@@ -162,25 +165,15 @@ Route::middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 | MÓDULO DE CONFIGURACIÓN (MULTISUCURSAL)
 |--------------------------------------------------------------------------
-| Estructura de permisos:
-| - Admin Global: Acceso total (empresa, sucursales, usuarios, plantillas)
-| - Gerente: Solo modificar datos de su sucursal, ver plantillas
-| - Cajero: Sin acceso a configuración
 */
-Route::prefix('configuracion')->middleware('auth')->group(function () {
+Route::prefix('configuracion')->middleware(['auth', 'permission:ver_configuracion'])->group(function () {
     
-    // ==========================================
-    // RUTAS COMPARTIDAS (Admin y Gerente)
-    // ==========================================
+    Route::get('/', [ConfiguracionController::class, 'index'])
+        ->name('configuracion.index');
     
-    // Vista principal de configuración
-    Route::get('/', [ConfiguracionController::class, 'index'])->name('configuracion.index');
-    
-    // Actualizar plantillas de documentos (contratos, pagarés)
     Route::put('/plantilla/{id}', [ConfiguracionController::class, 'updatePlantilla'])
         ->name('configuracion.plantilla.update');
 
-    // Actualizar sucursal (con validación de pertenencia para gerentes)
     Route::put('/sucursal/{id}', [SucursalController::class, 'update'])
         ->name('configuracion.sucursal.update');
 
@@ -188,29 +181,33 @@ Route::prefix('configuracion')->middleware('auth')->group(function () {
     // RUTAS EXCLUSIVAS PARA ADMINISTRADOR GLOBAL
     // ==========================================
     Route::middleware(['permission:admin'])->group(function () {
+        Route::post('/empresa', [ConfiguracionController::class, 'updateEmpresa'])->name('configuracion.empresa.update');
+        Route::post('/sucursal', [SucursalController::class, 'store'])->name('configuracion.sucursal.store');
         
-        // --- Gestión de Empresa ---
-        Route::post('/empresa', [EmpresaConfigController::class, 'update'])
-            ->name('configuracion.empresa.update');
-
-        // --- Crear Nueva Sucursal ---
-        Route::post('/sucursal', [ConfiguracionController::class, 'storeSucursal'])
-            ->name('configuracion.sucursal.store');
-
         // --- Gestión Completa de Usuarios ---
-        Route::post('/usuarios', [UsuarioConfigController::class, 'store'])
-            ->name('configuracion.usuarios.store');
-        Route::put('/usuarios/{id}', [UsuarioConfigController::class, 'update'])
-            ->name('configuracion.usuarios.update');
-        Route::put('/usuarios/{id}/password', [UsuarioConfigController::class, 'changePassword'])
-            ->name('configuracion.usuarios.password');
-        Route::patch('/usuarios/{id}/baja', [UsuarioConfigController::class, 'bajaUsuario'])
-            ->name('configuracion.usuarios.baja');
-        Route::patch('/usuarios/{id}/alta', [UsuarioConfigController::class, 'altaUsuario'])
-            ->name('configuracion.usuarios.alta');
-        Route::delete('/usuarios/{id}', [UsuarioConfigController::class, 'destroy'])
-            ->name('configuracion.usuarios.destroy');
+        Route::post('/usuarios', [UsuarioConfigController::class, 'store'])->name('configuracion.usuarios.store');
+        Route::put('/usuarios/{id}', [UsuarioConfigController::class, 'update'])->name('configuracion.usuarios.update');
+        Route::put('/usuarios/{id}/password', [UsuarioConfigController::class, 'changePassword'])->name('configuracion.usuarios.password');
+        Route::patch('/usuarios/{id}/baja', [UsuarioConfigController::class, 'bajaUsuario'])->name('configuracion.usuarios.baja');
+        Route::patch('/usuarios/{id}/alta', [UsuarioConfigController::class, 'altaUsuario'])->name('configuracion.usuarios.alta');
+        Route::delete('/usuarios/{id}', [UsuarioConfigController::class, 'destroy'])->name('configuracion.usuarios.destroy');
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| PANEL DE AUTORIZACIONES (GERENTE)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'permission:ver_autorizaciones'])->group(function () {
+    Route::get('/autorizaciones', [AutorizacionController::class, 'index'])
+        ->name('autorizaciones.index');
+    Route::post('/autorizaciones/{renta}/aprobar', [AutorizacionController::class, 'aprobar'])
+        ->name('autorizaciones.aprobar');
+    Route::post('/autorizaciones/{renta}/rechazar', [AutorizacionController::class, 'rechazar'])
+        ->name('autorizaciones.rechazar');
+    Route::get('/autorizaciones/notificaciones', [AutorizacionController::class, 'notificaciones'])
+        ->name('autorizaciones.notificaciones');
 });
 
 /*
@@ -219,9 +216,17 @@ Route::prefix('configuracion')->middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
+    // Rutas para aprobación y flujo de recepción de transferencias
+    Route::post('/movimientos/{movimiento}/aprobar', [MovimientoSucursalController::class, 'aprobar'])
+        ->name('movimientos.aprobar');
+    Route::post('/movimientos/{movimiento}/rechazar', [MovimientoSucursalController::class, 'rechazar'])
+        ->name('movimientos.rechazar');
+    Route::post('/movimientos/{movimiento}/confirmar-recepcion', [MovimientoSucursalController::class, 'confirmarRecepcion'])
+        ->name('movimientos.confirmarRecepcion');
+
     Route::resource('movimientos', MovimientoSucursalController::class);
     
-    // Cancelación de movimientos (GET para mostrar, POST para procesar)
+    // Cancelación de movimientos
     Route::get('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'cancelar'])
         ->name('movimientos.cancelar');
     Route::post('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'procesarCancelacion'])

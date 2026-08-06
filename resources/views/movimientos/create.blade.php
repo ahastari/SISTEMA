@@ -4,16 +4,15 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-2">
     <div>
         <h3 class="mb-0 fw-bold text-body">
-            <i class="bi bi-arrow-left-right me-2 text-primary"></i>Registrar Movimiento entre Sucursales
+            <i class="bi bi-arrow-left-right me-2 text-primary"></i>Registrar Movimiento de Inventario
         </h3>
-        <p class="text-secondary small mb-0">Trasladar stock de equipos, registrar entradas, salidas o ajustes</p>
+        <p class="text-secondary small mb-0">Gestión de ingresos autorizados y envíos a otras sucursales</p>
     </div>
     <a href="{{ route('movimientos.index') }}" class="btn btn-outline-secondary btn-sm rounded-3">
         <i class="bi bi-arrow-left me-1"></i> Regresar
     </a>
 </div>
 
-<!-- 🔥 MENSAJES DE NOTIFICACIÓN DE ÉXITO O ERROR (Faltaban en tu código original) -->
 @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm" role="alert">
         <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
@@ -42,6 +41,16 @@
 
 <div class="card border-0 shadow-sm rounded-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
     <div class="card-body p-3 p-md-4">
+
+        <div id="banner_info_movimiento" class="alert alert-info border-info-subtle bg-info-subtle text-info-emphasis rounded-3 p-3 mb-4 small">
+            <div class="d-flex align-items-start">
+                <i class="bi bi-info-circle-fill fs-5 me-2 mt-1 text-info"></i>
+                <div id="banner_texto">
+                    <strong>Modo Ingreso:</strong> Seleccione el envío <strong>autorizado por el gerente</strong> de la sucursal de origen. Solo aparecen envíos que ya fueron aprobados.
+                </div>
+            </div>
+        </div>
+
         <form action="{{ route('movimientos.store') }}" method="POST" id="formMovimiento">
             @csrf
             
@@ -49,72 +58,103 @@
                 <div class="col-12 col-lg-6">
                     
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Producto <span class="text-danger">*</span></label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-body-tertiary text-secondary">
-                                <i class="bi bi-box-seam"></i>
-                            </span>
-                            <select name="equipo_id" id="equipo_id" class="form-select bg-body text-body" required>
-                                <option value="">Seleccione un producto...</option>
-                                @foreach($equipos as $equipo)
-                                    <option value="{{ $equipo->id }}" 
-                                            data-nombre="{{ $equipo->nombre }}"
-                                            {{ old('equipo_id', request('equipo_id')) == $equipo->id ? 'selected' : '' }}>
-                                        {{ $equipo->codigo }} - {{ $equipo->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div id="info_producto" class="mt-2 text-secondary small fw-medium" style="display: none;">
-                            <i class="bi bi-info-circle-fill text-primary me-1"></i> <span id="producto_nombre"></span>
+                        <label class="form-label small fw-semibold text-body d-block mb-2">Tipo de Operación <span class="text-danger">*</span></label>
+                        <div class="d-flex flex-wrap gap-4 py-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="tipo" id="tipo_entrada" value="entrada" 
+                                    {{ old('tipo', 'entrada') === 'entrada' ? 'checked' : '' }}>
+                                <label class="form-check-label small fw-bold text-success" for="tipo_entrada">
+                                    <i class="bi bi-arrow-down-circle fs-6 me-1"></i> Ingreso de Productos (Entrada)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="tipo" id="tipo_salida" value="salida" 
+                                    {{ old('tipo') === 'salida' ? 'checked' : '' }}>
+                                <label class="form-check-label small fw-bold text-danger" for="tipo_salida">
+                                    <i class="bi bi-arrow-up-circle fs-6 me-1"></i> Envío / Transferencia a Otra Sucursal
+                                </label>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- 🔥 SE AGREGÓ ID container_origen PARA OCULTAR/MOSTRAR CON JS -->
-                    <div class="mb-3" id="container_origen">
-                        <label class="form-label small fw-semibold text-body">Sucursal Origen (De donde sale) <span class="text-danger">*</span></label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-body-tertiary text-secondary">
-                                <i class="bi bi-building"></i>
-                            </span>
-                            <select name="sucursal_origen_id" id="sucursal_origen_id" class="form-select bg-body text-body" required>
-                                <option value="">Seleccione sucursal de origen...</option>
-                                @foreach($sucursales as $sucursal)
-                                    <option value="{{ $sucursal->id }}" 
-                                        {{ (old('sucursal_origen_id') ?? $sucursalActivaId) == $sucursal->id ? 'selected' : '' }}>
-                                        {{ $sucursal->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div id="stock_origen" class="mt-2 text-secondary small fw-medium" style="display: none;">
-                            Stock disponible: <strong id="stock_origen_cantidad" class="text-primary">0</strong> unidades
+                    {{-- SECCIÓN INGRESO (ENTRADA) --}}
+                    <div id="seccion_entrada">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-body">
+                                Sucursal de donde se recibe (Origen) - Envíos Autorizados <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body-tertiary text-secondary">
+                                    <i class="bi bi-building-check"></i>
+                                </span>
+                                <select name="movimiento_autorizado_id" id="movimiento_autorizado_id" class="form-select bg-body text-body">
+                                    <option value="">Seleccione el envío a recibir...</option>
+                                    @forelse($transferenciasAprobadas as $transf)
+                                        <option value="{{ $transf->id }}" 
+                                                data-equipo-id="{{ $transf->equipo_id }}" 
+                                                data-cantidad="{{ $transf->cantidad }}"
+                                                data-motivo="{{ $transf->motivo }}">
+                                            Desde: {{ $transf->sucursalOrigen->nombre }} | Prod: {{ $transf->equipo->nombre }} (Cant: {{ $transf->cantidad }})
+                                        </option>
+                                    @empty
+                                        <option value="" disabled>No hay envíos autorizados pendientes de recibir</option>
+                                    @endforelse
+                                </select>
+                            </div>
+                            @if($transferenciasAprobadas->isEmpty())
+                                <small class="text-warning d-block mt-1" style="font-size: 11px;">
+                                    ⚠️ No hay envíos autorizados pendientes. El gerente de la sucursal de origen debe aprobar la transferencia primero.
+                                </small>
+                            @endif
                         </div>
                     </div>
 
-                    <!-- 🔥 SE AGREGÓ ID container_destino PARA OCULTAR/MOSTRAR CON JS -->
-                    <div class="mb-3" id="container_destino">
-                        <label class="form-label small fw-semibold text-body">Sucursal Destino (Donde entra) <span class="text-danger">*</span></label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-body-tertiary text-secondary">
-                                <i class="bi bi-building"></i>
-                            </span>
-                            <select name="sucursal_destino_id" id="sucursal_destino_id" class="form-select bg-body text-body" required>
-                                <option value="">Seleccione sucursal de destino...</option>
-                                @foreach($sucursales as $sucursal)
-                                    <option value="{{ $sucursal->id }}" {{ old('sucursal_destino_id') == $sucursal->id ? 'selected' : '' }}>
-                                        {{ $sucursal->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
+                    {{-- SECCIÓN ENVÍO (SALIDA) --}}
+                    <div id="seccion_salida">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-body">Producto <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body-tertiary text-secondary">
+                                    <i class="bi bi-box-seam"></i>
+                                </span>
+                                <select name="equipo_id" id="equipo_id" class="form-select bg-body text-body">
+                                    <option value="">Seleccione un producto...</option>
+                                    @foreach($equipos as $equipo)
+                                        <option value="{{ $equipo->id }}" {{ old('equipo_id') == $equipo->id ? 'selected' : '' }}>
+                                            {{ $equipo->codigo }} - {{ $equipo->nombre }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div id="stock_origen" class="mt-2 text-secondary small fw-medium" style="display: none;">
+                                Stock disponible en tu sucursal: <strong id="stock_origen_cantidad" class="text-primary">0</strong> unidades
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-body">Sucursal Destino (A dónde se envía) <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-body-tertiary text-secondary">
+                                    <i class="bi bi-building"></i>
+                                </span>
+                                <select name="sucursal_destino_id" id="sucursal_destino_id" class="form-select bg-body text-body">
+                                    <option value="">Seleccione la sucursal destino...</option>
+                                    @foreach($sucursales as $sucursal)
+                                        <option value="{{ $sucursal->id }}" {{ old('sucursal_destino_id') == $sucursal->id ? 'selected' : '' }}>
+                                            {{ $sucursal->nombre }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
                         </div>
                     </div>
+
                 </div>
 
                 <div class="col-12 col-lg-6">
                     
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Cantidad a Mover <span class="text-danger">*</span></label>
+                        <label class="form-label small fw-semibold text-body" id="label_cantidad">Cantidad Autorizada a Recibir <span class="text-danger">*</span></label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body-tertiary text-secondary">
                                 <i class="bi bi-hash"></i>
@@ -122,317 +162,339 @@
                             <input type="number" name="cantidad" id="cantidad" 
                                    class="form-control bg-body text-body fw-bold text-primary" 
                                    value="{{ old('cantidad', 1) }}" 
-                                   min="1" required>
+                                   min="1" required readonly>
                         </div>
-                        <div id="stock_destino" class="mt-2 text-secondary small fw-medium" style="display: none;">
-                            Stock actual en destino: <strong id="stock_destino_cantidad" class="text-success">0</strong> unidades
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body d-block mb-2">Tipo de Movimiento <span class="text-danger">*</span></label>
-                        <div class="d-flex flex-wrap gap-3 py-1">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="tipo" id="tipo_transferencia" value="transferencia" checked>
-                                <label class="form-check-label small fw-medium text-body" for="tipo_transferencia">
-                                    <i class="bi bi-arrow-left-right text-info me-1"></i> Transferencia
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="tipo" id="tipo_entrada" value="entrada">
-                                <label class="form-check-label small fw-medium text-body" for="tipo_entrada">
-                                    <i class="bi bi-arrow-down-circle text-success me-1"></i> Entrada
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="tipo" id="tipo_salida" value="salida">
-                                <label class="form-check-label small fw-medium text-body" for="tipo_salida">
-                                    <i class="bi bi-arrow-up-circle text-danger me-1"></i> Salida
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="tipo" id="tipo_ajuste" value="ajuste">
-                                <label class="form-check-label small fw-medium text-body" for="tipo_ajuste">
-                                    <i class="bi bi-sliders text-warning me-1"></i> Ajuste
-                                </label>
-                            </div>
-                        </div>
-                        <small class="text-secondary d-block mt-1" style="font-size: 11px;">
-                            <strong>Transferencia:</strong> entre tiendas | <strong>Entrada/Ajuste:</strong> auditoría interna externa.
-                        </small>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-body">Motivo <span class="text-danger">*</span></label>
-                        <input type="text" name="motivo" class="form-control form-control-sm bg-body text-body" 
+                        <input type="text" name="motivo" id="motivo" class="form-control form-control-sm bg-body text-body" 
                                value="{{ old('motivo') }}" 
-                               placeholder="Ej: Reabastecimiento de tienda, Traslado por obra, ajuste físico" required>
+                               placeholder="Ej: Recepción por traspaso de tienda" required>
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label small fw-semibold text-body">Descripción u Observaciones (opcional)</label>
-                        <textarea name="descripcion" class="form-control form-control-sm bg-body text-body" rows="2" 
-                                  placeholder="Detalles adicionales o notas sobre este movimiento técnico..."></textarea>
+                        <label class="form-label small fw-semibold text-body">Observaciones (opcional)</label>
+                        <textarea name="descripcion" class="form-control form-control-sm bg-body text-body" rows="3" 
+                                  placeholder="Detalles adicionales sobre este movimiento..."></textarea>
                     </div>
 
-                    <button type="submit" class="btn btn-primary fw-bold w-100 py-2 shadow-sm rounded-3">
-                        <i class="bi bi-save me-1"></i> Registrar Movimiento
+                    <button type="submit" id="btn_submit" class="btn btn-primary fw-bold w-100 py-2 shadow-sm rounded-3">
+                        <i class="bi bi-box-arrow-in-down me-1"></i> Confirmar Ingreso de Mercancía
                     </button>
+
                 </div>
             </div>
         </form>
     </div>
 </div>
-@endsection
 
-@push('scripts')
+{{-- Datos de Laravel para JavaScript --}}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('formMovimiento');
-    const equipoSelect = document.getElementById('equipo_id');
-    const sucursalOrigen = document.getElementById('sucursal_origen_id');
-    const sucursalDestino = document.getElementById('sucursal_destino_id');
-    const cantidadInput = document.getElementById('cantidad');
-    const stockOrigenDiv = document.getElementById('stock_origen');
-    const stockOrigenCantidad = document.getElementById('stock_origen_cantidad');
-    const stockDestinoDiv = document.getElementById('stock_destino');
-    const stockDestinoCantidad = document.getElementById('stock_destino_cantidad');
-    const productoInfo = document.getElementById('info_producto');
-    const productoNombre = document.getElementById('producto_nombre');
+    window.movimientosData = {
+        sucursalActivaId: "{{ session('activo_sucursal_id') }}",
+        stockRoute: "{{ route('movimientos.stock') }}"
+    };
+</script>
+
+{{-- Script principal --}}
+<script>
+(function() {
+    var movimientosData = window.movimientosData;
     
-    const containerOrigen = document.getElementById('container_origen');
-    const containerDestino = document.getElementById('container_destino');
-
-    if (!document.getElementById('stock_total_info')) {
-        const stockTotalInfo = document.createElement('div');
-        stockTotalInfo.id = 'stock_total_info';
-        stockTotalInfo.className = 'mt-2 text-secondary small';
-        stockTotalInfo.style.display = 'none';
-        stockTotalInfo.innerHTML = 'Stock total del producto: <strong id="stock_total_cantidad">0</strong> unidades';
-        cantidadInput.parentNode.after(stockTotalInfo);
-    }
-
-    const stockTotalDiv = document.getElementById('stock_total_info');
-    const stockTotalCantidad = document.getElementById('stock_total_cantidad');
-
-    // 🔥 NUEVA FUNCIÓN: Exclusión mutua de sucursales
-    function regularSucursalesDisponibles() {
-        const origenSeleccionado = sucursalOrigen.value;
-        const destinoSeleccionado = sucursalDestino.value;
-        const tipoSelected = document.querySelector('input[name="tipo"]:checked').value;
-
-        // Solo procesamos la exclusión si es una transferencia
-        if (tipoSelected === 'transferencia') {
-            
-            // 1. Limpiar sucursal seleccionada en Origen dentro del selector de Destino
-            Array.from(sucursalDestino.options).forEach(option => {
-                if (option.value !== "" && option.value === origenSeleccionado) {
-                    option.style.display = 'none'; // Ocultar en navegadores modernos
-                    option.disabled = true;        // Respaldo de seguridad
-                    if (destinoSeleccionado === origenSeleccionado) {
-                        sucursalDestino.value = ""; // Reset si coincide
-                    }
-                } else {
-                    option.style.display = 'block';
-                    option.disabled = false;
-                }
-            });
-
-            // 2. Limpiar sucursal seleccionada en Destino dentro del selector de Origen
-            Array.from(sucursalOrigen.options).forEach(option => {
-                if (option.value !== "" && option.value === destinoSeleccionado) {
-                    option.style.display = 'none';
-                    option.disabled = true;
-                } else {
-                    option.style.display = 'block';
-                    option.disabled = false;
-                }
-            });
-        }
-    }
-
-    function toggleSucursalesVisibility() {
-        const tipoSelected = document.querySelector('input[name="tipo"]:checked').value;
-
-        if (tipoSelected === 'transferencia') {
-            containerOrigen.style.display = 'block';
-            sucursalOrigen.setAttribute('required', 'required');
-            containerDestino.style.display = 'block';
-            sucursalDestino.setAttribute('required', 'required');
-            
-            // Al cambiar a transferencia, regulamos las opciones
-            regularSucursalesDisponibles();
-            
-        } else if (tipoSelected === 'entrada' || tipoSelected === 'ajuste') {
-            containerOrigen.style.display = 'none';
-            sucursalOrigen.removeAttribute('required');
-            sucursalOrigen.value = '';
-            
-            containerDestino.style.display = 'block';
-            sucursalDestino.setAttribute('required', 'required');
-            
-            // Habilitar todo en destino ya que no hay origen con el cual chocar
-            Array.from(sucursalDestino.options).forEach(o => { o.style.display = 'block'; o.disabled = false; });
-            
-        } else if (tipoSelected === 'salida') {
-            containerOrigen.style.display = 'block';
-            sucursalOrigen.setAttribute('required', 'required');
-            containerDestino.style.display = 'none';
-            sucursalDestino.removeAttribute('required');
-            sucursalDestino.value = '';
-            
-            // Habilitar todo en origen ya que no hay destino con el cual chocar
-            Array.from(sucursalOrigen.options).forEach(o => { o.style.display = 'block'; o.disabled = false; });
-        }
+    function mostrarSeccion(tipo) {
+        var seccionEntrada = document.getElementById('seccion_entrada');
+        var seccionSalida = document.getElementById('seccion_salida');
+        var movimientoSelect = document.getElementById('movimiento_autorizado_id');
+        var equipoSelect = document.getElementById('equipo_id');
+        var sucursalSelect = document.getElementById('sucursal_destino_id');
+        var cantidadInput = document.getElementById('cantidad');
+        var stockDiv = document.getElementById('stock_origen');
+        var labelCantidad = document.getElementById('label_cantidad');
+        var btnSubmit = document.getElementById('btn_submit');
+        var bannerTexto = document.getElementById('banner_texto');
+        var motivoInput = document.getElementById('motivo');
         
-        actualizarStockOrigen();
-        actualizarStockDestino();
+        if (!seccionEntrada || !seccionSalida) return;
+        
+        if (tipo === 'entrada') {
+            seccionSalida.style.setProperty('display', 'none', 'important');
+            seccionSalida.classList.add('d-none');
+            seccionSalida.setAttribute('hidden', '');
+            
+            seccionEntrada.style.setProperty('display', 'block', 'important');
+            seccionEntrada.classList.remove('d-none');
+            seccionEntrada.removeAttribute('hidden');
+            
+            if (movimientoSelect) {
+                movimientoSelect.setAttribute('required', 'required');
+                movimientoSelect.disabled = false;
+            }
+            if (equipoSelect) {
+                equipoSelect.removeAttribute('required');
+                equipoSelect.disabled = true;
+                equipoSelect.value = '';
+            }
+            if (sucursalSelect) {
+                sucursalSelect.removeAttribute('required');
+                sucursalSelect.disabled = true;
+                sucursalSelect.value = '';
+            }
+            if (cantidadInput) {
+                cantidadInput.setAttribute('readonly', 'readonly');
+                cantidadInput.classList.remove('is-invalid', 'is-valid');
+                var errorAnterior = document.querySelector('#cantidad-error');
+                if (errorAnterior) errorAnterior.remove();
+            }
+            if (stockDiv) {
+                stockDiv.style.display = 'none';
+            }
+            if (labelCantidad) {
+                labelCantidad.innerHTML = 'Cantidad Autorizada a Recibir <span class="text-danger">*</span>';
+            }
+            if (btnSubmit) {
+                btnSubmit.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i> Confirmar Ingreso de Mercancía';
+            }
+            if (motivoInput) {
+                motivoInput.placeholder = 'Ej: Recepción por traspaso de tienda';
+            }
+            if (bannerTexto) {
+                bannerTexto.innerHTML = '<strong>Modo Ingreso:</strong> Seleccione el envío <strong>autorizado por el gerente</strong> de la sucursal de origen. Solo aparecen envíos que ya fueron aprobados y están listos para recibir.';
+            }
+        } else {
+            seccionEntrada.style.setProperty('display', 'none', 'important');
+            seccionEntrada.classList.add('d-none');
+            seccionEntrada.setAttribute('hidden', '');
+            
+            seccionSalida.style.setProperty('display', 'block', 'important');
+            seccionSalida.classList.remove('d-none');
+            seccionSalida.removeAttribute('hidden');
+            
+            if (movimientoSelect) {
+                movimientoSelect.removeAttribute('required');
+                movimientoSelect.disabled = true;
+                movimientoSelect.value = '';
+            }
+            if (equipoSelect) {
+                equipoSelect.setAttribute('required', 'required');
+                equipoSelect.disabled = false;
+            }
+            if (sucursalSelect) {
+                sucursalSelect.setAttribute('required', 'required');
+                sucursalSelect.disabled = false;
+            }
+            if (cantidadInput) {
+                cantidadInput.removeAttribute('readonly');
+                cantidadInput.value = 1;
+                cantidadInput.classList.remove('is-invalid', 'is-valid');
+                var errorAnterior = document.querySelector('#cantidad-error');
+                if (errorAnterior) errorAnterior.remove();
+            }
+            if (labelCantidad) {
+                labelCantidad.innerHTML = 'Cantidad a Enviar <span class="text-danger">*</span>';
+            }
+            if (btnSubmit) {
+                btnSubmit.innerHTML = '<i class="bi bi-send me-1"></i> Solicitar Envío / Transferencia';
+            }
+            if (motivoInput) {
+                motivoInput.placeholder = 'Ej: Reabastecimiento de tienda, Traslado por pedido';
+            }
+            if (bannerTexto) {
+                bannerTexto.innerHTML = '<strong>Modo Envío:</strong> Selecciona el producto, la cantidad y la <strong>Sucursal Destino</strong>. La solicitud quedará <strong>pendiente</strong> hasta que el gerente de tu sucursal la autorice. El stock se descontará al momento de la autorización.';
+            }
+            
+            actualizarStock();
+        }
     }
-
-    function consultarStock(equipoId, sucursalId, callback) {
-        if (!equipoId || !sucursalId) {
+    
+    function consultarStock(equipoId, callback) {
+        if (!equipoId) {
             callback(null);
             return;
         }
-        fetch(`{{ route('movimientos.stock') }}?equipo_id=${equipoId}&sucursal_id=${sucursalId}`)
-            .then(response => response.json())
-            .then(data => {
+        
+        var url = movimientosData.stockRoute + '?equipo_id=' + equipoId + '&sucursal_id=' + movimientosData.sucursalActivaId;
+        
+        fetch(url)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
                 if (data.success) {
                     callback(data);
                 } else {
                     callback(null);
                 }
             })
-            .catch(() => callback(null));
+            .catch(function() {
+                callback(null);
+            });
     }
-
-    function actualizarStockOrigen() {
-        const equipoId = equipoSelect.value;
-        const sucursalId = sucursalOrigen.value;
-        const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
+    
+    function actualizarStock() {
+        var tipoSeleccionado = document.querySelector('input[name="tipo"]:checked');
+        var stockDiv = document.getElementById('stock_origen');
+        var stockCantidad = document.getElementById('stock_origen_cantidad');
+        var equipoSelect = document.getElementById('equipo_id');
+        var cantidadInput = document.getElementById('cantidad');
         
-        if (!equipoId || !sucursalId || tipoSelected === 'entrada' || tipoSelected === 'ajuste') {
-            stockOrigenDiv.style.display = 'none';
-            stockTotalDiv.style.display = 'none';
+        if (!tipoSeleccionado || tipoSeleccionado.value !== 'salida') {
+            if (stockDiv) stockDiv.style.display = 'none';
             return;
         }
-
-        consultarStock(equipoId, sucursalId, function(data) {
-            if (data !== null) {
-                stockOrigenCantidad.textContent = data.stock;
-                stockOrigenDiv.style.display = 'block';
+        
+        if (!equipoSelect || !equipoSelect.value) {
+            if (stockDiv) stockDiv.style.display = 'none';
+            if (cantidadInput) {
+                cantidadInput.classList.remove('is-invalid', 'is-valid');
+                var errorAnterior = document.querySelector('#cantidad-error');
+                if (errorAnterior) errorAnterior.remove();
+            }
+            return;
+        }
+        
+        consultarStock(equipoSelect.value, function(data) {
+            if (data !== null && stockCantidad && stockDiv) {
+                var stockDisponible = parseInt(data.stock) || 0;
+                stockCantidad.textContent = stockDisponible;
+                stockDiv.style.display = 'block';
                 
-                stockTotalCantidad.textContent = data.stock_total || data.stock;
-                stockTotalDiv.style.display = 'block';
+                var cantidadSolicitada = parseInt(cantidadInput.value) || 0;
                 
-                const cantidad = parseInt(cantidadInput.value) || 0;
-
-                if (cantidad > data.stock && (tipoSelected === 'transferencia' || tipoSelected === 'salida')) {
-                    cantidadInput.classList.add('is-invalid');
-                    document.querySelector('#cantidad-error')?.remove();
-                    const error = document.createElement('div');
-                    error.id = 'cantidad-error';
-                    error.className = 'invalid-feedback d-block';
-                    error.textContent = `⚠️ No hay suficiente stock. Disponible: ${data.stock} ${data.unidad || 'unidades'}`;
-                    cantidadInput.parentNode.after(error);
-                } else if (cantidad > 0) {
-                    cantidadInput.classList.remove('is-invalid');
-                    cantidadInput.classList.add('is-valid');
-                    document.querySelector('#cantidad-error')?.remove();
+                cantidadInput.classList.remove('is-invalid', 'is-valid');
+                var errorAnterior = document.querySelector('#cantidad-error');
+                if (errorAnterior) errorAnterior.remove();
+                
+                if (cantidadSolicitada > 0) {
+                    if (cantidadSolicitada > stockDisponible) {
+                        cantidadInput.classList.add('is-invalid');
+                        var error = document.createElement('div');
+                        error.id = 'cantidad-error';
+                        error.className = 'invalid-feedback d-block';
+                        error.textContent = '⚠️ No hay suficiente stock disponible. Disponible: ' + stockDisponible + ' unidades';
+                        cantidadInput.parentNode.after(error);
+                    } else {
+                        cantidadInput.classList.add('is-valid');
+                    }
                 }
             } else {
-                stockOrigenDiv.style.display = 'none';
-                stockTotalDiv.style.display = 'none';
+                if (stockDiv) stockDiv.style.display = 'none';
             }
         });
     }
-
-    function actualizarStockDestino() {
-        const equipoId = equipoSelect.value;
-        const sucursalId = sucursalDestino.value;
-        const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
+    
+    function initForm() {
+        var radioEntrada = document.getElementById('tipo_entrada');
+        var radioSalida = document.getElementById('tipo_salida');
+        var movimientoSelect = document.getElementById('movimiento_autorizado_id');
+        var equipoSelect = document.getElementById('equipo_id');
+        var cantidadInput = document.getElementById('cantidad');
+        var motivoInput = document.getElementById('motivo');
+        var formMovimiento = document.getElementById('formMovimiento');
+        var stockCantidad = document.getElementById('stock_origen_cantidad');
+        var sucursalSelect = document.getElementById('sucursal_destino_id');
         
-        if (!equipoId || !sucursalId || tipoSelected === 'salida') {
-            stockDestinoDiv.style.display = 'none';
-            return;
-        }
-
-        consultarStock(equipoId, sucursalId, function(data) {
-            if (data !== null) {
-                stockDestinoDiv.style.display = 'block';
-                const cantidad = parseInt(cantidadInput.value) || 0;
-                const stockActual = data.stock;
-                const stockFuturo = stockActual + cantidad;
-                stockDestinoCantidad.textContent = `${stockActual} → ${stockFuturo} (después del movimiento)`;
-            } else {
-                stockDestinoDiv.style.display = 'none';
-            }
-        });
-    }
-
-    equipoSelect.addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        if (selected.value) {
-            productoNombre.textContent = selected.getAttribute('data-nombre') || selected.textContent;
-            productoInfo.style.display = 'block';
-        } else {
-            productoInfo.style.display = 'none';
-        }
-        actualizarStockOrigen();
-        actualizarStockDestino();
-    });
-
-    // 🔥 ESCUCHADORES MODIFICADOS: Ejecutan la regulación dinámica
-    sucursalOrigen.addEventListener('change', function() {
-        regularSucursalesDisponibles();
-        actualizarStockOrigen();
-    });
-    
-    sucursalDestino.addEventListener('change', function() {
-        regularSucursalesDisponibles();
-        actualizarStockDestino();
-    });
-    
-    cantidadInput.addEventListener('input', function() {
-        actualizarStockOrigen();
-        actualizarStockDestino();
-    });
-    
-    document.querySelectorAll('input[name="tipo"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            toggleSucursalesVisibility();
-        });
-    });
-
-    form.addEventListener('submit', function(e) {
-        const tipoSelected = document.querySelector('input[name="tipo"]:checked')?.value;
-        const cantidad = parseInt(cantidadInput.value) || 0;
-        const stock = parseInt(stockOrigenCantidad.textContent) || 0;
-        const origen = sucursalOrigen.value;
-        const destino = sucursalDestino.value;
+        if (!radioEntrada || !radioSalida) return;
         
-        if (tipoSelected === 'transferencia' && origen === destino) {
-            e.preventDefault();
-            alert('⚠️ La sucursal de origen y destino no pueden ser iguales.');
-            return;
+        radioEntrada.onclick = function() { mostrarSeccion('entrada'); };
+        radioSalida.onclick = function() { mostrarSeccion('salida'); };
+        
+        if (movimientoSelect) {
+            movimientoSelect.onchange = function() {
+                var selectedOption = this.options[this.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    var cantidad = selectedOption.getAttribute('data-cantidad');
+                    var motivo = selectedOption.getAttribute('data-motivo');
+                    if (cantidadInput) cantidadInput.value = cantidad || 1;
+                    if (motivoInput) motivoInput.value = 'Recepción: ' + (motivo || 'Reabastecimiento de sucursal');
+                } else {
+                    if (cantidadInput) cantidadInput.value = 1;
+                    if (motivoInput) motivoInput.value = '';
+                }
+            };
         }
-
-        if ((tipoSelected === 'transferencia' || tipoSelected === 'salida') && cantidad > stock) {
-            e.preventDefault();
-            alert('⚠️ La cantidad excede el stock disponible en la sucursal origen.');
+        
+        if (equipoSelect) {
+            equipoSelect.onchange = function() {
+                if (cantidadInput) {
+                    cantidadInput.value = 1;
+                    cantidadInput.classList.remove('is-invalid', 'is-valid');
+                    var errorAnterior = document.querySelector('#cantidad-error');
+                    if (errorAnterior) errorAnterior.remove();
+                }
+                actualizarStock();
+            };
         }
-    });
-
-    // Estado inicial
-    toggleSucursalesVisibility();
-
-    if (equipoSelect.value) {
-        const selectedOption = equipoSelect.options[equipoSelect.selectedIndex];
-        productoNombre.textContent = selectedOption.getAttribute('data-nombre') || selectedOption.textContent;
-        productoInfo.style.display = 'block';
-        actualizarStockOrigen();
-        actualizarStockDestino();
+        
+        if (cantidadInput) {
+            cantidadInput.oninput = function() {
+                actualizarStock();
+            };
+        }
+        
+        if (formMovimiento) {
+            formMovimiento.onsubmit = function(e) {
+                var tipoSeleccionado = document.querySelector('input[name="tipo"]:checked');
+                
+                if (!tipoSeleccionado) {
+                    e.preventDefault();
+                    alert('⚠️ Seleccione un tipo de operación.');
+                    return false;
+                }
+                
+                var tipo = tipoSeleccionado.value;
+                
+                if (tipo === 'entrada') {
+                    if (!movimientoSelect || !movimientoSelect.value) {
+                        e.preventDefault();
+                        alert('⚠️ Debe seleccionar un envío autorizado para confirmar el ingreso.');
+                        return false;
+                    }
+                }
+                
+                if (tipo === 'salida') {
+                    if (!equipoSelect || !equipoSelect.value) {
+                        e.preventDefault();
+                        alert('⚠️ Debe seleccionar un producto para el envío.');
+                        return false;
+                    }
+                    
+                    if (!sucursalSelect || !sucursalSelect.value) {
+                        e.preventDefault();
+                        alert('⚠️ Debe seleccionar una sucursal destino.');
+                        return false;
+                    }
+                    
+                    if (stockCantidad && stockCantidad.textContent) {
+                        var cantidad = parseInt(cantidadInput.value) || 0;
+                        var stock = parseInt(stockCantidad.textContent) || 0;
+                        
+                        if (cantidad <= 0) {
+                            e.preventDefault();
+                            alert('⚠️ La cantidad debe ser mayor a 0.');
+                            return false;
+                        }
+                        
+                        if (cantidad > stock) {
+                            e.preventDefault();
+                            alert('⚠️ La cantidad a enviar (' + cantidad + ') excede el stock disponible (' + stock + ') en tu sucursal.');
+                            return false;
+                        }
+                    }
+                }
+            };
+        }
+        
+        if (radioEntrada.checked) {
+            mostrarSeccion('entrada');
+        } else if (radioSalida.checked) {
+            mostrarSeccion('salida');
+        }
     }
-});
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initForm);
+    } else {
+        initForm();
+    }
+})();
 </script>
-@endpush
+@endsection

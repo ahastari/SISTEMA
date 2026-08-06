@@ -41,17 +41,14 @@ class EnsureUserHasPermission
     private function hasPermission($user, $permission): bool
     {
         return match ($permission) {
-            // El gerente SÍ puede gestionar su sucursal.
             'gestionar_sucursal' => $user->isGerente(),
+            'ver_configuracion' => $user->isGerente(),
+            'ver_autorizaciones' => $user->isGerente(),
             
-            // Permisos exclusivos de administrador
             'admin' => false,
             'gestionar_usuarios' => false,
             'gestionar_empresa' => false,
             'crear_sucursal' => false,
-            
-            // El gerente SÍ puede ver la configuración.
-            'ver_configuracion' => $user->isGerente(),
             
             // Por defecto, denegar cualquier otro permiso.
             default => false,

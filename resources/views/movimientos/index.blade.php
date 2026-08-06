@@ -4,7 +4,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-2">
     <div>
         <h3 class="mb-0 fw-bold text-body">Historial de Movimientos</h3>
-        <p class="text-secondary small mb-0">Registro y auditoría de transferencias, entradas, salidas y ajustes de stock</p>
+        <p class="text-secondary small mb-0">Registro, autorización y trazabilidad de transferencias entre sucursales y ajustes</p>
     </div>
     <div class="d-flex gap-2 w-100 w-md-auto justify-content-start justify-content-md-end">
         <a href="{{ route('movimientos.create') }}" class="btn btn-primary btn-sm rounded-3 shadow-sm fw-semibold">
@@ -27,6 +27,7 @@
     </div>
 @endif
 
+<!-- Panel de Filtros -->
 <div class="card border-0 shadow-sm mb-3 rounded-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
     <div class="card-body p-3">
         <form method="GET" action="{{ route('movimientos.index') }}" class="row g-2">
@@ -34,9 +35,9 @@
                 <label class="form-label small fw-semibold text-secondary mb-1">Tipo</label>
                 <select name="tipo" class="form-select form-select-sm bg-body text-body">
                     <option value="">Todos</option>
+                    <option value="transferencia" {{ request('tipo') == 'transferencia' ? 'selected' : '' }}>Transferencia</option>
                     <option value="entrada" {{ request('tipo') == 'entrada' ? 'selected' : '' }}>Entrada</option>
                     <option value="salida" {{ request('tipo') == 'salida' ? 'selected' : '' }}>Salida</option>
-                    <option value="transferencia" {{ request('tipo') == 'transferencia' ? 'selected' : '' }}>Transferencia</option>
                     <option value="ajuste" {{ request('tipo') == 'ajuste' ? 'selected' : '' }}>Ajuste</option>
                 </select>
             </div>
@@ -45,8 +46,10 @@
                 <label class="form-label small fw-semibold text-secondary mb-1">Estado</label>
                 <select name="estado" class="form-select form-select-sm bg-body text-body">
                     <option value="">Todos</option>
-                    <option value="completado" {{ request('estado') == 'completado' ? 'selected' : '' }}>Completado</option>
                     <option value="pendiente" {{ request('estado') == 'pendiente' ? 'selected' : '' }}>Pendiente</option>
+                    <option value="aprobado" {{ request('estado') == 'aprobado' ? 'selected' : '' }}>Aprobado (En Tránsito)</option>
+                    <option value="completado" {{ request('estado') == 'completado' ? 'selected' : '' }}>Completado</option>
+                    <option value="rechazado" {{ request('estado') == 'rechazado' ? 'selected' : '' }}>Rechazado</option>
                     <option value="cancelado" {{ request('estado') == 'cancelado' ? 'selected' : '' }}>Cancelado</option>
                 </select>
             </div>
@@ -85,13 +88,13 @@
     </div>
 </div>
 
+<!-- Tabla de Registros -->
 <div class="card border-0 shadow-sm rounded-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" style="font-size: 13px;">
                 <thead class="bg-body-tertiary text-body border-bottom">
                     <tr>
-                        <th class="py-2 px-3">ID</th>
                         <th class="py-2">Fecha</th>
                         <th class="py-2">Producto</th>
                         <th class="py-2">Origen</th>
@@ -99,16 +102,13 @@
                         <th class="py-2">Cantidad</th>
                         <th class="py-2">Tipo</th>
                         <th class="py-2">Estado</th>
-                        <th class="py-2">Usuario</th>
+                        <th class="py-2">Solicitó</th>
                         <th class="text-center py-2 px-3">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($movimientos as $movimiento)
-                    <tr>
-                        <td class="px-3">
-                            <span class="badge bg-secondary font-monospace">#{{ $movimiento->id }}</span>
-                        </td>
+                    <tr onclick="window.location='{{ route('movimientos.show', $movimiento) }}'" style="cursor: pointer;" title="Haz clic para ver los detalles completos">
                         <td>
                             <small class="text-secondary d-block">
                                 {{ $movimiento->fecha_movimiento->format('d/m/Y') }}
@@ -118,7 +118,7 @@
                             </small>
                         </td>
                         <td>
-                            <span class="fw-semibold text-body d-block text-truncate" style="max-width: 220px;">{{ $movimiento->equipo->nombre }}</span>
+                            <span class="fw-semibold text-body d-block text-truncate" style="max-width: 200px;">{{ $movimiento->equipo->nombre }}</span>
                             <span class="badge bg-light text-dark border font-monospace" style="font-size: 10px;">{{ $movimiento->equipo->codigo }}</span>
                         </td>
                         <td>
@@ -164,33 +164,72 @@
                                 <span class="badge bg-warning-subtle text-warning border border-warning px-2 rounded-pill">
                                     <i class="bi bi-clock me-1"></i> Pendiente
                                 </span>
-                            @else
+                            @elseif($movimiento->estado == 'aprobado')
+                                <span class="badge bg-info-subtle text-info border border-info px-2 rounded-pill">
+                                    <i class="bi bi-truck me-1"></i> En Tránsito
+                                </span>
+                            @elseif($movimiento->estado == 'rechazado')
                                 <span class="badge bg-danger-subtle text-danger border border-danger px-2 rounded-pill">
-                                    <i class="bi bi-x-circle me-1"></i> Cancelado
+                                    <i class="bi bi-x-circle me-1"></i> Rechazado
+                                </span>
+                            @else
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary px-2 rounded-pill">
+                                    <i class="bi bi-slash-circle me-1"></i> Cancelado
                                 </span>
                             @endif
                         </td>
                         <td>
                             <span class="text-secondary small">{{ $movimiento->usuario->name ?? 'N/A' }}</span>
                         </td>
-                        <td class="text-center px-3">
-                            <div class="d-flex justify-content-center gap-1">
+
+                        <td class="text-center px-3" onclick="event.stopPropagation();" title="Acciones rápidas">
+                            <div class="d-flex justify-content-center align-items-center gap-1">
+                                <!-- Ver Detalle (Visible para Todos) -->
                                 <a href="{{ route('movimientos.show', $movimiento) }}" 
-                                   class="btn btn-sm btn-outline-primary border-0 p-1" 
-                                   title="Ver Detalles">
+                                class="btn btn-sm btn-outline-primary border-0 p-1" 
+                                title="Ver Detalles">
                                     <i class="bi bi-eye fs-6"></i>
                                 </a>
-                                
-                                @if($movimiento->estado == 'completado')
-                                    <form action="{{ route('movimientos.procesarCancelacion', $movimiento) }}" method="POST" class="d-inline m-0">
-                                        @csrf
-                                        <button type="submit" 
-                                                class="btn btn-sm btn-outline-danger border-0 p-1" 
-                                                title="Cancelar Movimiento"
-                                                onclick="return confirm('¿Estás seguro de cancelar este movimiento? Se revertirá el stock.')">
-                                            <i class="bi bi-x-lg fs-6"></i>
-                                        </button>
-                                    </form>
+
+                                <!-- Acciones SOLO para Gerentes y Administradores -->
+                                @if(!auth()->user()->isCajero())
+                                    
+                                    <!-- Aprobar / Rechazar Pendientes -->
+                                    @if($movimiento->estado == 'pendiente' && (session('activo_sucursal_id') == 'global' || session('activo_sucursal_id') == $movimiento->sucursal_origen_id))
+                                        <form action="{{ route('movimientos.aprobar', $movimiento) }}" method="POST" class="d-inline m-0">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-success border-0 p-1" title="Aprobar Transferencia" onclick="return confirm('¿Aprobar esta solicitud de transferencia?')">
+                                                <i class="bi bi-check-lg fs-6"></i>
+                                            </button>
+                                        </form>
+                                        <form action="{{ route('movimientos.rechazar', $movimiento) }}" method="POST" class="d-inline m-0">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Rechazar Transferencia" onclick="return confirm('¿Rechazar solicitud?')">
+                                                <i class="bi bi-x-lg fs-6"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+
+                                    <!-- Confirmar Recepción -->
+                                    @if($movimiento->estado == 'aprobado')
+                                        <form action="{{ route('movimientos.confirmarRecepcion', $movimiento) }}" method="POST" class="d-inline m-0">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-success rounded-pill px-2 py-0" style="font-size: 11px;" onclick="return confirm('¿Confirmar recepción de material?')">
+                                                <i class="bi bi-box-arrow-in-down me-1"></i> Recibir
+                                            </button>
+                                        </form>
+                                    @endif
+
+                                    <!-- Cancelación -->
+                                    @if(in_array($movimiento->estado, ['completado', 'pendiente', 'aprobado']))
+                                        <form action="{{ route('movimientos.procesarCancelacion', $movimiento) }}" method="POST" class="d-inline m-0">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary border-0 p-1" title="Cancelar Movimiento" onclick="return confirm('¿Cancelar movimiento?')">
+                                                <i class="bi bi-trash fs-6"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+
                                 @endif
                             </div>
                         </td>

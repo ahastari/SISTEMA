@@ -36,22 +36,22 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return strtolower($this->role) === 'admin';
     }
 
     public function isGerente(): bool
     {
-        return $this->role === 'gerente';
+        return strtolower($this->role) === 'gerente';
     }
 
     public function isCajero(): bool
     {
-        return $this->role === 'cajero';
+        return strtolower($this->role) === 'cajero';
     }
 
     /**
      * Verifica si el usuario está activo.
-     */
+     */ 
     public function isActivo(): bool
     {
         return $this->status === 'activo';

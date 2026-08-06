@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Sucursal;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use App\Models\PlantillaDocumento;
 use App\Models\Configuracion;
@@ -17,20 +16,14 @@ class ConfiguracionController extends Controller
     {
         $user = auth()->user();
         
-        // 🔒 FILTRADO POR SUCURSAL SEGÚN ROL
         if ($user->isAdmin()) {
-            // Admin ve todas las sucursales y usuarios
             $sucursales = Sucursal::all();
             $usuarios = User::with('sucursal')->get();
         } elseif ($user->isGerente()) {
-            // Gerente SOLO ve su sucursal asignada
             $sucursales = Sucursal::where('id', $user->sucursal_id)->get();
-            // Por seguridad, los gerentes NO ven la lista de usuarios
             $usuarios = collect();
         } else {
-            // Cajero: sin acceso a configuración (redirigir o mostrar vacío)
-            $sucursales = collect();
-            $usuarios = collect();
+            abort(403, 'Acceso denegado');
         }
         
         $plantillas = PlantillaDocumento::all();
@@ -51,25 +44,22 @@ class ConfiguracionController extends Controller
         return redirect()->back()->with(['success' => 'Estructura del documento actualizada con éxito.', 'tab' => 'plantillas']);
     }
 
-    /**
-     * ACTUALIZAR DATOS DE LA EMPRESA (SOLO ADMIN)
-     */
     public function updateEmpresa(Request $request)
     {
-        // Verificación explícita de rol
         if (!auth()->user()->isAdmin()) {
             abort(403, 'No tienes permiso para modificar los datos de la empresa.');
         }
 
         $request->validate([
             'empresa_nombre' => 'required|string|max:255',
+            'empresa_dueno' => 'nullable|string|max:255',
             'empresa_direccion' => 'nullable|string|max:500',
-            'empresa_rfc' => 'nullable|string|max:20',
-            'empresa_telefono' => 'nullable|string|max:20',
+            'empresa_rfc' => ['nullable', 'string', 'regex:/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/i'],
+            'empresa_telefono' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'],
             'empresa_logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
-        $campos = $request->only(['empresa_nombre', 'empresa_direccion', 'empresa_rfc', 'empresa_telefono']);
+        $campos = $request->only(['empresa_nombre', 'empresa_dueno', 'empresa_direccion', 'empresa_rfc', 'empresa_telefono']);
         
         foreach ($campos as $key => $value) {
             Configuracion::set($key, $value);
@@ -88,33 +78,5 @@ class ConfiguracionController extends Controller
         }
 
         return redirect()->back()->with(['success' => 'Información corporativa actualizada correctamente.', 'tab' => 'empresa']);
-    }
-
-    /**
-     * CREAR SUCURSAL (SOLO ADMIN)
-     */
-    public function storeSucursal(Request $request)
-    {
-        if (!auth()->user()->isAdmin()) {
-            abort(403, 'No tienes permiso para crear sucursales.');
-        }
-
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'direccion' => 'required|string|max:500',
-            'rfc' => 'nullable|string|max:20',
-            'telefono' => 'nullable|string|max:20',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
-        ]);
-
-        $sucursal = new Sucursal($request->except('logo'));
-
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('sucursales', 'public');
-            $sucursal->logo = $path;
-        }
-        $sucursal->save();
-
-        return redirect()->back()->with(['success' => 'Nueva sucursal dada de alta correctamente.', 'tab' => 'sucursales']);
     }
 }

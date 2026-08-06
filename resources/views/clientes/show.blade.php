@@ -2,252 +2,224 @@
 
 @section('content')
 <style>
-    .info-card {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        border-left: 4px solid #0d6efd;
-    }
-    .info-card h6 {
-        color: #0d6efd;
-        font-weight: bold;
-        margin-bottom: 15px;
-    }
-    .info-card .label {
-        color: #6c757d;
-        font-size: 12px;
-        text-transform: uppercase;
-        font-weight: bold;
-    }
-    .info-card .value {
-        font-weight: 500;
-        font-size: 15px;
-    }
-    .badge-renta-activa {
-        background: #d4edda;
-        color: #155724;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: bold;
-    }
-    .badge-renta-finalizada {
-        background: #cfe2ff;
-        color: #084298;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: bold;
+    .page-title {
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: var(--bs-heading-color);
     }
     .stats-card {
-        background: white;
-        border-radius: 12px;
-        padding: 15px 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        text-align: center;
-        border: 1px solid #e9ecef;
+        background: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-radius: 16px;
+        padding: 16px 20px;
+        transition: transform 0.2s ease;
+    }
+    .stats-card:hover {
+        transform: translateY(-2px);
     }
     .stats-card h3 {
-        font-size: 28px;
-        font-weight: bold;
-        margin-bottom: 2px;
+        font-size: 24px;
+        font-weight: 800;
+        margin-bottom: 0;
     }
     .stats-card p {
-        color: #6c757d;
-        font-size: 13px;
-        margin-bottom: 0;
+        color: var(--bs-secondary-color);
+        font-size: 11px;
+        text-transform: uppercase;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+    .info-card {
+        background: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color) !important;
+        border-radius: 16px;
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>
-        <i class="bi bi-person-circle me-2"></i>Detalle del Cliente
-    </h2>
+<!-- Header de la sección -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-        <a href="{{ route('clientes.index') }}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Regresar
+        <h2 class="page-title mb-1">
+            <i class="bi bi-person-circle text-primary me-2"></i>Detalle del Cliente
+        </h2>
+        <p class="text-body-secondary small mb-0">Información de contacto, expediente digital y resumen de obras y rentas.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ route('clientes.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
+            <i class="bi bi-arrow-left me-1"></i> Regresar
         </a>
-        <a href="{{ route('clientes.edit', $cliente) }}" class="btn btn-warning">
-            <i class="bi bi-pencil"></i> Editar
+        <a href="{{ route('clientes.edit', $cliente) }}" class="btn btn-warning btn-sm rounded-3 px-3 text-dark fw-semibold">
+            <i class="bi bi-pencil me-1"></i> Editar
         </a>
-        <!-- <a href="{{ route('rentas.create') }}?cliente={{ $cliente->id }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Nueva Renta
-        </a> -->
     </div>
 </div>
 
-<!-- Tarjetas de estadísticas -->
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="stats-card">
-            <h3 class="text-primary">{{ $cliente->rentas->count() }}</h3>
+<!-- Tarjetas de Estadísticas Rápidas -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stats-card" style="border-left: 4px solid #0d6efd;">
             <p>Total de Rentas</p>
+            <h3 class="text-primary">{{ $cliente->rentas->count() }}</h3>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="stats-card">
-            <h3 class="text-success">{{ $rentasActivas->count() }}</h3>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stats-card" style="border-left: 4px solid #198754;">
             <p>Rentas Activas</p>
+            <h3 class="text-success">{{ $rentasActivas->count() }}</h3>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="stats-card">
-            <h3 class="text-info">{{ $rentasFinalizadas->count() }}</h3>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stats-card" style="border-left: 4px solid #0dcaf0;">
             <p>Rentas Finalizadas</p>
+            <h3 class="text-info">{{ $rentasFinalizadas->count() }}</h3>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="stats-card">
-            <h3 class="text-warning">{{ $cliente->obras->count() }}</h3>
-            <p>Obras/Proyectos</p>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stats-card" style="border-left: 4px solid #ffc107;">
+            <p>Obras / Proyectos</p>
+            <h3 class="text-warning-emphasis">{{ $cliente->obras->count() }}</h3>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <!-- Datos del Cliente -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-person"></i> Datos del Cliente</h5>
+<div class="row g-3 mb-4">
+    <!-- DATOS DEL CLIENTE -->
+    <div class="col-12 col-lg-6">
+        <div class="card info-card shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom py-2 px-3 fw-bold text-body">
+                <i class="bi bi-person me-2 text-primary"></i>Datos Personales e Identificación
             </div>
-            <div class="card-body">
-                <table class="table table-borderless">
-                    <tr>
-                        <th width="120">Nombre:</th>
-                        <td><strong>{{ $cliente->nombre_completo }}</strong></td>
-                    </tr>
-                    <tr>
-                        <th>Teléfono:</th>
-                        <td>{{ $cliente->telefono }}</td>
-                    </tr>
-                    <tr>
-                        <th>Teléfono alt.:</th>
-                        <td>{{ $cliente->telefono_alternativo ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>Email:</th>
-                        <td>{{ $cliente->email ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>RFC:</th>
-                        <td>{{ $cliente->rfc ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>CURP:</th>
-                        <td>{{ $cliente->curp ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>INE:</th>
-                        <td>
-                            @if($cliente->ine_numero || $cliente->ine_documento)
-                                @if($cliente->ine_numero)
-                                    <span class="badge bg-primary">{{ $cliente->ine_numero }}</span>
-                                @endif
+            <div class="card-body p-3">
+                <table class="table table-borderless table-sm mb-0 text-body" style="font-size: 13px;">
+                    <tbody>
+                        <tr>
+                            <th class="text-body-secondary py-1" style="width: 120px;">Nombre:</th>
+                            <td class="fw-bold py-1">{{ $cliente->nombre_completo }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">Teléfono:</th>
+                            <td class="py-1"><i class="bi bi-telephone text-primary me-1"></i>{{ $cliente->telefono }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">Teléfono Alt:</th>
+                            <td class="py-1">{{ $cliente->telefono_alternativo ?? 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">Correo Email:</th>
+                            <td class="py-1">{{ $cliente->email ?? 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">Empresa:</th>
+                            <td class="py-1">{{ $cliente->empresa ?? 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">RFC:</th>
+                            <td class="py-1"><code class="text-body fw-bold">{{ $cliente->rfc ?? 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">CURP:</th>
+                            <td class="py-1"><code class="text-body">{{ $cliente->curp ?? 'N/A' }}</code></td>
+                        </tr>
+                        <tr>
+                            <th class="text-body-secondary py-1">Documento INE:</th>
+                            <td class="py-1">
                                 @if($cliente->ine_documento)
-                                    <a href="{{ Storage::url($cliente->ine_documento) }}" target="_blank" class="btn btn-sm btn-info ms-2">
-                                        <i class="bi bi-file-earmark-pdf"></i> Ver INE
-                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-3" onclick="verDocumento('{{ Storage::url($cliente->ine_documento) }}', 'INE - {{ $cliente->nombre_completo }}')" style="font-size: 11px;">
+                                        <i class="bi bi-file-earmark-pdf me-1"></i> Ver Documento
+                                    </button>
+                                @else
+                                    <span class="text-body-secondary">No adjuntado</span>
                                 @endif
-                            @else
-                                <span class="text-muted">N/A</span>
-                            @endif
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Empresa:</th>
-                        <td>{{ $cliente->empresa ?? 'N/A' }}</td>
-                    </tr>
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Dirección -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Dirección</h5>
+    <!-- DIRECCIÓN Y OBSERVACIONES -->
+    <div class="col-12 col-lg-6">
+        <div class="card info-card shadow-sm h-100 d-flex flex-column justify-content-between">
+            <div>
+                <div class="card-header bg-body-tertiary border-bottom py-2 px-3 fw-bold text-body">
+                    <i class="bi bi-geo-alt me-2 text-info"></i>Dirección
+                </div>
+                <div class="card-body p-3">
+                    <table class="table table-borderless table-sm mb-0 text-body" style="font-size: 13px;">
+                        <tbody>
+                            <tr>
+                                <th class="text-body-secondary py-1" style="width: 120px;">Dirección:</th>
+                                <td class="py-1">{{ $cliente->direccion ?? 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary py-1">Ciudad:</th>
+                                <td class="py-1">{{ $cliente->ciudad ?? 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary py-1">Estado:</th>
+                                <td class="py-1">{{ $cliente->estado ?? 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary py-1">Código Postal:</th>
+                                <td class="py-1">{{ $cliente->codigo_postal ?? 'N/A' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div class="card-body">
-                <table class="table table-borderless">
-                    <tr>
-                        <th width="120">Dirección:</th>
-                        <td>{{ $cliente->direccion ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>Ciudad:</th>
-                        <td>{{ $cliente->ciudad ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>Estado:</th>
-                        <td>{{ $cliente->estado ?? 'N/A' }}</td>
-                    </tr>
-                    <tr>
-                        <th>Código Postal:</th>
-                        <td>{{ $cliente->codigo_postal ?? 'N/A' }}</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
 
-        <!-- Observaciones -->
-        @if($cliente->observaciones)
-        <div class="card mt-3">
-            <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0"><i class="bi bi-chat"></i> Observaciones</h5>
+            @if($cliente->observaciones)
+            <div class="p-3 border-top">
+                <div class="fw-bold small text-body mb-1"><i class="bi bi-chat-left-text me-1 text-secondary"></i> Observaciones:</div>
+                <p class="small text-body-secondary mb-0">{{ $cliente->observaciones }}</p>
             </div>
-            <div class="card-body">
-                <p class="mb-0">{{ $cliente->observaciones }}</p>
-            </div>
+            @endif
         </div>
-        @endif
     </div>
 </div>
 
 <!-- OBRAS / PROYECTOS -->
-<div class="card mt-4">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-building"></i> Obras / Proyectos del Cliente</h5>
-        <!-- <a href="{{ route('obras.create') }}?cliente={{ $cliente->id }}" class="btn btn-sm btn-light">
-            <i class="bi bi-plus-circle"></i> Agregar Obra
-        </a> -->
+<div class="card info-card shadow-sm mb-4">
+    <div class="card-header bg-body-tertiary border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
+        <span class="fw-bold text-body"><i class="bi bi-building me-2 text-warning-emphasis"></i>Obras y Proyectos del Cliente</span>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         @if($cliente->obras->count() > 0)
             <div class="table-responsive">
-                <table class="table table-bordered table-hover">
-                    <thead>
+                <table class="table table-hover align-middle mb-0 text-body" style="font-size: 13px;">
+                    <thead class="bg-body-tertiary text-body-secondary border-bottom">
                         <tr>
-                            <th>Nombre de la obra</th>
-                            <th>Dirección</th>
-                            <th>Ciudad</th>
-                            <th>Contacto</th>
-                            <th>Estado</th>
-                            <th>Rentas</th>
-                            <th>Acciones</th>
+                            <th class="ps-3 py-2">Nombre de la obra</th>
+                            <th class="py-2">Dirección</th>
+                            <th class="py-2">Ciudad</th>
+                            <th class="py-2">Contacto</th>
+                            <th class="py-2">Estado</th>
+                            <th class="py-2">Rentas</th>
+                            <th class="text-center pe-3 py-2">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($cliente->obras as $obra)
-                        <tr>
-                            <td><strong>{{ $obra->nombre }}</strong></td>
-                            <td>{{ $obra->direccion }}</td>
-                            <td>{{ $obra->ciudad ?? 'N/A' }}</td>
-                            <td>{{ $obra->contacto_obra ?? 'N/A' }}</td>
-                            <td>
+                        <tr class="border-bottom">
+                            <td class="ps-3 fw-bold py-2">{{ $obra->nombre }}</td>
+                            <td class="py-2">{{ $obra->direccion }}</td>
+                            <td class="py-2">{{ $obra->ciudad ?? 'N/A' }}</td>
+                            <td class="py-2">{{ $obra->contacto_obra ?? 'N/A' }}</td>
+                            <td class="py-2">
                                 @if($obra->activa)
-                                    <span class="badge bg-success">Activa</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Activa</span>
                                 @else
-                                    <span class="badge bg-danger">Inactiva</span>
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Inactiva</span>
                                 @endif
                             </td>
-                            <td>
-                                <span class="badge bg-primary">{{ $obra->rentas->count() }}</span>
+                            <td class="py-2">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">{{ $obra->rentas->count() }}</span>
                             </td>
-                            <td>
-                                <a href="{{ route('obras.show', $obra) }}" class="btn btn-info btn-sm">Ver</a>
+                            <td class="text-center pe-3 py-2">
+                                <a href="{{ route('obras.show', $obra) }}" class="btn btn-sm btn-outline-primary rounded-3 px-2">
+                                    <i class="bi bi-eye me-1"></i> Ver
+                                </a>
                             </td>
                         </tr>
                         @endforeach
@@ -255,53 +227,54 @@
                 </table>
             </div>
         @else
-            <div class="text-center py-3">
-                <i class="bi bi-building" style="font-size: 40px; color: #ccc;"></i>
-                <p class="mt-2 text-muted">Este cliente no tiene obras registradas</p>
-                <a href="{{ route('obras.create') }}?cliente={{ $cliente->id }}" class="btn btn-success btn-sm">
-                    <i class="bi bi-plus-circle"></i> Registrar obra
-                </a>
+            <div class="text-center py-4 text-body-secondary">
+                <i class="bi bi-building fs-2 d-block mb-1 text-body-tertiary"></i>
+                <small>Este cliente no tiene obras registradas.</small>
             </div>
         @endif
     </div>
 </div>
 
 <!-- RENTAS ACTIVAS -->
-<div class="card mt-4">
-    <div class="card-header bg-success text-white">
-        <h5 class="mb-0"><i class="bi bi-check-circle"></i> Rentas Activas</h5>
+<div class="card info-card shadow-sm mb-4">
+    <div class="card-header bg-body-tertiary border-bottom py-2 px-3">
+        <span class="fw-bold text-body"><i class="bi bi-check-circle me-2 text-success"></i>Rentas Activas</span>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         @if($rentasActivas->count() > 0)
             <div class="table-responsive">
-                <table class="table table-bordered table-hover">
-                    <thead>
+                <table class="table table-hover align-middle mb-0 text-body" style="font-size: 13px;">
+                    <thead class="bg-body-tertiary text-body-secondary border-bottom">
                         <tr>
-                            <th>Folio</th>
-                            <th>Equipos</th>
-                            <th>Fecha inicio</th>
-                            <th>Fecha fin</th>
-                            <th>Días</th>
-                            <th>Total</th>
-                            <th>Acciones</th>
+                            <th class="ps-3 py-2">Folio</th>
+                            <th class="py-2">Equipos</th>
+                            <th class="py-2">Período</th>
+                            <th class="py-2">Días</th>
+                            <th class="py-2">Total</th>
+                            <th class="text-center pe-3 py-2">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($rentasActivas as $renta)
-                        <tr>
-                            <td><strong>{{ $renta->folio }}</strong></td>
-                            <td>
+                        <tr class="border-bottom">
+                            <td class="ps-3 fw-bold text-primary py-2">{{ $renta->folio }}</td>
+                            <td class="py-2">
                                 @foreach($renta->detalles as $detalle)
-                                    <span class="badge bg-secondary">{{ $detalle->cantidad }} x {{ $detalle->equipo->nombre }}</span>
+                                    <span class="badge bg-body-tertiary text-body border border-secondary-subtle me-1">
+                                        {{ $detalle->cantidad }} x {{ $detalle->equipo->nombre }}
+                                    </span>
                                 @endforeach
                             </td>
-                            <td>{{ $renta->fecha_inicio->format('d/m/Y') }}</td>
-                            <td>{{ $renta->fecha_fin->format('d/m/Y') }}</td>
-                            <td>{{ $renta->dias_totales }}</td>
-                            <td>${{ number_format($renta->total, 2) }}</td>
-                            <td>
-                                <a href="{{ route('rentas.show', $renta) }}" class="btn btn-info btn-sm">Ver</a>
-                                <a href="{{ route('rentas.finalizar', $renta) }}" class="btn btn-success btn-sm" onclick="return confirm('¿Finalizar esta renta?')">Finalizar</a>
+                            <td class="py-2">{{ $renta->fecha_inicio->format('d/m/Y') }} - {{ $renta->fecha_fin->format('d/m/Y') }}</td>
+                            <td class="py-2">{{ $renta->dias_totales }} días</td>
+                            <td class="py-2 fw-bold text-success">${{ number_format($renta->total, 2) }}</td>
+                            <td class="text-center pe-3 py-2">
+                                <a href="{{ route('rentas.show', $renta) }}" class="btn btn-sm btn-outline-primary rounded-3 px-2 me-1">
+                                    <i class="bi bi-eye"></i> Ver
+                                </a>
+                                <a href="{{ route('rentas.finalizar', $renta) }}" class="btn btn-sm btn-success rounded-3 px-2" onclick="return confirm('¿Finalizar esta renta?')">
+                                    <i class="bi bi-check-lg"></i> Finalizar
+                                </a>
                             </td>
                         </tr>
                         @endforeach
@@ -309,51 +282,51 @@
                 </table>
             </div>
         @else
-            <div class="text-center py-3">
-                <i class="bi bi-check-circle" style="font-size: 40px; color: #ccc;"></i>
-                <p class="mt-2 text-muted">No hay rentas activas para este cliente</p>
+            <div class="text-center py-4 text-body-secondary">
+                <i class="bi bi-check-circle fs-2 d-block mb-1 text-body-tertiary"></i>
+                <small>No hay rentas activas para este cliente.</small>
             </div>
         @endif
     </div>
 </div>
 
-<!-- RENTAS FINALIZADAS -->
-<div class="card mt-4">
-    <div class="card-header bg-info text-white">
-        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Historial de Rentas</h5>
+<!-- HISTORIAL DE RENTAS -->
+<div class="card info-card shadow-sm mb-4">
+    <div class="card-header bg-body-tertiary border-bottom py-2 px-3">
+        <span class="fw-bold text-body"><i class="bi bi-clock-history me-2 text-info"></i>Historial de Rentas Finalizadas</span>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         @if($rentasFinalizadas->count() > 0)
             <div class="table-responsive">
-                <table class="table table-bordered table-hover">
-                    <thead>
+                <table class="table table-hover align-middle mb-0 text-body" style="font-size: 13px;">
+                    <thead class="bg-body-tertiary text-body-secondary border-bottom">
                         <tr>
-                            <th>Folio</th>
-                            <th>Equipos</th>
-                            <th>Fecha inicio</th>
-                            <th>Fecha fin</th>
-                            <th>Días</th>
-                            <th>Total</th>
-                            <th>Devolución</th>
-                            <th>Acciones</th>
+                            <th class="ps-3 py-2">Folio</th>
+                            <th class="py-2">Equipos</th>
+                            <th class="py-2">Período</th>
+                            <th class="py-2">Total</th>
+                            <th class="py-2">Devolución</th>
+                            <th class="text-center pe-3 py-2">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($rentasFinalizadas as $renta)
-                        <tr>
-                            <td><strong>{{ $renta->folio }}</strong></td>
-                            <td>
+                        <tr class="border-bottom">
+                            <td class="ps-3 fw-bold text-primary py-2">{{ $renta->folio }}</td>
+                            <td class="py-2">
                                 @foreach($renta->detalles as $detalle)
-                                    <span class="badge bg-secondary">{{ $detalle->cantidad }} x {{ $detalle->equipo->nombre }}</span>
+                                    <span class="badge bg-body-tertiary text-body border border-secondary-subtle me-1">
+                                        {{ $detalle->cantidad }} x {{ $detalle->equipo->nombre }}
+                                    </span>
                                 @endforeach
                             </td>
-                            <td>{{ $renta->fecha_inicio->format('d/m/Y') }}</td>
-                            <td>{{ $renta->fecha_fin->format('d/m/Y') }}</td>
-                            <td>{{ $renta->dias_totales }}</td>
-                            <td>${{ number_format($renta->total, 2) }}</td>
-                            <td>{{ $renta->fecha_devolucion ? \Carbon\Carbon::parse($renta->fecha_devolucion)->format('d/m/Y') : 'N/A' }}</td>
-                            <td>
-                                <a href="{{ route('rentas.show', $renta) }}" class="btn btn-info btn-sm">Ver</a>
+                            <td class="py-2">{{ $renta->fecha_inicio->format('d/m/Y') }} - {{ $renta->fecha_fin->format('d/m/Y') }}</td>
+                            <td class="py-2 fw-bold text-body">${{ number_format($renta->total, 2) }}</td>
+                            <td class="py-2 text-body-secondary">{{ $renta->fecha_devolucion ? \Carbon\Carbon::parse($renta->fecha_devolucion)->format('d/m/Y') : 'N/A' }}</td>
+                            <td class="text-center pe-3 py-2">
+                                <a href="{{ route('rentas.show', $renta) }}" class="btn btn-sm btn-outline-primary rounded-3 px-2">
+                                    <i class="bi bi-eye me-1"></i> Ver
+                                </a>
                             </td>
                         </tr>
                         @endforeach
@@ -361,11 +334,60 @@
                 </table>
             </div>
         @else
-            <div class="text-center py-3">
-                <i class="bi bi-clock-history" style="font-size: 40px; color: #ccc;"></i>
-                <p class="mt-2 text-muted">No hay rentas finalizadas para este cliente</p>
+            <div class="text-center py-4 text-body-secondary">
+                <i class="bi bi-clock-history fs-2 d-block mb-1 text-body-tertiary"></i>
+                <small>No hay rentas finalizadas en el historial.</small>
             </div>
         @endif
     </div>
 </div>
+
+<!-- MODAL: VISUALIZADOR DINÁMICO DE DOCUMENTOS -->
+<div class="modal fade" id="modalVerDocumento" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border shadow-lg rounded-3" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
+            <div class="modal-header bg-primary text-white py-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-pdf fs-6 text-white"></i>
+                    <h6 class="modal-title fw-bold mb-0 text-white" id="modalVerDocumentoTitulo">Documento</h6>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 bg-body-tertiary position-relative">
+                <div id="loaderDocumento" class="position-absolute top-50 start-50 translate-middle text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small text-body-secondary mt-2">Cargando archivo...</div>
+                </div>
+                <iframe id="iframeDocumento" src="" style="width: 100%; height: 75vh; border: none;" onload="document.getElementById('loaderDocumento').classList.add('d-none')"></iframe>
+            </div>
+            <div class="modal-footer bg-body-tertiary py-2 px-3 border-top d-flex justify-content-between" style="border-color: var(--bs-border-color) !important;">
+                <a id="btnDescargarDocumento" href="#" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Abrir en ventana nueva
+                </a>
+                <button type="button" class="btn btn-sm btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function verDocumento(url, titulo) {
+    const tituloEl = document.getElementById('modalVerDocumentoTitulo');
+    const iframeEl = document.getElementById('iframeDocumento');
+    const loaderEl = document.getElementById('loaderDocumento');
+    const btnDescargar = document.getElementById('btnDescargarDocumento');
+
+    if (tituloEl) tituloEl.textContent = titulo;
+    if (btnDescargar) btnDescargar.href = url;
+    
+    if (loaderEl) loaderEl.classList.remove('d-none');
+    if (iframeEl) iframeEl.src = url;
+
+    const modalEl = document.getElementById('modalVerDocumento');
+    if (modalEl) {
+        const modalInstance = new bootstrap.Modal(modalEl);
+        modalInstance.show();
+    }
+}
+</script>
 @endsection

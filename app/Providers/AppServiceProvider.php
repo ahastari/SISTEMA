@@ -20,4 +20,12 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
     }
+
+    protected function authenticated(Request $request, $user)
+    {
+        if ($user->isCajero()) {
+            return redirect()->route('puntoventa.index'); // El cajero va directo a cobrar
+        }
+        return redirect()->route('dashboard'); // El gerente/admin va al dashboard
+    }
 }
