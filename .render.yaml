@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: demo-laravel
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        value: base64:+h6gyxccgPJ0ivcIZnCFhYrx0CY3ChFRfn9hG3unZKM=
+      - key: APP_URL
+        value: https://demo-laravel.onrender.com
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        value: ${RENDER_DB_HOST}
+      - key: DB_PORT
+        value: ${RENDER_DB_PORT}
+      - key: DB_DATABASE
+        value: ${RENDER_DB_NAME}
+      - key: DB_USERNAME
+        value: ${RENDER_DB_USER}
+      - key: DB_PASSWORD
+        value: ${RENDER_DB_PASSWORD}
