@@ -1,16 +1,28 @@
-FROM dunglas/frankenphp:php8.3-bookworm
+# Imagen base oficial de PHP con Apache
+FROM php:8.3-apache
 
-RUN apt-get update && apt-get install -y unzip curl \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && install-php-extensions bcmath pdo_pgsql mbstring exif pcntl gd zip
+# Instalar dependencias necesarias para Laravel
+RUN apt-get update && apt-get install -y \
+    unzip curl git libpq-dev nodejs npm \
+    && docker-php-ext-install pdo pdo_pgsql bcmath
 
+# Copiar Composer desde imagen oficial
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-WORKDIR /app
+# Establecer directorio de trabajo
+WORKDIR /var/www/html
+
+# Copiar el código del proyecto
 COPY . .
 
+# Instalar dependencias de PHP
 RUN composer install --no-dev --optimize-autoloader
+
+# Compilar assets de Vite
 RUN npm install && npm run build
 
-CMD ["frankenphp", "run", "--config", "/app/Caddyfile"]
+# Exponer el puerto
+EXPOSE 8080
+
+# Comando de arranque: servidor interno de PHP
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]

@@ -782,12 +782,25 @@
                                     <i class="bi bi-calculator me-1 text-primary"></i> RESUMEN DE TRANSACCIÓN
                                 </h6>
                                 
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="text-body-secondary small">Saldo Pendiente Actual:</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-body-secondary small">Saldo Base Pendiente:</span>
                                     <span class="fw-bold text-body">${{ number_format($renta->saldo_pendiente, 2) }}</span>
                                 </div>
+                                
+                                @if($renta->estado == 'activa' && $multaCalculada > 0)
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-danger small">Cargos por Retraso:</span>
+                                    <span class="fw-bold text-danger">+${{ number_format($multaCalculada, 2) }}</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2 border-top pt-1">
+                                    <span class="text-body-secondary small">Deuda Total Actual:</span>
+                                    <span class="fw-bold text-body">${{ number_format($renta->saldo_pendiente + $multaCalculada, 2) }}</span>
+                                </div>
+                                @else
+                                <div class="mb-2"></div>
+                                @endif
 
-                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2 border-top pt-2">
                                     <span class="text-body-secondary small">Monto a Registrar:</span>
                                     <strong id="montoRegistrarText" class="text-primary fs-6">$0.00</strong>
                                 </div>
@@ -801,7 +814,7 @@
 
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="fw-bold text-body small">Faltaría por liquidar:</span>
-                                    <strong id="faltanteText" class="text-danger fs-5">${{ number_format($renta->saldo_pendiente, 2) }}</strong>
+                                    <strong id="faltanteText" class="text-danger fs-5">${{ number_format($renta->saldo_pendiente + ($renta->estado == 'activa' ? $multaCalculada : 0), 2) }}</strong>
                                 </div>
 
                                 {{-- Elemento oculto mantenido para compatibilidad estricta con el JS --}}
@@ -1099,6 +1112,7 @@
 <div id="renta-js-data"
      class="d-none"
      data-saldo-pendiente="{{ $renta->saldo_pendiente }}"
+     data-multa-calculada="{{ $renta->estado == 'activa' ? $multaCalculada : 0 }}"
      data-fecha-fin="{{ $renta->fecha_fin->format('Y-m-d') }}"
      data-costo-diario-pendiente="{{ $costoDiarioPendiente }}"
      data-facturar="{{ $renta->facturar ? '1' : '0' }}"
@@ -1176,6 +1190,7 @@
         if (!elMontoRecibido) return;
 
         const saldoPendienteOriginal = parseFloat(rentaData.saldoPendiente) || 0;
+        const multaCalculada = parseFloat(rentaData.multaCalculada) || 0; // NUEVO: Extraemos la multa del data-set
 
         // Sumar costos por faltantes si la renta fue autorizada para devolución/faltantes
         let totalFaltantes = 0;
@@ -1185,7 +1200,8 @@
             }
         });
 
-        const saldoTotal = saldoPendienteOriginal + totalFaltantes;
+        // NUEVO: Sumar la multa calculada al saldo total
+        const saldoTotal = saldoPendienteOriginal + multaCalculada + totalFaltantes;
         const montoRecibido = parseFloat(elMontoRecibido.value) || 0;
 
         let montoARegistrar = 0,

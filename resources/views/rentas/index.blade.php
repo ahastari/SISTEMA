@@ -70,13 +70,11 @@
         transform: translateY(-2px);
     }
 
-    /* Eleva la tarjeta sobre las demás cuando el menú de 3 puntos está abierto */
     .renta-card:has(.show),
     .renta-card.dropdown-abierto {
         z-index: 1050 !important;
     }
 
-    /* Badges y Elementos de Estado */
     .folio-badge {
         background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
         color: #ffffff;
@@ -102,7 +100,6 @@
         flex-shrink: 0;
     }
 
-    /* Indicadores de Estado (Pill con Dot) */
     .status-pill {
         padding: 5px 12px;
         border-radius: 50rem;
@@ -119,7 +116,6 @@
         display: inline-block;
     }
 
-    /* Barra de Filtros */
     .filter-card {
         background: var(--bs-body-bg);
         border: 1px solid var(--bs-border-color);
@@ -131,11 +127,7 @@
         transition: all 0.2s ease;
     }
 
-    /* Paginación */
-    .pagination {
-        gap: 6px;
-        margin-bottom: 0;
-    }
+    .pagination { gap: 6px; margin-bottom: 0; }
     .pagination .page-item .page-link {
         color: var(--bs-body-color);
         background-color: var(--bs-body-bg);
@@ -169,23 +161,16 @@
     </div>
 </div>
 
-<!-- Alertas Informativas -->
 @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-        <div class="d-flex align-items-center">
-            <i class="bi bi-check-circle-fill fs-5 me-2"></i>
-            <div>{{ session('success') }}</div>
-        </div>
+        <i class="bi bi-check-circle-fill fs-5 me-2"></i> {{ session('success') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
 
 @if(session('error'))
     <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-        <div class="d-flex align-items-center">
-            <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
-            <div>{{ session('error') }}</div>
-        </div>
+        <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i> {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
@@ -249,7 +234,7 @@
     </div>
 </div>
 
-<!-- Panel de Filtros Adaptativos -->
+<!-- Panel de Filtros -->
 <div class="filter-card p-3 mb-4">
     <div class="row g-2 align-items-center">
         <div class="col-12 col-md-3">
@@ -266,7 +251,7 @@
             <select id="estadoSelect" class="form-select form-select-sm bg-body text-body filtro-input">
                 <option value="">Estado: Todos</option>
                 <option value="activa">Activas</option>
-                <option value="aprobada_adeudo">Finalizadas c/ Adeudo (Aprobadas)</option>
+                <option value="aprobada_adeudo">Finalizadas c/ Adeudo</option>
                 <option value="finalizada">Finalizadas</option>
                 <option value="cancelada">Canceladas</option>
                 <option value="adeudo">Con Adeudo General</option>
@@ -300,12 +285,16 @@
         $esAprobadaConAdeudo = ($renta->estado == 'activa' && $renta->autorizacion_aprobada);
         $estadoData = $esAprobadaConAdeudo ? 'aprobada_adeudo' : $renta->estado;
         $inicialCliente = strtoupper(substr($renta->cliente->nombre_completo ?? 'C', 0, 1));
+
+        // 🔥 CÁLCULO DE MULTA Y DEUDA REAL
+        $multaGenerada = ($renta->estado == 'activa' && isset($renta->total_real)) ? max(0, $renta->total_real - $renta->total) : 0;
+        $saldoPendienteReal = $renta->estado == 'cancelada' ? 0 : ($renta->saldo_pendiente + $multaGenerada);
     @endphp
     
     <div class="renta-card" 
          data-estado="{{ $estadoData }}" 
          data-fecha="{{ $renta->fecha_inicio->format('Y-m-d') }}" 
-         data-adeudo="{{ $renta->saldo_pendiente > 0 ? 'si' : 'no' }}"
+         data-adeudo="{{ $saldoPendienteReal > 0 ? 'si' : 'no' }}"
          data-factura="{{ $renta->facturar ? 'si' : 'no' }}"
          data-url="{{ route('rentas.show', $renta) }}">
         
@@ -317,22 +306,15 @@
                     <span class="folio-badge">
                         <i class="bi bi-file-text me-1"></i>{{ $renta->folio }}
                     </span>
-
                     @if($renta->facturar)
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small px-2" title="Esta renta requiere emisión de factura (+16% IVA)">
-                            <i class="bi bi-receipt me-1"></i> Requiere Factura
-                        </span>
-                    @else
-                        <span class="badge bg-body-tertiary text-body-secondary border border-secondary-subtle rounded-pill small px-2" title="Esta renta no requiere factura">
-                            <i class="bi bi-file-earmark me-1"></i> Sin Factura
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small px-2">
+                            <i class="bi bi-receipt me-1"></i> Factura
                         </span>
                     @endif
                 </div>
 
                 <div class="d-flex align-items-center gap-2">
-                    <div class="cliente-avatar-icon">
-                        {{ $inicialCliente }}
-                    </div>
+                    <div class="cliente-avatar-icon">{{ $inicialCliente }}</div>
                     <div class="text-truncate">
                         <h6 class="mb-0 fw-bold text-body text-truncate" style="max-width: 180px;">
                             {{ $renta->cliente->nombre_completo ?? 'Cliente general' }}
@@ -375,27 +357,39 @@
                 @endif
             </div>
 
-            <!-- Montos y Saldo Pendiente -->
+            <!-- DESGLOSE DE MONTOS Y SALDO (CORREGIDO) -->
             <div class="col-6 col-md-2 col-lg-3 text-end text-md-center">
                 @if($renta->estado == 'cancelada')
-                    <small class="text-body-secondary d-block text-decoration-line-through" style="font-size: 11px;">Original: ${{ number_format($renta->total_real, 2) }}</small>
+                    <small class="text-body-secondary d-block text-decoration-line-through" style="font-size: 11px;">Original: ${{ number_format($renta->total, 2) }}</small>
                     <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" style="font-size: 11px;">
                         <i class="bi bi-slash-circle me-1"></i> Deuda Anulada
                     </span>
                 @else
+                    {{-- Total Base del Contrato --}}
                     <small class="text-body-secondary d-block" style="font-size: 11px;">
-                        Total: <strong class="text-body">${{ number_format($renta->total_real, 2) }}</strong>
-                        @if($renta->facturar) <span class="text-primary fw-bold" style="font-size: 10px;">(Inc. IVA)</span> @endif
+                        Contrato: <strong class="text-body">${{ number_format($renta->total, 2) }}</strong>
                     </small>
                     
-                    @if($renta->saldo_pendiente > 0)
-                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 mt-1" style="font-size: 11px;">
-                            <i class="bi bi-exclamation-circle-fill me-1"></i> Debe: ${{ number_format($renta->saldo_pendiente, 2) }}
-                        </span>
+                    {{-- Multa desglosada si el contrato está vencido --}}
+                    @if($multaGenerada > 0)
+                        <small class="text-danger d-block fw-bold mt-1" style="font-size: 10.5px;">
+                            + Retraso: ${{ number_format($multaGenerada, 2) }}
+                        </small>
+                    @endif
+                    
+                    {{-- Gran Total a Deber contemplando la multa --}}
+                    @if($saldoPendienteReal > 0)
+                        <div class="mt-1">
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 12px; font-weight: 800;">
+                                <i class="bi bi-exclamation-circle-fill me-1"></i> Debe Total: ${{ number_format($saldoPendienteReal, 2) }}
+                            </span>
+                        </div>
                     @else
-                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 mt-1" style="font-size: 11px;">
-                            <i class="bi bi-check-circle-fill me-1"></i> Pagado
-                        </span>
+                        <div class="mt-1">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 11px;">
+                                <i class="bi bi-check-circle-fill me-1"></i> Liquidada
+                            </span>
+                        </div>
                     @endif
                 @endif
             </div>
@@ -405,8 +399,8 @@
                 <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2">
                     
                     @if($esAprobadaConAdeudo)
-                        <span class="status-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Autorizada por Gerente para finalizar con adeudo">
-                            <span class="status-dot bg-warning"></span> FINALIZADA C/ ADEUDO
+                        <span class="status-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                            <span class="status-dot bg-warning"></span> FINALIZADA
                         </span>
                     @elseif($renta->estado == 'activa')
                         <span class="status-pill bg-success-subtle text-success border border-success-subtle">
@@ -430,7 +424,7 @@
                             <li>
                                 <a class="dropdown-item py-2 text-body" href="{{ route('rentas.show', $renta) }}">
                                     <i class="bi bi-eye me-2 text-primary"></i> 
-                                    {{ $esAprobadaConAdeudo ? 'Liquidar / Registrar Devolución' : 'Ver detalle' }}
+                                    Ver detalle y cobrar
                                 </a>
                             </li>
                             <li>
@@ -438,19 +432,6 @@
                                     <i class="bi bi-file-earmark-pdf me-2 text-danger"></i> Ver PDF
                                 </button>
                             </li>
-                            @if($renta->estado == 'activa' && !$renta->autorizacion_aprobada)
-                            <li>
-                                <a class="dropdown-item py-2 text-body" href="{{ route('rentas.finalizar', $renta) }}" onclick="return confirm('¿Finalizar esta renta?')">
-                                    <i class="bi bi-check-lg me-2 text-success"></i> Finalizar
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider border-secondary-subtle"></li>
-                            <li>
-                                <a class="dropdown-item py-2 text-danger" href="{{ route('rentas.cancelar', $renta) }}" onclick="return confirm('¿Seguro que deseas cancelar esta renta? El stock se devolverá automáticamente.')">
-                                    <i class="bi bi-x-octagon me-2"></i> Cancelar Renta
-                                </a>
-                            </li>
-                            @endif
                         </ul>
                     </div>
 
@@ -477,40 +458,29 @@
 <div class="modal fade" id="modalVerDocumento" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border shadow-lg rounded-3" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
-            
-            <!-- Encabezado del Modal -->
             <div class="modal-header bg-primary text-white py-2 px-3">
                 <div class="d-flex align-items-center gap-2">
-                    <div class="rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: rgba(255, 255, 255, 0.2);">
-                        <i class="bi bi-file-earmark-pdf fs-6 text-white"></i>
-                    </div>
-                    <h6 class="modal-title fw-bold mb-0 text-white" id="modalVerDocumentoTitulo">Visualizador de Documento</h6>
+                    <i class="bi bi-file-earmark-pdf fs-5"></i>
+                    <h6 class="modal-title fw-bold mb-0" id="modalVerDocumentoTitulo">Visualizador de Documento</h6>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-
-            <!-- Cuerpo del Modal (Iframe Visor) -->
-            <div class="modal-body p-0 bg-body-tertiary position-relative">
+            <div class="modal-body p-0 bg-secondary bg-opacity-10 position-relative">
                 <div id="loaderDocumento" class="position-absolute top-50 start-50 translate-middle text-center">
                     <div class="spinner-border text-primary" role="status"></div>
-                    <div class="small text-body-secondary mt-2">Cargando documento...</div>
                 </div>
                 <iframe id="iframeDocumento" src="" style="width: 100%; height: 78vh; border: none;" onload="document.getElementById('loaderDocumento').classList.add('d-none')"></iframe>
             </div>
-
-            <!-- Pie del Modal -->
-            <div class="modal-footer bg-body-tertiary py-2 px-3 border-top d-flex justify-content-between" style="border-color: var(--bs-border-color) !important;">
+            <div class="modal-footer bg-body-tertiary py-2 px-3 border-top">
                 <a id="btnDescargarDocumento" href="#" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Abrir en ventana nueva
                 </a>
                 <button type="button" class="btn btn-sm btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
             </div>
-
         </div>
     </div>
 </div>
 
-<!-- JavaScript de Filtros, Elevación de Dropdown, Clic en la Tarjeta y Visor PDF -->
 <script>
 function filtrarRentas() {
     const busqueda = document.getElementById('buscarInput').value.toLowerCase();
@@ -518,43 +488,18 @@ function filtrarRentas() {
     const factura = document.getElementById('facturaSelect').value;
     const fecha = document.getElementById('fechaFilter').value;
     
-    const rentas = document.querySelectorAll('.renta-card');
-    
-    rentas.forEach(renta => {
+    document.querySelectorAll('.renta-card').forEach(renta => {
         let mostrar = true;
         
-        // 1. Filtro por texto
-        if (busqueda) {
-            const texto = renta.innerText.toLowerCase();
-            if (!texto.includes(busqueda)) {
-                mostrar = false;
-            }
-        }
+        if (busqueda && !renta.innerText.toLowerCase().includes(busqueda)) mostrar = false;
         
-        // 2. Filtro por estado
         if (mostrar && estado) {
-            if (estado === 'adeudo') {
-                if (renta.dataset.adeudo !== 'si') {
-                    mostrar = false;
-                }
-            } else if (renta.dataset.estado !== estado) {
-                mostrar = false;
-            }
+            if (estado === 'adeudo' && renta.dataset.adeudo !== 'si') mostrar = false;
+            else if (estado !== 'adeudo' && renta.dataset.estado !== estado) mostrar = false;
         }
 
-        // 3. Filtro por factura
-        if (mostrar && factura) {
-            if (renta.dataset.factura !== factura) {
-                mostrar = false;
-            }
-        }
-        
-        // 4. Filtro por fecha
-        if (mostrar && fecha) {
-            if (renta.dataset.fecha !== fecha) {
-                mostrar = false;
-            }
-        }
+        if (mostrar && factura && renta.dataset.factura !== factura) mostrar = false;
+        if (mostrar && fecha && renta.dataset.fecha !== fecha) mostrar = false;
         
         renta.style.display = mostrar ? '' : 'none';
     });
@@ -573,67 +518,32 @@ document.getElementById('estadoSelect').addEventListener('change', filtrarRentas
 document.getElementById('facturaSelect').addEventListener('change', filtrarRentas);
 document.getElementById('fechaFilter').addEventListener('change', filtrarRentas);
 
-// ==========================================
-// FUNCIÓN PARA VISUALIZAR PDF EN MODAL
-// ==========================================
 function verDocumento(url, titulo) {
-    const tituloEl = document.getElementById('modalVerDocumentoTitulo');
-    const iframeEl = document.getElementById('iframeDocumento');
-    const loaderEl = document.getElementById('loaderDocumento');
-    const btnDescargar = document.getElementById('btnDescargarDocumento');
-
-    if (tituloEl) tituloEl.textContent = titulo;
-    if (btnDescargar) btnDescargar.href = url;
-    
-    if (loaderEl) loaderEl.classList.remove('d-none');
-    if (iframeEl) iframeEl.src = url;
-
-    const modalEl = document.getElementById('modalVerDocumento');
-    if (modalEl) {
-        const modalInstance = new bootstrap.Modal(modalEl);
-        modalInstance.show();
-    }
+    document.getElementById('modalVerDocumentoTitulo').textContent = titulo;
+    document.getElementById('btnDescargarDocumento').href = url;
+    document.getElementById('loaderDocumento').classList.remove('d-none');
+    document.getElementById('iframeDocumento').src = url;
+    new bootstrap.Modal(document.getElementById('modalVerDocumento')).show();
 }
 
-// ==========================================
-// CONTROL DE CLIC EN LA TARJETA Y DROPDOWN
-// ==========================================
 document.addEventListener('DOMContentLoaded', function() {
-    
-    // 1. Redireccionar al contrato al hacer clic en la tarjeta
-    document.querySelectorAll('.renta-card').forEach(function(card) {
+    document.querySelectorAll('.renta-card').forEach(card => {
         card.addEventListener('click', function(e) {
-            // Ignorar el clic si se hace sobre el menú de tres puntos, botones o enlaces
-            if (e.target.closest('.dropdown') || e.target.closest('a') || e.target.closest('button')) {
-                return;
-            }
-            const url = this.dataset.url;
-            if (url) {
-                window.location.href = url;
+            if (!e.target.closest('.dropdown') && !e.target.closest('a') && !e.target.closest('button')) {
+                window.location.href = this.dataset.url;
             }
         });
-
-        // 2. Control de z-index al desplegar el menú de opciones
+        
         const dropdown = card.querySelector('.dropdown');
         if (dropdown) {
-            dropdown.addEventListener('show.bs.dropdown', function () {
-                card.classList.add('dropdown-abierto');
-            });
-            dropdown.addEventListener('hide.bs.dropdown', function () {
-                card.classList.remove('dropdown-abierto');
-            });
+            dropdown.addEventListener('show.bs.dropdown', () => card.classList.add('dropdown-abierto'));
+            dropdown.addEventListener('hide.bs.dropdown', () => card.classList.remove('dropdown-abierto'));
         }
     });
 
-    // 3. Limpiar iframe del modal al cerrarlo para liberar recursos
-    const modalVerDoc = document.getElementById('modalVerDocumento');
-    if (modalVerDoc) {
-        modalVerDoc.addEventListener('hidden.bs.modal', function () {
-            const iframeEl = document.getElementById('iframeDocumento');
-            if (iframeEl) iframeEl.src = '';
-        });
-    }
-
+    document.getElementById('modalVerDocumento').addEventListener('hidden.bs.modal', function () {
+        document.getElementById('iframeDocumento').src = '';
+    });
 });
 </script>
 @endsection
