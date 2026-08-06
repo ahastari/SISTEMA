@@ -75,11 +75,11 @@ class DashboardController extends Controller
         
         $rentasPorMes = (clone $rentasQuery)
             ->select(
-                DB::raw('MONTH(created_at) as mes'),
-                DB::raw('YEAR(created_at) as año'),
-                DB::raw('COUNT(*) as total')
+                DB::raw("EXTRACT(MONTH FROM created_at) as mes"),
+                DB::raw("EXTRACT(YEAR FROM created_at) as año"),
+                DB::raw("COUNT(*) as total")
             )
-            ->whereYear('created_at', '>=', now()->subYear()->year)
+            ->whereRaw("EXTRACT(YEAR FROM created_at) >= ?", [now()->subYear()->year])
             ->groupBy('año', 'mes')
             ->orderBy('año', 'asc')
             ->orderBy('mes', 'asc')
@@ -88,6 +88,7 @@ class DashboardController extends Controller
                 $item->mes_nombre = \Carbon\Carbon::create()->month($item->mes)->locale('es')->monthName;
                 return $item;
             });
+
         
         $topClientes = (clone $rentasQuery)
             ->with('cliente')

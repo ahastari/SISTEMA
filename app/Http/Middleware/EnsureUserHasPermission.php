@@ -41,16 +41,14 @@ class EnsureUserHasPermission
     private function hasPermission($user, $permission): bool
     {
         return match ($permission) {
-            'gestionar_sucursal' => $user->isGerente(),
-            'ver_configuracion' => $user->isGerente(),
+            'gestionar_sucursal',
+            'ver_configuracion',
             'ver_autorizaciones' => $user->isGerente(),
-            
-            'admin' => false,
-            'gestionar_usuarios' => false,
-            'gestionar_empresa' => false,
-            'crear_sucursal' => false,
-            
-            // Por defecto, denegar cualquier otro permiso.
+
+            'gestionar_usuarios',
+            'gestionar_empresa',
+            'crear_sucursal' => $user->isAdmin(),
+
             default => false,
         };
     }
