@@ -99,13 +99,22 @@ class Renta extends Model
         return $this->hasMany(Abono::class);
     }
 
-    public static function generarFolio()
+    public static function generarFolio($sucursalId = null)
     {
         $year = date('Y');
+
+        if ($sucursalId && $sucursalId !== 'global') {
+            $sucursal = \App\Models\Sucursal::find($sucursalId);
+            if ($sucursal && $sucursal->siguiente_folio_rentas) {
+                return 'R-' . $year . '-' . str_pad($sucursal->siguiente_folio_rentas, 4, '0', STR_PAD_LEFT);
+            }
+        }
+
         $ultimaRenta = self::whereYear('created_at', $year)->orderBy('id', 'desc')->first();
         
         if ($ultimaRenta) {
-            $ultimoNumero = intval(substr($ultimaRenta->folio, -4));
+            $partes = explode('-', $ultimaRenta->folio);
+            $ultimoNumero = intval(end($partes));
             $nuevoNumero = str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
         } else {
             $nuevoNumero = '0001';
@@ -132,7 +141,7 @@ class Renta extends Model
         
         $saldo = $this->total - ($this->deposito ?? 0) - $totalPagado;
         
-        return max(0, $saldo); // Nunca devolver un saldo negativo
+        return $saldo; 
     }
 
     public function ampliarDias($diasExtra, $motivo = null, $conIva = false)

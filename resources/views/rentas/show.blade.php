@@ -10,56 +10,39 @@
         margin-bottom: 15px;
         border-radius: 8px;
     }
-
     .info-card h6 {
         color: #0d6efd;
         font-weight: bold;
         margin-bottom: 10px;
     }
-
     .badge-estado {
         font-size: 13px;
         padding: 6px 12px;
         border-radius: 20px;
     }
-
     .table-renta thead th {
         background-color: var(--bs-tertiary-bg) !important;
         color: var(--bs-body-color) !important;
         border-bottom: 1px solid var(--bs-border-color) !important;
     }
-
-    .clausula {
-        background: rgba(255, 193, 7, 0.15);
-        border-left: 4px solid #ffc107;
-        padding: 10px 15px;
-        margin-bottom: 8px;
-        border-radius: 5px;
-        font-size: 13px;
-    }
-
     .doc-card {
         border: 1px solid var(--bs-border-color);
         border-radius: 12px;
         transition: all 0.25s ease;
         background: var(--bs-body-bg);
     }
-
     .doc-card.is-uploaded {
         border-color: rgba(25, 135, 84, 0.35);
         background: rgba(25, 135, 84, 0.02);
     }
-
     .doc-card.is-pending {
         border: 2px dashed rgba(255, 193, 7, 0.6);
         background: rgba(255, 193, 7, 0.02);
     }
-
     .doc-card.is-pending:hover {
         border-color: #0d6efd;
         background: rgba(13, 110, 253, 0.03);
     }
-
     .doc-icon-wrapper {
         width: 44px;
         height: 44px;
@@ -70,8 +53,16 @@
         font-size: 1.35rem;
         flex-shrink: 0;
     }
-
 </style>
+
+@php
+    // Cálculo centralizado del Saldo Real tomando en cuenta multas dinámicas
+    $saldoPendienteReal = $renta->estado == 'cancelada' ? 0 : ($renta->saldo_pendiente + ($renta->estado == 'activa' ? $multaCalculada : 0));
+    // Redondear para evitar decimales residuales negativos por cálculo
+    if ($saldoPendienteReal < 0.01) {
+        $saldoPendienteReal = 0;
+    }
+@endphp
 
 <!-- ENCABEZADO Y BARRA DE ACCIONES DE RENTA -->
 <div class="card border-0 shadow-sm rounded-3 mb-4" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
@@ -120,7 +111,7 @@
             @endif
 
             <!-- Registrar Pago / Liquidar -->
-            @if($renta->saldo_pendiente > 0 || $renta->autorizacion_aprobada || ($renta->estado == 'activa' && !$renta->autorizacion_solicitada))
+            @if($saldoPendienteReal > 0 || $renta->autorizacion_aprobada || ($renta->estado == 'activa' && !$renta->autorizacion_solicitada))
                 <button class="btn {{ $renta->autorizacion_aprobada ? 'btn-success' : 'btn-info' }} btn-sm rounded-3 text-white" data-bs-toggle="modal" data-bs-target="#modalPago">
                     <i class="bi bi-cash-coin me-1"></i> {{ $renta->autorizacion_aprobada ? 'Liquidar / Registrar Productos' : 'Registrar Pago' }}
                 </button>
@@ -224,14 +215,24 @@
             </div>
 
             @if($diasRetraso > 0)
-            <div class="alert alert-danger mt-3 mb-0 py-2 small" style="border-left: 4px solid #dc3545;">
-                <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
-                <strong>¡Contrato Vencido!</strong><br>
-                {{ $diasRetraso }} día(s) de retraso.
-                @if($multaCalculada > 0)
-                Multa generada: <strong>${{ number_format($multaCalculada, 2) }}</strong>
+                @if($saldoPendienteReal > 0)
+                    <!-- ALERTA DE COBRO PENDIENTE -->
+                    <div class="alert alert-danger mt-3 mb-0 py-2 px-3 small shadow-sm" style="border-left: 4px solid #dc3545; background-color: #f8d7da; color: #842029;">
+                        <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                        <strong>¡Contrato Vencido!</strong><br>
+                        {{ $diasRetraso }} día(s) de retraso con deuda activa.
+                        @if($multaCalculada > 0)
+                            Multa pendiente: <strong>${{ number_format($multaCalculada, 2) }}</strong>
+                        @endif
+                    </div>
+                @else
+                    <!-- ALERTA VERDE DE LIQUIDACIÓN EXITOSA -->
+                    <div class="alert alert-success mt-3 mb-0 py-2 px-3 small shadow-sm" style="border-left: 4px solid #198754; background-color: #d1e7dd; color: #0f5132;">
+                        <i class="bi bi-check-circle-fill text-success me-1 fs-6 align-middle"></i>
+                        <strong class="align-middle">¡Deuda Liquidada!</strong><br>
+                        Los costos por los {{ $diasRetraso }} día(s) de retraso han sido pagados en su totalidad. Por favor, solicita la devolución del equipo o finaliza la cuenta.
+                    </div>
                 @endif
-            </div>
             @endif
         </div>
     </div>
@@ -448,13 +449,14 @@
                         <td class="text-end fw-bold text-primary">-${{ number_format($totalAbonado, 2) }}</td>
                     </tr>
 
-                    @php
-                    $saldoPendienteReal = $renta->estado == 'cancelada' ? 0 : ($renta->saldo_pendiente + ($renta->estado == 'activa' ? $multaCalculada : 0));
-                    @endphp
                     <tr>
-                        <td class="text-body fw-bold py-3">SALDO PENDIENTE:</td>
+                        <td class="text-body fw-bold py-3">SALDO PENDIENTE ACTUAL:</td>
                         <td class="text-end fw-bold fs-4 {{ $saldoPendienteReal > 0 ? 'text-danger' : 'text-success' }} py-3">
-                            ${{ number_format($saldoPendienteReal, 2) }}
+                            @if($saldoPendienteReal <= 0)
+                                <span class="badge bg-success text-white fs-6 py-1 px-2 rounded-pill align-middle me-2"><i class="bi bi-check2-all"></i> Liquidado</span>$0.00
+                            @else
+                                ${{ number_format($saldoPendienteReal, 2) }}
+                            @endif
                         </td>
                     </tr>
                 </tbody>
@@ -659,20 +661,20 @@
 
 <!-- MODAL: Registro de Pago / Liquidación -->
 <div class="modal fade" id="modalPago" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog {{ $renta->autorizacion_aprobada ? 'modal-lg' : '' }} modal-dialog-centered">
-        <div class="modal-content border shadow-lg rounded-3" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
+    <!-- Se cambia modal-xl por modal-lg para hacerlo menos ancho -->
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
             
-            <!-- Encabezado del Modal -->
-            <div class="modal-header {{ $renta->autorizacion_aprobada ? 'bg-success' : 'bg-info' }} text-white py-3 px-4">
+            <div class="modal-header {{ $renta->autorizacion_aprobada ? 'bg-success' : 'bg-info' }} text-white py-3 px-4 border-0">
                 <div class="d-flex align-items-center gap-3">
                     <div class="rounded-circle p-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: rgba(255, 255, 255, 0.2);">
                         <i class="bi bi-cash-coin fs-4 text-white"></i>
                     </div>
                     <div>
-                        <h6 class="modal-title fw-bold mb-0 text-white">
+                        <h5 class="modal-title fw-bold mb-0 text-white">
                             {{ $renta->autorizacion_aprobada ? 'Liquidar Renta Aprobada y Registrar Productos' : 'Registrar Nuevo Pago' }}
-                        </h6>
-                        <small class="text-white-50" style="font-size: 11px;">
+                        </h5>
+                        <small class="text-white-50" style="font-size: 12px;">
                             {{ $renta->autorizacion_aprobada ? 'Confirma la recepción de equipos y procesa el cobro final' : 'Registra abonos directos al saldo pendiente de la cuenta' }}
                         </small>
                     </div>
@@ -680,158 +682,150 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form action="{{ route('rentas.registrarPago', $renta) }}" method="POST">
+            <!-- EVENTO ONSUBMIT PARA PROTEGER EL CÁLCULO DE EXTENSIONES DEL NAVEGADOR -->
+            <form action="{{ route('rentas.registrarPago', $renta) }}" method="POST" onsubmit="calcularCambioPago();">
                 @csrf
-                <div class="modal-body p-3 p-md-4">
-
-                    {{-- TABLA DE DEVOLUCIÓN Y FALTANTES: SOLO SI LA RENTA FUE APROBADA --}}
-                    @if($renta->autorizacion_aprobada)
-                    <div class="card border mb-4 shadow-sm rounded-3 overflow-hidden" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
-                        <div class="card-header bg-warning-subtle text-warning-emphasis border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
-                            <span class="fw-bold small">
-                                <i class="bi bi-box-arrow-in-down me-1"></i> Confirmar Entrega de Equipo y Faltantes
-                            </span>
-                            <span class="badge bg-warning text-dark font-monospace" style="font-size: 10px;">Revisión de Inventario</span>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive" style="max-height: 220px;">
-                                <table class="table table-hover table-sm mb-0 align-middle text-body" style="font-size: 12px;">
-                                    <thead class="bg-body-tertiary text-body-secondary border-bottom">
-                                        <tr>
-                                            <th class="ps-3 py-2">Equipo</th>
-                                            <th class="text-center py-2">Pendiente</th>
-                                            <th style="width: 90px;" class="text-center py-2">Devueltos</th>
-                                            <th style="width: 80px;" class="text-center py-2">Faltantes</th>
-                                            <th style="width: 135px;" class="text-center pe-3 py-2">Costo Faltante ($)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($renta->detalles as $detalle)
-                                        @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
-                                        @if($pendiente > 0)
-                                        <tr class="fila-detalle-pago border-bottom" data-detalle-id="{{ $detalle->id }}" data-pendiente="{{ $pendiente }}">
-                                            <td class="ps-3 fw-semibold text-truncate text-body" style="max-width: 150px;" title="{{ $detalle->equipo->nombre }}">
-                                                {{ $detalle->equipo->nombre }}
-                                            </td>
-                                            <td class="text-center">
-                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">
-                                                    {{ $pendiente }}
-                                                </span>
-                                            </td>
-                                            <td class="text-center">
-                                                <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center px-1 fw-bold bg-body text-body input-devuelto-pago" min="0" max="{{ $pendiente }}" value="{{ $pendiente }}" oninput="calcularFaltantesPagoModal()">
-                                            </td>
-                                            <td class="text-center fw-bold text-body-secondary col-faltante-pago">0</td>
-                                            <td class="pe-3">
-                                                <div class="input-group input-group-sm">
-                                                    <span class="input-group-text bg-body-tertiary text-body border-end-0">$</span>
-                                                    <input type="number" name="costo_faltante[{{ $detalle->id }}]" class="form-control form-control-sm text-end bg-body text-body input-costo-faltante-pago fw-semibold" step="0.01" min="0" value="0" placeholder="0.00" oninput="calcularCambioPago()" disabled>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        @endif
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div id="alerta-faltantes-equipo-pago" class="alert alert-warning border-0 rounded-0 m-0 py-2 px-3 small d-none" style="font-size: 11px;">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                Hay equipos sin devolver. Ingresa el <strong>Costo Faltante ($)</strong> para sumarlo al cobro final.
-                            </div>
-                        </div>
-                    </div>
-                    @endif
-
-                    {{-- CAPTURA DE PAGO Y RESUMEN FINANCIERO --}}
-                    <div class="row g-3">
+                <div class="modal-body p-4">
+                    <div class="row g-4">
                         
-                        <!-- Columna Izquierda: Entradas de datos -->
-                        <div class="col-12 {{ $renta->autorizacion_aprobada ? 'col-md-6' : '' }}">
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold text-body">
-                                    Monto Recibido <span class="text-danger">*</span>
-                                </label>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text bg-body-tertiary text-success fw-bold">$</span>
-                                    <input type="number" id="inputMontoRecibidoPago" class="form-control form-control-sm bg-body text-body fw-bold fs-6" step="0.01" required oninput="calcularCambioPago()" placeholder="0.00">
+                        <!-- ================= COLUMNA IZQUIERDA ================= -->
+                        <div class="col-12 col-lg-7">
+                            
+                            <!-- 1. Retorno de Equipo -->
+                            <div class="card border mb-4 shadow-sm rounded-3 overflow-hidden" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
+                                <div class="card-header bg-secondary bg-opacity-10 border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold small text-body">
+                                        <i class="bi bi-box-arrow-in-down me-1"></i> Retorno de Equipo (Opcional)
+                                    </span>
                                 </div>
-                                <input type="hidden" name="monto" id="inputMontoRegistrarPago">
+                                <div class="card-body p-0">
+                                    <div class="table-responsive" style="max-height: 220px;">
+                                        <table class="table table-hover table-sm mb-0 align-middle text-body" style="font-size: 12px;">
+                                            <thead class="bg-body-tertiary text-body-secondary border-bottom">
+                                                <tr>
+                                                    <th class="ps-3 py-2">Equipo</th>
+                                                    <th class="text-center py-2">Pendiente</th>
+                                                    <th style="width: 90px;" class="text-center py-2">A Devolver</th>
+                                                    <th style="width: 80px;" class="text-center py-2">Faltantes</th>
+                                                    <th style="width: 135px;" class="text-center pe-3 py-2">Cobro ($)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($renta->detalles as $detalle)
+                                                @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
+                                                @if($pendiente > 0)
+                                                <tr class="fila-detalle-pago border-bottom" data-detalle-id="{{ $detalle->id }}" data-pendiente="{{ $pendiente }}">
+                                                    <td class="ps-3 fw-semibold text-truncate text-body" style="max-width: 110px;" title="{{ $detalle->equipo->nombre }}">
+                                                        {{ $detalle->equipo->nombre }}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">{{ $pendiente }}</span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center px-1 fw-bold bg-body text-body input-devuelto-pago" min="0" max="{{ $pendiente }}" value="0" oninput="calcularFaltantesPagoModal()">
+                                                    </td>
+                                                    <td class="text-center fw-bold text-body-secondary col-faltante-pago">0</td>
+                                                    <td class="pe-3">
+                                                        <div class="input-group input-group-sm">
+                                                            <span class="input-group-text bg-body-tertiary text-body border-end-0 px-1">$</span>
+                                                            <input type="number" name="costo_faltante[{{ $detalle->id }}]" class="form-control form-control-sm text-end bg-body text-body input-costo-faltante-pago fw-semibold px-1" step="0.01" min="0" value="0" placeholder="0.00" oninput="calcularCambioPago()" disabled>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                @endif
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold text-body">
-                                    Método de Pago <span class="text-danger">*</span>
-                                </label>
-                                <select name="metodo_pago" id="metodoPagoRegistro" class="form-select form-select-sm bg-body text-body" required onchange="toggleReferencia()">
-                                    <option value="efectivo">Efectivo</option>
-                                    <option value="transferencia">Transferencia</option>
-                                    <option value="tarjeta">Tarjeta</option>
-                                </select>
-                            </div>
+                            <!-- 2. Monto y Método de Pago (Anidados en una fila) -->
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <div class="mb-3 mb-md-0">
+                                        <label class="form-label small fw-semibold text-body">Monto Recibido <span class="text-danger">*</span></label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-body-tertiary text-success fw-bold">$</span>
+                                            <input type="number" id="inputMontoRecibidoPago" class="form-control form-control-sm bg-body text-body fw-bold fs-6" step="0.01" required oninput="calcularCambioPago()" placeholder="0.00">
+                                        </div>
+                                        <input type="hidden" name="monto" id="inputMontoRegistrarPago">
+                                    </div>
+                                </div>
 
-                            <div class="mb-0" id="campoReferencia" style="display: none;">
-                                <label class="form-label small fw-semibold text-body">Referencia / Folio</label>
-                                <input type="text" name="referencia" id="inputReferencia" class="form-control form-control-sm bg-body text-body" placeholder="N° Transferencia o Voucher">
+                                <div class="col-12 col-md-6">
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold text-body">Método de Pago <span class="text-danger">*</span></label>
+                                        <select name="metodo_pago" id="metodoPagoRegistro" class="form-select form-select-sm bg-body text-body" required onchange="toggleReferencia()">
+                                            <option value="efectivo">Efectivo</option>
+                                            <option value="transferencia">Transferencia</option>
+                                            <option value="tarjeta">Tarjeta</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-0" id="campoReferencia" style="display: none;">
+                                        <label class="form-label small fw-semibold text-body">Referencia / Folio</label>
+                                        <input type="text" name="referencia" id="inputReferencia" class="form-control form-control-sm bg-body text-body" placeholder="N° Transferencia o Voucher">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- Columna Derecha: Tarjeta Resumen -->
-                        <div class="col-12 {{ $renta->autorizacion_aprobada ? 'col-md-6' : '' }}">
+                        
+                        <!-- ================= COLUMNA DERECHA ================= -->
+                        <div class="col-12 col-lg-5">
                             <div class="card bg-body-tertiary border rounded-3 p-3 h-100 d-flex flex-column justify-content-between" style="border-color: var(--bs-border-color) !important;">
-                                <h6 class="fw-bold text-body border-bottom pb-2 mb-2 small">
-                                    <i class="bi bi-calculator me-1 text-primary"></i> RESUMEN DE TRANSACCIÓN
-                                </h6>
-                                
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="text-body-secondary small">Saldo Base Pendiente:</span>
-                                    <span class="fw-bold text-body">${{ number_format($renta->saldo_pendiente, 2) }}</span>
-                                </div>
-                                
-                                @if($renta->estado == 'activa' && $multaCalculada > 0)
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="text-danger small">Cargos por Retraso:</span>
-                                    <span class="fw-bold text-danger">+${{ number_format($multaCalculada, 2) }}</span>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mb-2 border-top pt-1">
-                                    <span class="text-body-secondary small">Deuda Total Actual:</span>
-                                    <span class="fw-bold text-body">${{ number_format($renta->saldo_pendiente + $multaCalculada, 2) }}</span>
-                                </div>
-                                @else
-                                <div class="mb-2"></div>
-                                @endif
+                                <div>
+                                    <h6 class="fw-bold text-body border-bottom pb-2 mb-3 small">
+                                        <i class="bi bi-calculator me-1 text-primary"></i> RESUMEN
+                                    </h6>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-body-secondary small">Saldo Base:</span>
+                                        <span class="fw-bold text-body">${{ number_format($renta->saldo_pendiente, 2) }}</span>
+                                    </div>
+                                    
+                                    @if($renta->estado == 'activa' && $multaCalculada > 0)
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-danger small">Cargos por Retraso:</span>
+                                        <span class="fw-bold text-danger">+${{ number_format($multaCalculada, 2) }}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-3 border-top pt-2">
+                                        <span class="text-body-secondary small">Deuda Actual:</span>
+                                        <span class="fw-bold text-body">${{ number_format($renta->saldo_pendiente + $multaCalculada, 2) }}</span>
+                                    </div>
+                                    @else
+                                    <div class="mb-3"></div>
+                                    @endif
 
-                                <div class="d-flex justify-content-between align-items-center mb-2 border-top pt-2">
-                                    <span class="text-body-secondary small">Monto a Registrar:</span>
-                                    <strong id="montoRegistrarText" class="text-primary fs-6">$0.00</strong>
-                                </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2 border-top pt-3">
+                                        <span class="text-body-secondary small">A Registrar:</span>
+                                        <strong id="montoRegistrarText" class="text-primary fs-6">$0.00</strong>
+                                    </div>
 
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="text-body-secondary small">Cambio a Regresar:</span>
-                                    <strong id="cambioText" class="text-success fs-6">$0.00</strong>
-                                </div>
-
-                                <hr class="my-2 border-secondary-subtle">
-
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold text-body small">Faltaría por liquidar:</span>
-                                    <strong id="faltanteText" class="text-danger fs-5">${{ number_format($renta->saldo_pendiente + ($renta->estado == 'activa' ? $multaCalculada : 0), 2) }}</strong>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-body-secondary small">Cambio:</span>
+                                        <strong id="cambioText" class="text-success fs-6">$0.00</strong>
+                                    </div>
                                 </div>
 
-                                {{-- Elemento oculto mantenido para compatibilidad estricta con el JS --}}
-                                <span id="nuevoSaldo" class="d-none"></span>
+                                <div>
+                                    <hr class="my-3 border-secondary-subtle">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold text-body small">Falta liquidar:</span>
+                                        <strong id="faltanteText" class="text-danger fs-5">${{ number_format(max(0, $saldoPendienteReal), 2) }}</strong>
+                                    </div>
+                                    <span id="nuevoSaldo" class="d-none"></span>
+                                </div>
                             </div>
                         </div>
 
                     </div>
-
                 </div>
-
-                <!-- Botones de Acción -->
-                <div class="modal-footer bg-body-tertiary py-2 px-3 border-top" style="border-color: var(--bs-border-color) !important;">
-                    <button type="button" class="btn btn-sm btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm {{ $renta->autorizacion_aprobada ? 'btn-success' : 'btn-info text-white' }} fw-bold rounded-3 px-4 shadow-sm">
+                <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
+                    <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn {{ $renta->autorizacion_aprobada ? 'btn-success' : 'btn-info text-white' }} fw-bold rounded-3 px-4 shadow-sm">
                         <i class="bi bi-check-circle me-1"></i>
-                        {{ $renta->autorizacion_aprobada ? 'Liquidar y Finalizar' : 'Confirmar Pago' }}
+                        {{ $renta->autorizacion_aprobada ? 'Liquidar' : 'Confirmar Pago' }}
                     </button>
                 </div>
             </form>
@@ -844,14 +838,14 @@
 <!-- MODAL: Ampliar Días -->
 <div class="modal fade" id="modalAmpliar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
-            <div class="modal-header bg-primary text-white py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-plus-circle me-1"></i> Ampliar Días de Renta</h6>
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-primary text-white py-3 px-4 border-0">
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-plus-circle me-2"></i>Ampliar Días de Renta</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('rentas.ampliarDias', $renta) }}" method="POST">
                 @csrf
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -861,6 +855,34 @@
                             <div class="mb-3">
                                 <label class="form-label small fw-semibold text-body">Abono a cuenta</label>
                                 <input type="number" name="abono" class="form-control form-control-sm bg-body" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold text-body">¿Se devuelve algún equipo hoy?</label>
+                                <div class="table-responsive border rounded bg-body-tertiary">
+                                    <table class="table table-sm mb-0 text-body" style="font-size:12px;">
+                                        <thead>
+                                            <tr>
+                                                <th class="ps-2">Equipo</th>
+                                                <th class="text-center">Pendiente</th>
+                                                <th class="text-center pe-2">A devolver</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($renta->detalles as $detalle)
+                                            @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
+                                            @if($pendiente > 0)
+                                            <tr>
+                                                <td class="ps-2 align-middle">{{ $detalle->equipo->nombre }}</td>
+                                                <td class="text-center align-middle">{{ $pendiente }}</td>
+                                                <td class="text-center pe-2">
+                                                    <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center input-devolver-ampliar" data-precio="{{ $detalle->precio_dia }}" min="0" max="{{ $pendiente }}" value="0" oninput="calcularAmpliacion()">
+                                                </td>
+                                            </tr>
+                                            @endif
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-semibold text-body">Motivo de la ampliación</label>
@@ -892,9 +914,9 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary fw-bold"><i class="bi bi-check-lg me-1"></i> Procesar</button>
+                <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
+                    <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary fw-bold rounded-3 px-4"><i class="bi bi-check-lg me-1"></i> Procesar</button>
                 </div>
             </form>
         </div>
@@ -904,20 +926,20 @@
 <!-- MODAL: Finalizar Renta -->
 <div class="modal fade" id="modalFinalizar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
-            <div class="modal-header bg-success text-white py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-check-circle me-1"></i> Finalizar Renta</h6>
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-success text-white py-3 px-4 border-0">
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-check-circle-fill me-2"></i>Finalizar Renta</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('rentas.finalizarConPago', $renta) }}" method="POST">
                 @csrf
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <div class="alert alert-info py-2 px-3 small mb-3">
                         <strong class="d-block mb-1"><i class="bi bi-calculator me-1"></i> Resumen de la Cuenta:</strong>
                         Total original: ${{ number_format($renta->total, 2) }} | 
                         Depósito: ${{ number_format($renta->deposito ?? 0, 2) }} | 
                         Pagado: ${{ number_format($renta->pagos->sum('monto'), 2) }}<br>
-                        <strong class="text-danger fs-6">Saldo Base a Pagar: $<span id="saldo_base_txt">{{ number_format($renta->saldo_pendiente, 2) }}</span></strong>
+                        <strong class="text-danger fs-6">Saldo Base Original: $<span id="saldo_base_txt">{{ number_format($renta->saldo_pendiente, 2) }}</span></strong>
                     </div>
 
                     @if($diasRetraso > 0)
@@ -972,7 +994,7 @@
                             <label class="form-label small fw-semibold text-body">Monto Recibido <span class="text-danger">*</span></label>
                             <input type="number" id="montoRecibidoFinal" class="form-control form-control-sm bg-body fw-bold text-primary" step="0.01" value="" required oninput="recalcularFinalizacion()">
                             <input type="hidden" name="monto_pago" id="montoPagoFinal" value="0">
-                            <small class="text-secondary d-block" id="montoMaximoLabel" style="font-size: 11px;">Deuda Total: ${{ number_format($renta->saldo_pendiente, 2) }}</small>
+                            <small class="text-secondary d-block" id="montoMaximoLabel" style="font-size: 11px;">Deuda Total: ${{ number_format(max(0, $saldoPendienteReal), 2) }}</small>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label small fw-semibold text-body">Método de pago <span class="text-danger">*</span></label>
@@ -990,7 +1012,7 @@
                             <div class="alert alert-secondary py-2 px-3 small mb-0">
                                 <div class="d-flex justify-content-between mb-1">
                                     <span>Monto a cobrar:</span>
-                                    <strong id="montoCobrarFinalText" class="text-primary">${{ number_format($renta->saldo_pendiente, 2) }}</strong>
+                                    <strong id="montoCobrarFinalText" class="text-primary">${{ number_format(max(0, $saldoPendienteReal), 2) }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between mb-1">
                                     <span>Cambio a regresar:</span>
@@ -1004,9 +1026,9 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-success fw-bold" onclick="return validarCargo()"><i class="bi bi-check-lg me-1"></i> Finalizar</button>
+                <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
+                    <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold rounded-3 px-4" onclick="return validarCargo()"><i class="bi bi-check-lg me-1"></i> Finalizar Contrato</button>
                 </div>
             </form>
         </div>
@@ -1016,16 +1038,15 @@
 <!-- Devolución Parcial -->
 <div class="modal fade" id="modalDevParcial" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow" style="background: var(--bs-body-bg);">
-            <div class="modal-header bg-secondary text-white py-2">
-                <h6 class="modal-title fw-bold"><i class="bi bi-box-arrow-in-down me-1"></i> Registrar Devolución Parcial</h6>
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-secondary text-white py-3 px-4 border-0">
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-box-arrow-in-down me-2"></i>Registrar Devolución Parcial</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('rentas.devolucionParcial', $renta) }}" method="POST">
                 @csrf
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <p class="small text-secondary mb-3">Indica la cantidad de artículos que el cliente está devolviendo en este momento. El stock regresará automáticamente a la sucursal.</p>
-
                     <div class="table-responsive">
                         <table class="table table-sm align-middle" style="font-size: 13px;">
                             <thead class="bg-body-tertiary">
@@ -1056,30 +1077,47 @@
                         </table>
                     </div>
                 </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-secondary fw-bold">Registrar Entrega</button>
+                <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
+                    <button type="button" class="btn btn-light rounded-3 px-4 border" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-secondary fw-bold rounded-3 px-4">Registrar Entrega</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- MODAL: Visualizador de Documentos -->
+<!-- MODAL PARA VER E IMPRIMIR EL TICKET DE PAGO -->
+<div class="modal fade" id="modalTicketPago" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="width: 380px;">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-dark text-white py-3 px-4 border-0">
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-receipt me-2"></i>Comprobante de Pago</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="iframeTicketPago" src="" style="width: 100%; height: 450px; border: none; display: block; background: #fff;"></iframe>
+            </div>
+            <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0 d-flex gap-2">
+                <button type="button" class="btn btn-secondary rounded-3 flex-grow-1" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary rounded-3 px-4 fw-bold" onclick="document.getElementById('iframeTicketPago').contentWindow.print()">
+                    <i class="bi bi-printer-fill me-1"></i> Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Visualizador de Documentos Generales -->
 <div class="modal fade" id="modalVerDocumento" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border shadow-lg rounded-3" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
-            
-            <!-- Encabezado del Modal -->
-            <div class="modal-header bg-primary text-white py-2 px-3">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-primary text-white py-3 px-4 border-0">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark-pdf fs-5"></i>
-                    <h6 class="modal-title fw-bold mb-0" id="modalVerDocumentoTitulo">Visualizador de Documento</h6>
+                    <i class="bi bi-file-earmark-pdf fs-4"></i>
+                    <h5 class="modal-title fw-bold mb-0 text-white" id="modalVerDocumentoTitulo">Visualizador de Documento</h5>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-
-            <!-- Cuerpo del Modal (Iframe Visor) -->
             <div class="modal-body p-0 bg-secondary bg-opacity-10 position-relative">
                 <div id="loaderDocumento" class="position-absolute top-50 start-50 translate-middle text-center">
                     <div class="spinner-border text-primary" role="status"></div>
@@ -1087,34 +1125,23 @@
                 </div>
                 <iframe id="iframeDocumento" src="" style="width: 100%; height: 78vh; border: none;" onload="document.getElementById('loaderDocumento').classList.add('d-none')"></iframe>
             </div>
-
-            <!-- Pie del Modal -->
-            <div class="modal-footer bg-body-tertiary py-2 px-3 border-top d-flex justify-content-between" style="border-color: var(--bs-border-color) !important;">
-                <a id="btnDescargarDocumento" href="#" target="_blank" class="btn btn-sm btn-outline-secondary rounded-3">
+            <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0 d-flex justify-content-between">
+                <a id="btnDescargarDocumento" href="#" target="_blank" class="btn btn-outline-secondary rounded-3 px-4">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Abrir en ventana nueva
                 </a>
-                <button type="button" class="btn btn-sm btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cerrar</button>
             </div>
-
         </div>
     </div>
 </div>
 @endif
 
-@php
-    $costoDiarioPendiente = $renta->detalles->sum(function($d) {
-        $pendiente = $d->cantidad - $d->cantidad_devuelta;
-        return $pendiente > 0 ? ($pendiente * $d->precio_dia) : 0;
-    });
-@endphp
-
-<!-- Contenedor seguro para variables PHP hacia JavaScript -->
 <div id="renta-js-data"
      class="d-none"
      data-saldo-pendiente="{{ $renta->saldo_pendiente }}"
      data-multa-calculada="{{ $renta->estado == 'activa' ? $multaCalculada : 0 }}"
      data-fecha-fin="{{ $renta->fecha_fin->format('Y-m-d') }}"
-     data-costo-diario-pendiente="{{ $costoDiarioPendiente }}"
+     data-costo-diario-pendiente="{{ $costoDiarioPendiente ?? 0 }}"
      data-facturar="{{ $renta->facturar ? '1' : '0' }}"
      data-es-gerente="{{ (auth()->user()->isAdmin() || auth()->user()->isGerente()) ? '1' : '0' }}"
      data-autorizacion-aprobada="{{ $renta->autorizacion_aprobada ? '1' : '0' }}">
@@ -1126,7 +1153,6 @@
     const fechaFinOriginal = rentaData.fechaFin || '';
     const costoDiarioPendiente = parseFloat(rentaData.costoDiarioPendiente) || 0;
 
-    // Elementos de Modal Finalizar
     const inputMulta = document.getElementById('multa_retraso');
     const checkCargoManual = document.getElementById('check_cargo_manual');
     const seccionCargoManual = document.getElementById('seccion_cargo_manual');
@@ -1135,9 +1161,6 @@
     const inputMontoFinalHidden = document.getElementById('montoPagoFinal');
     const labelMaximo = document.getElementById('montoMaximoLabel');
 
-    // ==========================================
-    // LÓGICA DE MODAL REGISTRAR PAGO / LIQUIDACIÓN
-    // ==========================================
     function calcularFaltantesPagoModal() {
         let hayFaltantes = false;
         const filas = document.querySelectorAll('.fila-detalle-pago');
@@ -1190,9 +1213,8 @@
         if (!elMontoRecibido) return;
 
         const saldoPendienteOriginal = parseFloat(rentaData.saldoPendiente) || 0;
-        const multaCalculada = parseFloat(rentaData.multaCalculada) || 0; // NUEVO: Extraemos la multa del data-set
+        const multaCalculada = parseFloat(rentaData.multaCalculada) || 0;
 
-        // Sumar costos por faltantes si la renta fue autorizada para devolución/faltantes
         let totalFaltantes = 0;
         document.querySelectorAll('.input-costo-faltante-pago').forEach(inp => {
             if (!inp.disabled) {
@@ -1200,16 +1222,13 @@
             }
         });
 
-        // NUEVO: Sumar la multa calculada al saldo total
         const saldoTotal = saldoPendienteOriginal + multaCalculada + totalFaltantes;
         const montoRecibido = parseFloat(elMontoRecibido.value) || 0;
 
-        let montoARegistrar = 0,
-            cambio = 0,
-            faltante = 0;
+        let montoARegistrar = 0, cambio = 0, faltante = 0;
 
         if (montoRecibido >= saldoTotal) {
-            montoARegistrar = saldoTotal;
+            montoARegistrar = Math.max(0, saldoTotal); // Protege contra registros negativos
             cambio = montoRecibido - saldoTotal;
         } else {
             montoARegistrar = montoRecibido;
@@ -1225,11 +1244,11 @@
         if (inputRegistrar) inputRegistrar.value = montoARegistrar.toFixed(2);
         if (txtRegistrar) txtRegistrar.textContent = '$' + montoARegistrar.toFixed(2);
         if (txtCambio) txtCambio.textContent = '$' + cambio.toFixed(2);
-        if (txtFaltante) txtFaltante.textContent = '$' + faltante.toFixed(2);
+        if (txtFaltante) txtFaltante.textContent = '$' + Math.max(0, faltante).toFixed(2); // Ocultar remanentes si es < 0
 
         if (elNuevoSaldo) {
-            elNuevoSaldo.textContent = '$' + faltante.toFixed(2);
-            elNuevoSaldo.className = (faltante === 0 && montoRecibido > 0) ? 'text-success fw-bold' : 'text-primary fw-bold';
+            elNuevoSaldo.textContent = '$' + Math.max(0, faltante).toFixed(2);
+            elNuevoSaldo.className = (faltante <= 0 && montoRecibido > 0) ? 'text-success fw-bold' : 'text-primary fw-bold';
         }
     }
 
@@ -1252,9 +1271,6 @@
         }
     }
 
-    // ==========================================
-    // LÓGICA DE MODAL FINALIZAR RENTA
-    // ==========================================
     function toggleCargoManual() {
         if (checkCargoManual && checkCargoManual.checked) {
             if (seccionCargoManual) seccionCargoManual.classList.remove('d-none');
@@ -1289,14 +1305,14 @@
         let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
         let manual = (checkCargoManual && checkCargoManual.checked) ? (parseFloat(inputCargoManual.value) || 0) : 0;
         let deudaReal = saldoBaseOriginal + multa + manual;
+        
+        if (deudaReal < 0) deudaReal = 0; // Prevenir deuda en contra
 
         if (labelMaximo) labelMaximo.textContent = 'Deuda Total: $' + deudaReal.toFixed(2);
 
         const elRecibido = document.getElementById('montoRecibidoFinal');
         let montoRecibido = parseFloat(elRecibido ? elRecibido.value : 0) || 0;
-        let montoACobrar = 0,
-            cambio = 0,
-            faltante = 0;
+        let montoACobrar = 0, cambio = 0, faltante = 0;
 
         if (montoRecibido >= deudaReal) {
             montoACobrar = deudaReal;
@@ -1329,6 +1345,7 @@
 
         let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
         let deudaReal = saldoBaseOriginal + multa + manual;
+        if (deudaReal < 0) deudaReal = 0;
 
         const elRecibido = document.getElementById('montoRecibidoFinal');
         let montoRecibido = parseFloat(elRecibido ? elRecibido.value : 0) || 0;
@@ -1347,37 +1364,43 @@
         return true;
     }
 
-    // ==========================================
-    // LÓGICA DE MODAL AMPLIAR DÍAS
-    // ==========================================
     function calcularAmpliacion() {
         const diasInput = document.getElementById('dias_extra');
         const dias = parseInt(diasInput ? diasInput.value : 0) || 0;
-        
         const aplicaIva = rentaData.facturar === '1';
 
-        const costoExtra = dias * costoDiarioPendiente;
+        let nuevoCostoDiario = 0;
+        const inputsDevolver = document.querySelectorAll('.input-devolver-ampliar');
+        
+        if (inputsDevolver.length > 0) {
+            inputsDevolver.forEach(inp => {
+                let devuelto = parseInt(inp.value) || 0;
+                let max = parseInt(inp.getAttribute('max')) || 0;
+                let precio = parseFloat(inp.getAttribute('data-precio')) || 0;
+                
+                if (devuelto > max) { devuelto = max; inp.value = max; }
+                if (devuelto < 0) { devuelto = 0; inp.value = 0; }
+                
+                const pendienteReal = max - devuelto;
+                nuevoCostoDiario += (pendienteReal * precio);
+            });
+        } else {
+            nuevoCostoDiario = parseFloat(rentaData.costoDiarioPendiente) || 0;
+        }
+
+        const costoExtra = dias * nuevoCostoDiario;
         const ivaExtra = aplicaIva ? (costoExtra * 0.16) : 0;
         const totalExtra = costoExtra + ivaExtra;
 
-        if (document.getElementById('res_costo')) {
-            document.getElementById('res_costo').textContent = '$' + costoExtra.toFixed(2);
-        }
-        if (document.getElementById('res_iva_ext')) {
-            document.getElementById('res_iva_ext').textContent = '$' + ivaExtra.toFixed(2);
-        }
-        if (document.getElementById('res_total_ext')) {
-            document.getElementById('res_total_ext').textContent = '$' + totalExtra.toFixed(2);
-        }
+        if (document.getElementById('res_costo')) document.getElementById('res_costo').textContent = '$' + costoExtra.toFixed(2);
+        if (document.getElementById('res_iva_ext')) document.getElementById('res_iva_ext').textContent = '$' + ivaExtra.toFixed(2);
+        if (document.getElementById('res_total_ext')) document.getElementById('res_total_ext').textContent = '$' + totalExtra.toFixed(2);
 
         const elNuevaFecha = document.getElementById('nueva_fecha');
         if (elNuevaFecha && fechaFinOriginal) {
             let partes = fechaFinOriginal.split('-');
             let fecha = new Date(partes[0], partes[1] - 1, partes[2]);
-
-            if (dias > 0) {
-                fecha.setDate(fecha.getDate() + dias);
-            }
+            if (dias > 0) fecha.setDate(fecha.getDate() + dias);
 
             let dia = String(fecha.getDate()).padStart(2, '0');
             let mes = String(fecha.getMonth() + 1).padStart(2, '0');
@@ -1387,9 +1410,6 @@
         }
     }
 
-    // ==========================================
-    // INICIALIZACIÓN Y EVENT LISTENERS DE MODALES
-    // ==========================================
     document.addEventListener('DOMContentLoaded', function() {
         ['modalPago', 'modalFinalizar', 'modalAmpliar'].forEach(id => {
             let modal = document.getElementById(id);
@@ -1419,27 +1439,25 @@
         recalcularFinalizacion();
     });
 
-    // Función para abrir cualquier documento en el modal visor
-function verDocumento(url, titulo) {
-    const tituloEl = document.getElementById('modalVerDocumentoTitulo');
-    const iframeEl = document.getElementById('iframeDocumento');
-    const loaderEl = document.getElementById('loaderDocumento');
-    const btnDescargar = document.getElementById('btnDescargarDocumento');
+    function verDocumento(url, titulo) {
+        const tituloEl = document.getElementById('modalVerDocumentoTitulo');
+        const iframeEl = document.getElementById('iframeDocumento');
+        const loaderEl = document.getElementById('loaderDocumento');
+        const btnDescargar = document.getElementById('btnDescargarDocumento');
 
-    if (tituloEl) tituloEl.textContent = titulo;
-    if (btnDescargar) btnDescargar.href = url;
-    
-    if (loaderEl) loaderEl.classList.remove('d-none');
-    if (iframeEl) iframeEl.src = url;
+        if (tituloEl) tituloEl.textContent = titulo;
+        if (btnDescargar) btnDescargar.href = url;
+        
+        if (loaderEl) loaderEl.classList.remove('d-none');
+        if (iframeEl) iframeEl.src = url;
 
-    const modalEl = document.getElementById('modalVerDocumento');
-    if (modalEl) {
-        const modalInstance = new bootstrap.Modal(modalEl);
-        modalInstance.show();
+        const modalEl = document.getElementById('modalVerDocumento');
+        if (modalEl) {
+            const modalInstance = new bootstrap.Modal(modalEl);
+            modalInstance.show();
+        }
     }
-}
 
-    // Limpiar el iframe al cerrar el modal para no consumir memoria en segundo plano
     document.addEventListener('DOMContentLoaded', function() {
         const modalVerDoc = document.getElementById('modalVerDocumento');
         if (modalVerDoc) {
@@ -1450,4 +1468,16 @@ function verDocumento(url, titulo) {
         }
     });
 </script>
+
+<!-- AUTO-INICIAR EL TICKET THERMICO SI ESTÁ DISPONIBLE EN LA SESIÓN -->
+@if(session('imprimir_ticket_pago'))
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let url = "{{ route('rentas.ticketPago', session('imprimir_ticket_pago')) }}";
+        document.getElementById('iframeTicketPago').src = url;
+        let modalTicket = new bootstrap.Modal(document.getElementById('modalTicketPago'));
+        modalTicket.show();
+    });
+</script>
+@endif
 @endsection

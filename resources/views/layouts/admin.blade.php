@@ -210,7 +210,7 @@
 
             @if(Auth::user()->isAdmin() || Auth::user()->isGerente())
             <li class="nav-item mb-1">
-                <a href="{{ route('autorizaciones.index') }}" class="nav-link position-relative d-flex align-items-center {{ request()->routeIs('autorizaciones.*') ? 'text-warning fw-bold' : 'text-white' }}" title="Autorizaciones">
+                <a href="{{ route('autorizaciones.index') }}" class="nav-link position-relative d-flex align-items-center {{ request()->routeIs('autorizaciones.*') ? 'active' : 'text-white' }}" title="Autorizaciones">
                     <i class="bi bi-shield-lock me-2"></i>
                     <span class="sidebar-text me-auto">Autorizaciones</span>
                     <span id="badge-autorizaciones" class="badge bg-danger rounded-pill shadow-sm badge-autorizaciones" style="display: none; font-size: 11px;">0</span>
@@ -428,15 +428,22 @@
 @if(Auth::user()->isAdmin() || Auth::user()->isGerente())
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        let solicitudesAnteriores = null; 
+
         function revisarAutorizaciones() {
             fetch('{{ route("autorizaciones.notificaciones") }}')
                 .then(response => response.json())
                 .then(data => {
                     const badge = document.getElementById('badge-autorizaciones');
+                    
+                    if (solicitudesAnteriores !== null && data.count > solicitudesAnteriores) {
+                        lanzarAlertaNuevaSolicitud();
+                    }
+                    solicitudesAnteriores = data.count;
+
                     if (data.count > 0) {
                         badge.textContent = data.count;
                         badge.style.display = 'inline-block';
-                        // Efecto visual sutil cuando cambia
                         badge.classList.add('animate__animated', 'animate__pulse');
                         setTimeout(() => badge.classList.remove('animate__animated', 'animate__pulse'), 1000);
                     } else {
@@ -446,14 +453,85 @@
                 .catch(error => console.error('Error al revisar notificaciones:', error));
         }
 
-        // Consultar al cargar la página
+        function lanzarAlertaNuevaSolicitud() {
+            let toastContainer = document.getElementById('floating-alerts-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'floating-alerts-container';
+                toastContainer.className = 'toast-container position-fixed end-0 p-3';
+                toastContainer.style.top = '70px';
+                toastContainer.style.zIndex = '9999';
+                document.body.appendChild(toastContainer);
+            }
+
+            const alerta = document.createElement('div');
+            alerta.className = 'alert alert-info alert-dismissible fade show shadow-lg mb-3';
+            alerta.style.minWidth = '320px';
+            alerta.style.maxWidth = '450px';
+            alerta.style.borderLeft = '5px solid #0dcaf0';
+            alerta.style.pointerEvents = 'auto'; // <--- CORRECCIÓN: Habilita los clics
+            
+            alerta.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-bell-fill fs-3 text-info me-3"></i>
+                    <div>
+                        <strong class="d-block mb-1">¡Nueva Solicitud!</strong>
+                        <span class="small d-block mb-2">Tienes una petición pendiente de revisión.</span>
+                        <a href="{{ route('autorizaciones.index') }}" class="btn btn-sm btn-info text-white fw-bold py-1 px-3 shadow-sm" style="font-size: 11px;">
+                            Ir a revisar
+                        </a>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            toastContainer.appendChild(alerta);
+
+            setTimeout(() => {
+                alerta.classList.remove('show');
+                setTimeout(() => alerta.remove(), 400);
+            }, 8000);
+        }
+
         revisarAutorizaciones();
-        
-        // Consultar cada 15 segundos (15000 milisegundos)
         setInterval(revisarAutorizaciones, 15000);
     });
 </script>
 @endif
+
+<!-- SCRIPT PARA NOTIFICACIONES FLOTANTES (TOP-RIGHT DEBAJO DEL NAVBAR) -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let toastContainer = document.getElementById('floating-alerts-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'floating-alerts-container';
+            toastContainer.className = 'toast-container position-fixed end-0 p-3';
+            toastContainer.style.top = '70px'; 
+            toastContainer.style.zIndex = '9999'; 
+            document.body.appendChild(toastContainer);
+        }
+
+        const alertas = document.querySelectorAll('.alert-dismissible:not(.modal .alert-dismissible)');
+        alertas.forEach(function(alerta) {
+            if (!alerta.classList.contains('alert-permanente')) {
+                alerta.classList.add('shadow-lg'); 
+                alerta.classList.remove('mb-4');   
+                alerta.classList.add('mb-3');      
+                alerta.style.minWidth = '300px';   
+                alerta.style.maxWidth = '450px';
+                alerta.style.pointerEvents = 'auto';
+                
+                toastContainer.appendChild(alerta);
+
+                setTimeout(function() {
+                    alerta.classList.remove('show');
+                    setTimeout(function() { alerta.remove(); }, 400); 
+                }, 5000);
+            }
+        });
+    });
+</script>
 
 </body>
 </html>

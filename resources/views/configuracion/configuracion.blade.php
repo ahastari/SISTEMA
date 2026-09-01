@@ -111,6 +111,19 @@
         vertical-align: middle;
     }
     .user-table tr:last-child td { border-bottom: none; }
+    .btn-variable {
+        background-color: var(--bs-tertiary-bg);
+        color: var(--bs-body-color);
+        border: 1px solid var(--bs-border-color);
+        transition: all 0.2s ease;
+    }
+    .btn-variable:hover {
+        background-color: var(--bs-primary);
+        color: #ffffff !important;
+        border-color: var(--bs-primary);
+        transform: translateY(-2px); /* Pequeño salto al pasar el mouse */
+        box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
+    }
 </style>
 
 <div class="container-fluid p-0 py-2">
@@ -381,6 +394,10 @@
                                                     <label class="form-label fw-semibold small text-muted">Cambiar Logo</label>
                                                     <input type="file" name="logo" class="form-control form-control-sm" accept="image/*">
                                                 </div>
+                                                <div class="col-12 col-md-4">
+                                                    <label class="form-label fw-semibold small text-muted">Folio Inicial Rentas</label>
+                                                    <input type="number" name="siguiente_folio_rentas" class="form-control form-control-sm" value="{{ $suc->siguiente_folio_rentas }}" placeholder="Dejar en blanco para autogenerar">
+                                                </div>
                                                 @if(auth()->user()->isAdmin())
                                                     <div class="col-4">
                                                         <label class="form-label fw-semibold small text-muted">Estado</label>
@@ -581,15 +598,14 @@
                                         <i class="bi bi-braces text-primary me-1"></i> Variables Dinámicas:
                                     </span>
                                     <div class="d-flex flex-wrap gap-2">
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{cliente}')">{cliente}</button>
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{folio}')">{folio}</button>
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{deposito}')">{deposito}</button>
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{monto_total}')">{monto_total}</button>
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{fecha_inicio}')">{fecha_inicio}</button>
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{fecha_fin}')">{fecha_fin}</button>
-                                        <button type="button" class="badge btn btn-outline-secondary font-monospace" onclick="insertVariable(this, '{empresa}')">{empresa}</button>
-                                        <!-- NUEVA VARIABLE DUEÑO -->
-                                        <button type="button" class="badge btn btn-outline-primary font-monospace" onclick="insertVariable(this, '{dueno_empresa}')">{dueno_empresa}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{cliente}')">{cliente}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{folio}')">{folio}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{deposito}')">{deposito}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{monto_total}')">{monto_total}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{fecha_inicio}')">{fecha_inicio}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{fecha_fin}')">{fecha_fin}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{empresa}')">{empresa}</button>
+                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{dueno_empresa}')">{dueno_empresa}</button>
                                     </div>
                                 </div>
                                 

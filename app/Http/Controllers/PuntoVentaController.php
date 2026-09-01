@@ -280,19 +280,36 @@ class PuntoVentaController extends Controller
         return view('puntoventa.historial', compact('ventas', 'fechaFiltro'));
     }
 
-    public function cancelar($id)
+    public function cancelar(Request $request, $id)
     {
         $sucursalId = session('activo_sucursal_id');
         
         try {
             DB::beginTransaction();
-
             $venta = Venta::with(['detalles.equipo', 'cliente', 'sucursal'])->findOrFail($id);
 
             if ($venta->estado === 'cancelada') {
                 return back()->with('error', 'Esta transacción comercial ya fue cancelada con anterioridad.');
             }
 
+            if ($venta->autorizacion_solicitada) {
+                return back()->with('error', 'Esta venta ya tiene una solicitud de cancelación pendiente de revisión.');
+            }
+
+            $esGerente = auth()->user()->isAdmin() || auth()->user()->isGerente();
+
+            // SI ES CAJERO: Solo se envía la solicitud
+            if (!$esGerente) {
+                $venta->update([
+                    'autorizacion_solicitada' => true,
+                    'solicitado_por_id' => auth()->id(),
+                    'motivo_cancelacion' => $request->input('motivo_cancelacion', 'Cancelación solicitada por error de cobro.')
+                ]);
+                DB::commit();
+                return back()->with('success', "Se envió la solicitud de cancelación al gerente para la venta {$venta->folio}.");
+            }
+
+            // SI ES GERENTE O ADMIN: Se cancela directamente
             foreach ($venta->detalles as $detalle) {
                 $producto = Equipo::find($detalle->equipo_id);
                 if ($producto) {
@@ -304,31 +321,31 @@ class PuntoVentaController extends Controller
                 }
             }
 
-            $corteActivo = CorteCaja::where('estado', 'abierto')
-                ->where('user_id', auth()->id())
-                ->first();
-
-            if ($corteActivo && $venta->corte_caja_id === $corteActivo->id) {
+            $corteActivo = CorteCaja::where('estado', 'abierto')->where('user_id', $venta->corte_caja_id)->first();
+            if ($corteActivo) {
                 $corteActivo->decrement('total_ventas', $venta->total);
 
-                if ($venta->metodo_pago === 'efectivo') {
-                    $corteActivo->decrement('total_efectivo', $venta->total);
-                } elseif ($venta->metodo_pago === 'transferencia') {
-                    $corteActivo->decrement('total_transferencias', $venta->total);
-                } elseif ($venta->metodo_pago === 'tarjeta') {
-                    $corteActivo->decrement('total_tarjetas', $venta->total);
+                if ($venta->metodo_pago === 'efectivo') $corteActivo->decrement('total_efectivo', $venta->total);
+                elseif ($venta->metodo_pago === 'transferencia') $corteActivo->decrement('total_transferencias', $venta->total);
+                elseif ($venta->metodo_pago === 'tarjeta') $corteActivo->decrement('total_tarjetas', $venta->total);
+                elseif ($venta->metodo_pago === 'mixto' && is_array($venta->pagos_mixtos)) {
+                    foreach ($venta->pagos_mixtos as $pago) {
+                        if ($pago['metodo'] === 'efectivo') $corteActivo->decrement('total_efectivo', $pago['monto']);
+                        elseif ($pago['metodo'] === 'transferencia') $corteActivo->decrement('total_transferencias', $pago['monto']);
+                        elseif ($pago['metodo'] === 'tarjeta') $corteActivo->decrement('total_tarjetas', $pago['monto']);
+                    }
                 }
                 $corteActivo->save();
             }
 
-            $venta->update(['estado' => 'cancelada']);
-
+            $venta->update(['estado' => 'cancelada', 'autorizado_por_id' => auth()->id()]);
             DB::commit();
-            return back()->with('success', "Venta con Folio {$venta->folio} revocada con éxito. El inventario fue restaurado.");
+            
+            return back()->with('success', "Venta con Folio {$venta->folio} cancelada con éxito. El inventario fue restaurado.");
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error técnico al procesar cancelación: ' . $e->getMessage());
+            return back()->with('error', 'Error técnico al procesar: ' . $e->getMessage());
         }
     }
 

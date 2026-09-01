@@ -1,312 +1,231 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <title>Pagaré - {{ $renta->folio }}</title>
     <style>
-        @page {
-            margin: 1.2cm 1.2cm 1.5cm 1.2cm;
-            size: letter portrait;
+        @page { margin: 1cm; size: letter portrait; }
+        body { font-family: Arial, sans-serif; color: #1b5e20; background: #ffffff; }
+        
+        /* Contenedor Principal (Marco grueso) */
+        .pagare-wrapper {
+            border: 5px solid #2e7d32;
+            border-radius: 12px;
+            padding: 10px;
+            background-color: #e8f5e9; /* Fondo Verde Claro */
+            margin-bottom: 20px;
         }
-        * { box-sizing: border-box; }
-        body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            font-size: 10pt;
-            line-height: 1.35;
-            color: #0f172a;
-            margin: 0;
-            padding: 0;
+        
+        /* Marco interior fino */
+        .pagare-inner {
+            border: 1px solid #4caf50;
+            border-radius: 8px;
+            padding: 15px;
         }
 
-        /* ENCABEZADO CORPORATIVO SUCURSAL */
-        .header-table {
-            width: 100%;
-            border-bottom: 2px solid #0f172a;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-        }
-        .logo-img {
-            max-height: 55px;
-            max-width: 160px;
-            margin-bottom: 4px;
-        }
-        .brand-title {
-            font-size: 12pt;
-            font-weight: 800;
-            color: #0f172a;
-            text-transform: uppercase;
-            margin: 0;
-            letter-spacing: 0.3px;
-        }
-        .branch-badge {
-            display: inline-block;
-            background: #f0f9ff;
-            color: #0369a1;
-            font-size: 7.5pt;
+        table { width: 100%; border-collapse: collapse; }
+        td { vertical-align: bottom; }
+
+        /* Títulos */
+        .title-box {
+            border: 2px solid #2e7d32;
+            border-radius: 8px;
+            padding: 5px 15px;
+            font-size: 28px;
             font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 3px;
-            border: 1px solid #bae6fd;
-            margin-top: 2px;
-            margin-bottom: 3px;
-        }
-        .branch-details {
-            font-size: 7.5pt;
-            color: #475569;
-            line-height: 1.25;
-        }
-
-        /* TITULARES Y SECCIONES */
-        .doc-title {
-            font-size: 13pt;
-            font-weight: 800;
-            text-align: center;
-            text-transform: uppercase;
-            color: #0f172a;
-            margin: 15px 0 10px 0;
-            letter-spacing: 0.5px;
-        }
-        .section-header {
-            font-size: 8pt;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #0f172a;
-            background: #f8fafc;
-            border-left: 3px solid #0284c7;
-            padding: 3px 6px;
-            margin-top: 15px;
-            margin-bottom: 6px;
-        }
-
-        /* TABLAS DE DATOS */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 8px;
-        }
-        .data-table td, .data-table th {
-            border: 1px solid #cbd5e1;
-            padding: 6px 8px;
-            font-size: 8.5pt;
-            vertical-align: middle;
-        }
-        .data-table th {
-            background: #0f172a;
-            color: #ffffff;
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 7.5pt;
-        }
-        .data-table tr:nth-child(even) td {
-            background: #f8fafc;
-        }
-
-        /* CAJA DE TEXTO EDITABLE DEL PAGARÉ */
-        .legal-box {
+            font-style: italic;
             background: #ffffff;
-            border: 2px solid #0f172a;
-            border-radius: 4px;
-            padding: 14px;
-            font-size: 9pt;
-            text-align: justify;
-            line-height: 1.45;
-            color: #1e293b;
-            margin-bottom: 12px;
+            display: inline-block;
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
         }
 
-        .amount-box {
-            background: #f8fafc;
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin-bottom: 12px;
-            font-size: 9pt;
-        }
-
-        /* FIRMAS ESTRUCTURADAS */
-        .signature-table {
-            width: 100%;
-            margin-top: 45px;
-        }
-        .signature-line {
-            border-top: 1px solid #0f172a;
-            width: 80%;
-            margin: 0 auto 4px auto;
-        }
-        .signature-title {
-            font-size: 8.5pt;
-            font-weight: bold;
-            color: #0f172a;
-            text-transform: uppercase;
-        }
-        .signature-sub {
-            font-size: 7.5pt;
-            color: #64748b;
-        }
-
-        /* AUXILIARES */
-        .footer {
-            position: fixed;
-            bottom: -0.8cm;
-            left: 0;
-            right: 0;
-            font-size: 7.5pt;
-            color: #94a3b8;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 4px;
+        .underline-input {
+            border-bottom: 1px solid #2e7d32;
             text-align: center;
+            font-weight: bold;
+            display: inline-block;
+            font-family: 'Courier New', Courier, monospace;
         }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .bold { font-weight: bold; }
-        .font-mono { font-family: 'Courier New', Courier, monospace; }
+
+        /* Cantidad Numérica */
+        .amount-box {
+            border: 2px solid #2e7d32;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 5px 15px;
+            font-size: 16px;
+            font-weight: bold;
+            display: inline-block;
+            min-width: 140px;
+            text-align: center;
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+        }
+
+        /* Cuerpo del Pagaré */
+        .body-text {
+            font-size: 13px;
+            line-height: 1.8;
+            text-align: justify;
+            margin-top: 20px;
+        }
+
+        /* Cantidad en Letras */
+        .amount-words {
+            border: 2px solid #2e7d32;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        /* Texto de intereses y moratorios */
+        .legal-text {
+            font-size: 10px;
+            text-align: justify;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+
+        /* Caja de Datos del Deudor */
+        .debtor-box {
+            border: 1px solid #2e7d32;
+            border-radius: 8px;
+            padding: 10px;
+            width: 95%;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .signature-section {
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid #2e7d32;
+            width: 80%;
+            margin: 40px auto 5px auto;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 9px;
+            font-style: italic;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
 
 @php
-    // 1. DATOS CORPORATIVOS PRINCIPALES DESDE LA BD
-    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'EMPRESA NO CONFIGURADA');
-    $empresaDuenoGlobal  = \App\Helpers\ContentHelper::getCompanyData('empresa_dueno', 'REPRESENTANTE LEGAL');
-    
-    // 2. DATOS DE LA SUCURSAL O MATRIZ
-    $sucursal     = $renta->sucursal ?? null;
-    $sucNombre    = $sucursal->nombre ?? 'MATRIZ GENERAL';
-    $sucRfc       = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'RFC NO CONFIGURADO');
-    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'DIRECCIÓN NO CONFIGURADA');
-    $sucTelefono  = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TELÉFONO NO CONFIGURADO');
-    $sucLogoPath  = $sucursal->logo ?? \App\Helpers\ContentHelper::getCompanyData('empresa_logo');
-
-    // 3. PARSEO DE PLANTILLA DEL PAGARÉ
-    $pPagare = \App\Models\PlantillaDocumento::where('tipo', 'pagare_renta')->first() 
-            ?? \App\Models\PlantillaDocumento::where('tipo', 'pagare')->first();
-
-    $textoPagare = $pPagare ? $pPagare->contenido : "Por este pagaré me (nos) obligo (amos) incondicionalmente a pagar a la orden de {empresa} en Durango, Dgo. el día {fecha_fin} la cantidad de \${monto_neto} ({monto_total_letra}), valor recibido a mi (nuestra) entera satisfacción.\n\nEn caso de demora parcialmente insoluto sin que por ello se considere prorrogado el plazo fijado, el deudor pagará intereses moratorios al 5% mensual sobre el saldo insoluto.";
-
-    // 4. REEMPLAZO AUTOMÁTICO DE MONTOS Y ETIQUETAS
     $montoTotalVal = (float)($renta->total ?? 0);
     $depositoVal   = (float)($renta->deposito_garantia ?? ($renta->deposito ?? 0));
     $montoNetoVal  = max(0, $montoTotalVal - $depositoVal);
 
-    $fFinVal = isset($renta->fecha_fin) ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') : (isset($renta->fecha_devolucion_estimada) ? \Carbon\Carbon::parse($renta->fecha_devolucion_estimada)->format('d/m/Y') : date('d/m/Y'));
-
-    // Convertidor a letras rápido como respaldo
+    $fFinVal = isset($renta->fecha_fin) ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') : date('d/m/Y');
+    
+    // Generar letra
     $formatter = new \NumberFormatter('es', \NumberFormatter::SPELLOUT);
     $entero = floor($montoNetoVal);
     $decimales = round(($montoNetoVal - $entero) * 100);
     $montoLetrasStr = strtoupper($formatter->format($entero)) . " PESOS " . str_pad($decimales, 2, '0', STR_PAD_LEFT) . "/100 M.N.";
-
-    $reemplazos = [
-        '{empresa}'          => $empresaNombreGlobal,
-        '{dueno_empresa}'    => $empresaDuenoGlobal,
-        '{cliente}'          => $renta->cliente->nombre_completo ?? 'PÚBLICO GENERAL',
-        '{folio}'            => $renta->folio ?? 'N/A',
-        '{deposito}'         => number_format($depositoVal, 2),
-        '{monto_total}'      => number_format($montoTotalVal, 2),
-        '{monto_neto}'       => number_format($montoNetoVal, 2),
-        '{monto_total_letra}'=> $montoLetrasStr,
-        '{fecha_fin}'        => $fFinVal,
-        '{fecha_inicio}'     => isset($renta->created_at) ? \Carbon\Carbon::parse($renta->created_at)->format('d/m/Y') : date('d/m/Y'),
-    ];
-
-    foreach ($reemplazos as $tag => $val) {
-        $textoPagare = str_replace($tag, $val, $textoPagare);
-    }
 @endphp
 
-<!-- CABECERA SUCURSAL DINÁMICA -->
-<table class="header-table">
-    <tr>
-        <td style="width: 60%; vertical-align: top;">
-            @if($sucLogoPath && file_exists(public_path('storage/' . $sucLogoPath)))
-                <img src="{{ public_path('storage/' . $sucLogoPath) }}" class="logo-img" alt="Logo Sucursal"><br>
-            @endif
-            <h1 class="brand-title">{{ $empresaNombreGlobal }}</h1>
-            <div class="branch-badge">SUCURSAL: <strong>{{ strtoupper($sucNombre) }}</strong></div>
-            <div class="branch-details">
-                <strong>RFC:</strong> {{ $sucRfc }}<br>
-                <strong>Dirección:</strong> {{ $sucDireccion }}<br>
-                <strong>Contacto:</strong> {{ $sucTelefono }}
-            </div>
-        </td>
-        <td style="width: 40%; text-align: right; vertical-align: top;">
-            <div style="font-size: 11pt; font-weight: bold; color: #0f172a;">TÍTULO DE CRÉDITO</div>
-            <div style="font-size: 10pt; font-weight: bold; color: #0284c7; margin-top: 4px;" class="font-mono">PAGARÉ No. {{ $renta->folio }}</div>
-            <div style="font-size: 7.5pt; color: #64748b; margin-top: 4px;">
-                Fecha Emisión: {{ \Carbon\Carbon::parse($renta->created_at ?? now())->format('d/m/Y') }}
-            </div>
-        </td>
-    </tr>
-</table>
+<div class="pagare-wrapper">
+    <div class="pagare-inner">
+        
+        <!-- ENCABEZADO SUPERIOR -->
+        <table>
+            <tr>
+                <td style="width: 30%;">
+                    <div class="title-box">PAGARÉ</div>
+                </td>
+                <td style="width: 30%; text-align: center; font-size: 14px;">
+                    <strong>No.</strong> <div class="underline-input" style="width: 100px;">{{ $renta->folio }}</div>
+                </td>
+                <td style="width: 40%; text-align: right; font-size: 16px;">
+                    <strong>BUENO POR $</strong> <div class="amount-box">{{ number_format($montoNetoVal, 2) }}</div>
+                </td>
+            </tr>
+        </table>
 
-<div class="doc-title">{{ $pPagare->titulo ?? 'PAGARÉ DE GARANTÍA' }}</div>
+        <!-- FECHA Y LUGAR DE EXPEDICIÓN -->
+        <table style="margin-top: 15px; font-size: 13px;">
+            <tr>
+                <td style="text-align: right;">
+                    En <div class="underline-input" style="width: 160px;">{{ $renta->sucursal->nombre ?? 'Durango, Dgo.' }}</div> a 
+                    <div class="underline-input" style="width: 40px;">{{ $renta->created_at->format('d') }}</div> de 
+                    <div class="underline-input" style="width: 100px;">{{ $renta->created_at->translatedFormat('F') }}</div> de 
+                    <div class="underline-input" style="width: 50px;">{{ $renta->created_at->format('Y') }}</div>
+                </td>
+            </tr>
+            <tr>
+                <td style="text-align: right; font-size: 9px; font-style: italic; padding-right: 60px;">
+                    Lugar y fecha de expedición
+                </td>
+            </tr>
+        </table>
 
-<!-- CUADRO DE RESUMEN DE IMPORTE -->
-<div class="amount-box">
-    <table style="width: 100%; border-collapse: collapse;">
-        <tr>
-            <td style="width: 35%; border: none;">
-                <strong>BUENO POR:</strong> <span class="font-mono" style="font-size: 11pt; font-weight: bold; color: #0284c7;">${{ number_format($montoNetoVal, 2) }}</span>
-            </td>
-            <td style="width: 65%; border: none; text-align: right;">
-                <strong>VENCIMIENTO:</strong> <span class="font-mono" style="font-weight: bold;">{{ $fFinVal }}</span>
-            </td>
-        </tr>
-        <tr>
-            <td colspan="2" style="border: none; padding-top: 6px;">
-                <strong>IMPORTE EN LETRA:</strong> {{ $montoLetrasStr }}
-            </td>
-        </tr>
-    </table>
-</div>
+        <!-- CUERPO PRINCIPAL -->
+        <div class="body-text">
+            Debo(mos) y pagaré(mos) incondicionalmente por este Pagaré a la orden de 
+            <div class="underline-input" style="width: 350px;">{{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre') }}</div><br>
+            <div style="font-size: 9px; font-style: italic; text-align: right; width: 85%; margin-top: -3px; margin-bottom: 5px;">Nombre de la persona a quien ha de pagarse</div>
+            
+            en <div class="underline-input" style="width: 300px;">esta ciudad o donde se me requiera</div> 
+            el <div class="underline-input" style="width: 120px;">{{ $fFinVal }}</div>
+            
+            <table style="width: 100%; margin-top: -3px; margin-bottom: 10px;">
+                <tr>
+                    <td style="width: 50%; font-size: 9px; font-style: italic; text-align: center;">Lugar de pago</td>
+                    <td style="width: 50%; font-size: 9px; font-style: italic; text-align: center;">Fecha de pago</td>
+                </tr>
+            </table>
+            
+            La cantidad de:
+        </div>
 
-<!-- TEXTO EDITABLE DEL PAGARÉ DESDE CONFIGURACIÓN -->
-<div class="legal-box">
-    {!! nl2br(e($textoPagare)) !!}
-</div>
+        <div class="amount-words">
+            ({{ $montoLetrasStr }})
+        </div>
 
-<!-- DATOS DEL ACEPTANTE -->
-<div class="section-header">Datos del Aceptante (Deudor)</div>
-<table class="data-table">
-    <tr>
-        <td style="width: 15%; font-weight: bold;">NOMBRE:</td>
-        <td style="width: 35%; font-weight: bold; color: #0284c7;">{{ $renta->cliente->nombre_completo ?? 'Cliente de Mostrador' }}</td>
-        <td style="width: 15%; font-weight: bold;">DIRECCIÓN:</td>
-        <td style="width: 35%;">{{ $renta->cliente->direccion ?? 'No especificada' }}</td>
-    </tr>
-    <tr>
-        <td style="font-weight: bold;">COLONIA:</td>
-        <td>{{ $renta->cliente->colonia ?? 'No especificada' }}</td>
-        <td style="font-weight: bold;">CIUDAD:</td>
-        <td>{{ $renta->cliente->ciudad ?? 'Durango, Dgo.' }}</td>
-    </tr>
-    <tr>
-        <td style="font-weight: bold;">TELÉFONO:</td>
-        <td colspan="3">{{ $renta->cliente->telefono ?? 'S/T' }}</td>
-    </tr>
-</table>
+        <!-- CLÁUSULA LEGAL (LETRAS CHIQUITAS) -->
+        <div class="legal-text">
+            Valor Recibido a mi (nuestra) entera satisfacción. Este pagaré forma parte de una serie numerada del 1 al <div class="underline-input" style="width: 30px;">1</div> 
+            y todos están sujetos a la condición de que, al no pagarse cualquiera de ellos a su vencimiento, serán exigibles todos los que le sigan en número, además de los ya vencidos, 
+            desde la fecha de vencimiento de este documento hasta el día de su liquidación, causará intereses moratorios al tipo de <div class="underline-input" style="width: 40px;">10</div>% 
+            mensual, pagadero en esta ciudad juntamente con el principal.
+        </div>
 
-<!-- FIRMAS PAGARÉ -->
-<table class="signature-table">
-    <tr>
-        <td style="width: 45%; text-align: center; vertical-align: top;">
-            <div class="signature-line"></div>
-            <div class="signature-title">ACEPTAMOS</div>
-            <div class="signature-sub">{{ $renta->cliente->nombre_completo ?? 'Línea de firma' }}</div>
-        </td>
-        <td style="width: 10%;"></td>
-        <td style="width: 45%; text-align: center; vertical-align: top;">
-            <div class="signature-line"></div>
-            <!-- SE REEMPLAZÓ EL NOMBRE QUEMADO POR LA VARIABLE GLOBAL -->
-            <div class="signature-title">{{ $empresaDuenoGlobal }}</div>
-            <div class="signature-sub">Prestador del Servicio / Acreedor</div>
-        </td>
-    </tr>
-</table>
+        <!-- PIE DE FIRMAS Y DATOS -->
+        <table style="width: 100%; margin-top: 20px;">
+            <tr>
+                <td style="width: 55%; vertical-align: top;">
+                    <div class="debtor-box">
+                        <div style="text-align: center; font-weight: bold; margin-bottom: 10px; font-size: 11px;">Datos del deudor</div>
+                        <strong>Nombre:</strong> <div class="underline-input" style="width: 250px;">{{ $renta->cliente->nombre_completo ?? '' }}</div><br>
+                        <strong>Dirección:</strong> <div class="underline-input" style="width: 235px;">{{ \Illuminate\Support\Str::limit($renta->cliente->direccion ?? '', 38) }}</div><br>
+                        <strong>Población:</strong> <div class="underline-input" style="width: 120px;">{{ $renta->cliente->ciudad ?? '' }}</div> 
+                        <strong>Tel:</strong> <div class="underline-input" style="width: 90px;">{{ $renta->cliente->telefono ?? '' }}</div>
+                    </div>
+                </td>
+                <td style="width: 45%; vertical-align: bottom;">
+                    <div class="signature-section">
+                        <strong>Acepto(amos)</strong>
+                        <div class="signature-line"></div>
+                        Firma(s)
+                    </div>
+                </td>
+            </tr>
+        </table>
 
-<div class="footer">
-    Este pagaré se expide en Durango, Dgo. el {{ \Carbon\Carbon::now()->format('d/m/Y') }}
+        <div class="footer-note">
+            Escriba al reverso los datos personales y firma(s) del(os) aval(es).
+        </div>
+
+    </div>
 </div>
 
 </body>

@@ -100,7 +100,7 @@ class RentaController extends Controller
             }
         }
 
-        $folio = Renta::generarFolio();
+        $folio = Renta::generarFolio($sucursalId !== 'global' ? $sucursalId : null);
 
         return view('rentas.create', compact('clientes', 'equipos', 'folio'));
     }
@@ -177,8 +177,10 @@ class RentaController extends Controller
             $total = $subtotal + $iva;
             $deposito = $request->deposito ?? 0;
 
+            $folioGenerado = Renta::generarFolio($sucursalIdGuardar);
+
             $renta = Renta::create([
-                'folio' => Renta::generarFolio(),
+                'folio' => $folioGenerado,
                 'cliente_id' => $request->cliente_id,
                 'sucursal_id' => $sucursalIdGuardar,
                 'obra_id' => $request->obra_id,
@@ -195,6 +197,13 @@ class RentaController extends Controller
                 'observaciones' => $request->observaciones,
                 'estado' => 'activa'
             ]);
+
+            if ($sucursalIdGuardar && $sucursalIdGuardar !== 'global') {
+                $sucursal = \App\Models\Sucursal::find($sucursalIdGuardar);
+                if ($sucursal && $sucursal->siguiente_folio_rentas) {
+                    $sucursal->increment('siguiente_folio_rentas');
+                }
+            }
 
             foreach ($detalles as $detalle) {
                 $detalle['renta_id'] = $renta->id;
@@ -430,69 +439,70 @@ class RentaController extends Controller
         ]);
 
         try {
-            DB::transaction(function () use ($request, $renta) {
-                
-                // SI LA RENTA FUE PREVIAMENTE APROBADA POR EL GERENTE PARA FINALIZAR CON ADEUDO
-                if ($renta->autorizacion_aprobada) {
+            $nuevoPagoId = null;
 
-                    // 1. Procesar cargos por equipos faltantes
-                    $costoFaltantesTotal = 0;
-                    $motivoFaltantes = [];
-                    if ($request->has('costo_faltante') && is_array($request->costo_faltante)) {
-                        foreach ($request->costo_faltante as $detalleId => $montoFaltante) {
-                            $montoF = floatval($montoFaltante);
-                            if ($montoF > 0) {
-                                $costoFaltantesTotal += $montoF;
-                                $det = $renta->detalles->firstWhere('id', $detalleId);
-                                $nombreEq = ($det && $det->equipo) ? $det->equipo->nombre : 'Equipo';
-                                $cantDev = isset($request->devolver_final[$detalleId]) ? (int)$request->devolver_final[$detalleId] : 0;
-                                $cantPend = $det ? ($det->cantidad - $det->cantidad_devuelta) : 0;
-                                $cantFaltante = max(0, $cantPend - $cantDev);
-                                $motivoFaltantes[] = "{$cantFaltante}x {$nombreEq} no devuelto ($" . number_format($montoF, 2) . ")";
+            DB::transaction(function () use ($request, $renta, &$nuevoPagoId) {
+                
+                // 1. PROCESAR DEVOLUCIÓN DE EQUIPOS (SIEMPRE DISPONIBLE)
+                $renta->load('detalles.equipo');
+                $articulosDevueltos = [];
+
+                if ($request->has('devolver_final') && is_array($request->devolver_final)) {
+                    foreach ($renta->detalles as $detalle) {
+                        $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                        $devueltosHoy = isset($request->devolver_final[$detalle->id]) ? (int)$request->devolver_final[$detalle->id] : 0;
+
+                        if ($devueltosHoy > $pendiente) {
+                            throw new \Exception("No puedes devolver más de lo pendiente en {$detalle->equipo->nombre}");
+                        }
+
+                        if ($devueltosHoy > 0) {
+                            $equipo = $detalle->equipo;
+                            if ($renta->sucursal_id) {
+                                $equipo->actualizarStockEnSucursal($renta->sucursal_id, $devueltosHoy, 'sumar');
+                            } else {
+                                $equipo->stock += $devueltosHoy;
+                                $equipo->save();
                             }
+                            $detalle->cantidad_devuelta += $devueltosHoy;
+                            $detalle->save();
+
+                            $articulosDevueltos[] = "{$devueltosHoy}x {$equipo->nombre}";
                         }
                     }
+                }
 
-                    if ($costoFaltantesTotal > 0) {
-                        $renta->cargos_extra = ($renta->cargos_extra ?? 0) + $costoFaltantesTotal;
-                        $motivoStr = "Faltantes: " . implode(', ', $motivoFaltantes);
-                        $renta->motivo_cargos_extra = $renta->motivo_cargos_extra 
-                            ? $renta->motivo_cargos_extra . ' | ' . $motivoStr 
-                            : $motivoStr;
-                        
-                        $renta->subtotal += $costoFaltantesTotal;
-                        $renta->total += $costoFaltantesTotal;
+                // 2. PROCESAR CARGOS FALTANTES (OPCIONAL EN CUALQUIER PAGO)
+                $costoFaltantesTotal = 0;
+                $motivoFaltantes = [];
+                if ($request->has('costo_faltante') && is_array($request->costo_faltante)) {
+                    foreach ($request->costo_faltante as $detalleId => $montoFaltante) {
+                        $montoF = floatval($montoFaltante);
+                        if ($montoF > 0) {
+                            $costoFaltantesTotal += $montoF;
+                            $det = $renta->detalles->firstWhere('id', $detalleId);
+                            $nombreEq = ($det && $det->equipo) ? $det->equipo->nombre : 'Equipo';
+                            $cantPend = $det ? ($det->cantidad - $det->cantidad_devuelta) : 0; // Lo pendiente DESPUÉS de devolver
+                            $motivoFaltantes[] = "{$cantPend}x {$nombreEq} no devuelto ($" . number_format($montoF, 2) . ")";
+                        }
                     }
+                }
 
-                    // 2. Procesar devolución de stock e inventario
-                    $renta->load('detalles.equipo');
+                if ($costoFaltantesTotal > 0) {
+                    $renta->cargos_extra = ($renta->cargos_extra ?? 0) + $costoFaltantesTotal;
+                    $motivoStr = "Faltantes: " . implode(', ', $motivoFaltantes);
+                    $renta->motivo_cargos_extra = $renta->motivo_cargos_extra ? $renta->motivo_cargos_extra . ' | ' . $motivoStr : $motivoStr;
+                    $renta->subtotal += $costoFaltantesTotal;
+                    $renta->total += $costoFaltantesTotal;
+                }
+
+                // 3. SI LA RENTA FUE APROBADA PARA FINALIZACIÓN POR EL GERENTE
+                if ($renta->autorizacion_aprobada) {
                     $articulosPerdidos = [];
-
-                    if ($request->has('devolver_final') && is_array($request->devolver_final)) {
-                        foreach ($renta->detalles as $detalle) {
-                            $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
-                            $devueltosHoy = isset($request->devolver_final[$detalle->id]) ? (int)$request->devolver_final[$detalle->id] : 0;
-
-                            if ($devueltosHoy > $pendiente) {
-                                throw new \Exception("No puedes devolver más de lo pendiente en {$detalle->equipo->nombre}");
-                            }
-
-                            if ($devueltosHoy > 0) {
-                                $equipo = $detalle->equipo;
-                                if ($renta->sucursal_id) {
-                                    $equipo->actualizarStockEnSucursal($renta->sucursal_id, $devueltosHoy, 'sumar');
-                                } else {
-                                    $equipo->stock += $devueltosHoy;
-                                    $equipo->save();
-                                }
-                                $detalle->cantidad_devuelta += $devueltosHoy;
-                                $detalle->save();
-                            }
-
-                            if ($devueltosHoy < $pendiente) {
-                                $perdidos = $pendiente - $devueltosHoy;
-                                $articulosPerdidos[] = "{$perdidos}x {$detalle->equipo->nombre}";
-                            }
+                    foreach ($renta->detalles as $detalle) {
+                        $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                        if ($pendiente > 0) {
+                            $articulosPerdidos[] = "{$pendiente}x {$detalle->equipo->nombre}";
                         }
                     }
 
@@ -501,26 +511,41 @@ class RentaController extends Controller
                         $renta->observaciones = $renta->observaciones ? $renta->observaciones . $notaPerdidos : $notaPerdidos;
                     }
 
-                    // Finalizar la renta formalmente y limpiar banderas
                     $renta->estado = 'finalizada';
                     $renta->fecha_devolucion = now();
                     $renta->autorizacion_aprobada = false;
                     $renta->autorizacion_solicitada = false;
-                    $renta->save();
                 }
 
-                // 3. Registrar el pago recibido si el monto es mayor a 0
+                // Escribir nota de retorno en el historial de la renta
+                if (!empty($articulosDevueltos)) {
+                    $notaDev = "\n[RETORNO DE EQUIPO - " . now()->format('d/m/Y') . "] Se devolvió: " . implode(', ', $articulosDevueltos);
+                    $renta->observaciones = $renta->observaciones ? $renta->observaciones . $notaDev : $notaDev;
+                }
+
+                $renta->save();
+
+                // 4. CREAR EL PAGO (Y guardar qué equipo se devolvió en este recibo)
                 if ($request->monto > 0) {
-                    $renta->pagos()->create([
+                    $textoRetornoTicket = !empty($articulosDevueltos) ? implode(', ', $articulosDevueltos) : "Ninguno";
+                    $obsPago = 'Registro de pago' . ($renta->estado === 'finalizada' ? ' / liquidación final' : '');
+                    $obsPago .= " | Equipo devuelto: " . $textoRetornoTicket;
+
+                    $pago = $renta->pagos()->create([
                         'monto' => $request->monto,
                         'metodo_pago' => $request->metodo_pago,
                         'tipo' => $renta->estado === 'finalizada' ? 'liquidacion' : 'abono',
                         'referencia' => $request->referencia,
                         'fecha_pago' => now(),
-                        'observaciones' => 'Registro de pago' . ($renta->estado === 'finalizada' ? ' / liquidación final' : '')
+                        'observaciones' => $obsPago
                     ]);
+                    $nuevoPagoId = $pago->id;
                 }
             });
+
+            if ($nuevoPagoId) {
+                return back()->with('success', 'Operación y cobro procesados correctamente.')->with('imprimir_ticket_pago', $nuevoPagoId);
+            }
 
             return back()->with('success', 'Operación y registro de productos procesados correctamente.');
         } catch (\Exception $e) {
@@ -530,18 +555,13 @@ class RentaController extends Controller
 
     public function finalizarConPago(Request $request, Renta $renta)
     {
-        if ($renta->estado !== 'activa') {
-            return back()->with('error', 'La renta ya está ' . $renta->estado);
-        }
-
-        if (empty($renta->contrato_firmado_path) || empty($renta->pagare_firmado_path)) {
-            return back()->with('error', 'Para finalizar la renta, primero debes escanear y subir el Contrato y el Pagaré firmados.');
-        }
+        if ($renta->estado !== 'activa') return back()->with('error', 'La renta ya está ' . $renta->estado);
+        if (empty($renta->contrato_firmado_path) || empty($renta->pagare_firmado_path)) return back()->with('error', 'Primero debes subir el Contrato y el Pagaré firmados.');
 
         try {
-            $resultado = DB::transaction(function () use ($request, $renta) {
+            $nuevoPagoId = null;
 
-                // 1. Cargos extra (Multa por retraso y Cargo manual por daños)
+            $resultado = DB::transaction(function () use ($request, $renta, &$nuevoPagoId) {
                 $multa = floatval($request->input('multa_retraso', 0));
                 $cargoManual = floatval($request->input('cargo_manual', 0));
                 $totalExtra = $multa + $cargoManual;
@@ -553,22 +573,17 @@ class RentaController extends Controller
                     if ($cargoManual > 0) $motivosArreglo[] = "Daños/Otros: " . $request->input('motivo_cargo_manual', '');
 
                     $motivosFinal = implode(' | ', $motivosArreglo);
-                    $renta->motivo_cargos_extra = $renta->motivo_cargos_extra 
-                        ? $renta->motivo_cargos_extra . ' | ' . $motivosFinal 
-                        : $motivosFinal;
-                    
+                    $renta->motivo_cargos_extra = $renta->motivo_cargos_extra ? $renta->motivo_cargos_extra . ' | ' . $motivosFinal : $motivosFinal;
                     $renta->subtotal += $totalExtra;
                     $renta->total += $totalExtra;
-
-                    $nota = "\n\n[FINALIZACIÓN] Cargos extra sumados: $" . number_format($totalExtra, 2) . " - Detalle: " . $motivosFinal;
-                    $renta->observaciones = $renta->observaciones ? $renta->observaciones . $nota : $nota;
+                    
+                    $renta->observaciones = $renta->observaciones ? $renta->observaciones . "\n[FINALIZACIÓN] Cargos extra: $" . number_format($totalExtra, 2) . " - " . $motivosFinal : "[FINALIZACIÓN] Cargos extra: $" . number_format($totalExtra, 2) . " - " . $motivosFinal;
                     $renta->save();
                 }
 
-                // 2. Procesar el pago final si hay monto
                 $montoPago = floatval($request->input('monto_pago', 0));
                 if ($montoPago > 0) {
-                    $renta->pagos()->create([
+                    $pago = $renta->pagos()->create([
                         'monto' => $montoPago,
                         'metodo_pago' => $request->metodo_pago_final ?? 'efectivo',
                         'tipo' => 'liquidacion',
@@ -576,12 +591,12 @@ class RentaController extends Controller
                         'fecha_pago' => now(),
                         'observaciones' => 'Abono en intento de finalización'
                     ]);
+                    $nuevoPagoId = $pago->id;
                 }
 
                 $saldoFinal = $renta->fresh()->saldo_pendiente;
                 $esGerente = auth()->user()->isAdmin() || auth()->user()->isGerente();
 
-                // 3. Evaluar Saldo Pendiente y solicitud de autorización si no cubre la deuda
                 if ($saldoFinal > 0.01 && !$esGerente) {
                     $renta->update([
                         'autorizacion_solicitada' => true,
@@ -592,7 +607,6 @@ class RentaController extends Controller
                     return 'autorizacion';
                 }
 
-                // 4. Devolución total de stock al inventario
                 $renta->load('detalles.equipo');
                 foreach ($renta->detalles as $detalle) {
                     $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
@@ -619,7 +633,11 @@ class RentaController extends Controller
             });
 
             if ($resultado === 'autorizacion') {
-                return redirect()->route('rentas.show', $renta)->with('warning', 'Pago registrado. Se envió la solicitud de autorización al gerente para cerrar la cuenta con adeudo.');
+                return redirect()->route('rentas.show', $renta)->with('warning', 'Pago registrado. Se envió la solicitud al gerente para cerrar con adeudo.');
+            }
+
+            if ($nuevoPagoId) {
+                return redirect()->route('rentas.show', $renta)->with('success', 'Renta finalizada correctamente.')->with('imprimir_ticket_pago', $nuevoPagoId);
             }
 
             return redirect()->route('rentas.show', $renta)->with('success', 'Renta finalizada correctamente.');
@@ -634,19 +652,49 @@ class RentaController extends Controller
         $request->validate([
             'dias_extra' => 'required|integer|min:1',
             'abono' => 'nullable|numeric|min:0',
-            'metodo_pago' => 'nullable|in:efectivo,transferencia,tarjeta'
+            'metodo_pago' => 'nullable|in:efectivo,transferencia,tarjeta',
+            'devolver_final' => 'nullable|array',
+            'devolver_final.*' => 'numeric|min:0'
         ]);
 
         try {
-            DB::transaction(function () use ($request, $renta) {
+            $nuevoPagoId = null;
+
+            DB::transaction(function () use ($request, $renta, &$nuevoPagoId) {
                 $diasExtra = (int)$request->dias_extra;
-                
-                // Se toma automáticamente si la renta original fue configurada para facturar
                 $aplicaIvaAmpliacion = (bool)$renta->facturar;
 
-                $subtotalAmpliacion = 0;
+                // 1. PROCESAR DEVOLUCIÓN DE EQUIPOS PRIMERO
+                $articulosDevueltos = [];
+                $renta->load('detalles.equipo');
 
-                // Recorremos los detalles y filtramos ÚNICAMENTE los equipos NO devueltos
+                if ($request->has('devolver_final') && is_array($request->devolver_final)) {
+                    foreach ($renta->detalles as $detalle) {
+                        $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                        $devueltosHoy = isset($request->devolver_final[$detalle->id]) ? (int)$request->devolver_final[$detalle->id] : 0;
+
+                        if ($devueltosHoy > $pendiente) {
+                            throw new \Exception("No puedes devolver más de lo pendiente en {$detalle->equipo->nombre}");
+                        }
+
+                        if ($devueltosHoy > 0) {
+                            $equipo = $detalle->equipo;
+                            if ($renta->sucursal_id) {
+                                $equipo->actualizarStockEnSucursal($renta->sucursal_id, $devueltosHoy, 'sumar');
+                            } else {
+                                $equipo->stock += $devueltosHoy;
+                                $equipo->save();
+                            }
+                            $detalle->cantidad_devuelta += $devueltosHoy;
+                            $detalle->save();
+
+                            $articulosDevueltos[] = "{$devueltosHoy}x {$equipo->nombre}";
+                        }
+                    }
+                }
+
+                // 2. CALCULAR LOS DÍAS EXTRA BASÁNDOSE SOLO EN EL EQUIPO QUE AÚN QUEDA PENDIENTE
+                $subtotalAmpliacion = 0;
                 foreach ($renta->detalles as $detalle) {
                     $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
                     
@@ -660,15 +708,13 @@ class RentaController extends Controller
                     }
                 }
 
-                if ($subtotalAmpliacion <= 0) {
-                    throw new \Exception("No hay equipos pendientes por devolver para realizar una ampliación.");
+                if ($subtotalAmpliacion <= 0 && empty($articulosDevueltos)) {
+                    throw new \Exception("No hay equipos pendientes para ampliar, ni se devolvió equipo.");
                 }
 
-                // Cálculo automático de IVA según la renta base
                 $ivaAmpliacion = $aplicaIvaAmpliacion ? ($subtotalAmpliacion * 0.16) : 0;
                 $totalAmpliacion = $subtotalAmpliacion + $ivaAmpliacion;
 
-                // Actualización del período y montos en la renta
                 $renta->fecha_fin = $renta->fecha_fin->addDays($diasExtra);
                 $renta->dias_totales += $diasExtra;
                 $renta->dias_ampliados += $diasExtra;
@@ -679,24 +725,35 @@ class RentaController extends Controller
                 $renta->total += $totalAmpliacion;
 
                 $notaAmpliacion = "\n[AMPLIACIÓN - " . now()->format('d/m/Y') . "] +" . $diasExtra . " días extra.";
+                if (!empty($articulosDevueltos)) {
+                    $notaAmpliacion .= " | Se devolvió equipo parcial: " . implode(', ', $articulosDevueltos);
+                }
                 if ($request->filled('motivo')) {
-                    $notaAmpliacion .= " Motivo: " . $request->motivo;
+                    $notaAmpliacion .= " | Motivo: " . $request->motivo;
                 }
                 $renta->observaciones = $renta->observaciones ? $renta->observaciones . $notaAmpliacion : $notaAmpliacion;
 
                 $renta->save();
 
-                // Registrar abono opcional
+                // 3. CREAR PAGO SI HUBIERA
                 if ($request->filled('abono') && $request->abono > 0) {
-                    $renta->pagos()->create([
+                    $textoRetornoTicket = !empty($articulosDevueltos) ? implode(', ', $articulosDevueltos) : "Ninguno";
+                    $obsPago = ($request->motivo ?? 'Abono en ampliación de días') . " | Equipo devuelto: " . $textoRetornoTicket;
+
+                    $pago = $renta->pagos()->create([
                         'monto' => $request->abono,
                         'metodo_pago' => $request->metodo_pago ?? 'efectivo',
                         'tipo' => 'ampliacion',
                         'fecha_pago' => now(),
-                        'observaciones' => $request->motivo ?? 'Abono en ampliación de días'
+                        'observaciones' => $obsPago
                     ]);
+                    $nuevoPagoId = $pago->id;
                 }
             });
+
+            if ($nuevoPagoId) {
+                return back()->with('success', 'Ampliación registrada correctamente.')->with('imprimir_ticket_pago', $nuevoPagoId);
+            }
 
             return back()->with('success', 'Ampliación y montos actualizados correctamente.');
         } catch (\Exception $e) {
@@ -757,5 +814,11 @@ class RentaController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
+    }
+
+    public function ticketPago(\App\Models\Pago $pago)
+    {
+        $pago->load('renta.cliente');
+        return view('rentas.ticket_pago', compact('pago'));
     }
 }

@@ -209,6 +209,12 @@
                 <label class="form-label small fw-semibold text-body">Código Postal</label>
                 <input type="text" name="codigo_postal" class="form-control form-control-sm bg-body text-body" value="{{ old('codigo_postal', $cliente->codigo_postal) }}">
             </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold text-body">Comprobante de Domicilio</label>
+                <input type="file" name="comprobante_domicilio_path" class="form-control form-control-sm bg-body text-body" accept="image/*,application/pdf">
+                <small class="text-body-secondary d-block mt-1" style="font-size: 11px;">Formatos: JPG, PNG, PDF (Máx. 5MB)</small>
+            </div>
         </div>
 
         <!-- SECCIÓN 4: OBSERVACIONES -->

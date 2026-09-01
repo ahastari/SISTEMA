@@ -104,6 +104,7 @@ Route::middleware('auth')->group(function () {
     // Subida de documentos
     Route::post('/rentas/{renta}/upload-contrato', [RentaController::class, 'uploadContrato'])->name('rentas.uploadContrato');
     Route::post('/rentas/{renta}/upload-pagare', [RentaController::class, 'uploadPagare'])->name('rentas.uploadPagare');
+    Route::get('/rentas/pagos/{pago}/ticket', [RentaController::class, 'ticketPago'])->name('rentas.ticketPago');
     Route::delete('/rentas/{renta}/delete-documento/{tipo}', [RentaController::class, 'deleteDocumento'])->name('rentas.deleteDocumento');
 
     // Gestión de pagos y ampliaciones
@@ -208,6 +209,10 @@ Route::middleware(['auth', 'permission:ver_autorizaciones'])->group(function () 
         ->name('autorizaciones.rechazar');
     Route::get('/autorizaciones/notificaciones', [AutorizacionController::class, 'notificaciones'])
         ->name('autorizaciones.notificaciones');
+    Route::post('/autorizaciones/venta/{venta}/aprobar', [AutorizacionController::class, 'aprobarVenta'])
+        ->name('autorizaciones.aprobarVenta');
+    Route::post('/autorizaciones/venta/{venta}/rechazar', [AutorizacionController::class, 'rechazarVenta'])
+        ->name('autorizaciones.rechazarVenta');
 });
 
 /*

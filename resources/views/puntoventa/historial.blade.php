@@ -77,9 +77,15 @@
                         <td class="text-end fw-bold text-success fs-6">${{ number_format($venta->total, 2) }}</td>
                         <td class="text-center">
                             @if($venta->estado == 'completada')
-                                <span class="badge rounded-pill bg-success-subtle text-success px-3 py-1 border border-success-subtle">
-                                    Aprobada
-                                </span>
+                                @if($venta->autorizacion_solicitada)
+                                    <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis px-3 py-1 border border-warning-subtle">
+                                        <i class="bi bi-clock-history"></i> Cancelación Pendiente
+                                    </span>
+                                @else
+                                    <span class="badge rounded-pill bg-success-subtle text-success px-3 py-1 border border-success-subtle">
+                                        Aprobada
+                                    </span>
+                                @endif
                             @else
                                 <span class="badge rounded-pill bg-danger-subtle text-danger px-3 py-1 border border-danger-subtle">
                                     Cancelada
@@ -92,16 +98,16 @@
                                     <i class="bi bi-printer"></i>
                                 </button>
                                 
-                                @if($venta->estado == 'completada')
-                                <form action="{{ route('puntoventa.cancelar', $venta->id) }}" method="POST" class="m-0 d-inline">
+                                @if($venta->estado == 'completada' && !$venta->autorizacion_solicitada)
+                                <form action="{{ route('puntoventa.cancelar', $venta->id) }}" method="POST" class="m-0 d-inline" id="form-cancelar-{{ $venta->id }}">
                                     @csrf
-                                    <button type="submit" class="btn btn-sm btn-outline-danger border p-1 px-2" title="Cancelar Venta" 
-                                            onclick="return confirm('¿Seguro que deseas cancelar la venta {{ $venta->folio }}? El dinero se descontará de caja y los productos volverán al almacén.')">
+                                    <input type="hidden" name="motivo_cancelacion" id="motivo-{{ $venta->id }}">
+                                    <button type="button" class="btn btn-sm btn-outline-danger border p-1 px-2" title="Cancelar Venta" onclick="solicitarCancelacion({{ $venta->id }}, '{{ $venta->folio }}')">
                                         <i class="bi bi-arrow-counterclockwise"></i>
                                     </button>
                                 </form>
                                 @else
-                                <button class="btn btn-sm btn-outline-secondary border p-1 px-2" disabled>
+                                <button class="btn btn-sm btn-outline-secondary border p-1 px-2 opacity-50" disabled>
                                     <i class="bi bi-dash-circle"></i>
                                 </button>
                                 @endif
@@ -160,6 +166,16 @@ function ejecutarImpresionIframe() {
     if (iframe) {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
+    }
+}
+
+function solicitarCancelacion(id, folio) {
+    let motivo = prompt('Por favor, ingresa el motivo de la cancelación para la venta ' + folio + ':');
+    if (motivo !== null && motivo.trim() !== '') {
+        document.getElementById('motivo-' + id).value = motivo;
+        document.getElementById('form-cancelar-' + id).submit();
+    } else if (motivo !== null) {
+        alert('Debe ingresar un motivo válido para solicitar la cancelación.');
     }
 }
 </script>

@@ -66,6 +66,7 @@ class ClienteController extends Controller
             'curp' => 'nullable|string|max:20',
             'ine_numero' => 'nullable|string|max:20',
             'ine_documento' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'comprobante_domicilio_path' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'contrato_firmado' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'comprobante_deposito' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'telefono_alternativo' => 'nullable|string|max:20',
@@ -88,6 +89,9 @@ class ClienteController extends Controller
 
         if ($request->hasFile('ine_documento')) {
             $cliente->ine_documento = $request->file('ine_documento')->store('clientes/ine', 'public');
+        }
+        if ($request->hasFile('comprobante_domicilio_path')) {
+            $cliente->comprobante_domicilio_path = $request->file('comprobante_domicilio_path')->store('clientes/comprobantes_domicilio', 'public');
         }
         if ($request->hasFile('contrato_firmado')) {
             $cliente->contrato_firmado = $request->file('contrato_firmado')->store('clientes/contratos', 'public');
@@ -137,6 +141,7 @@ class ClienteController extends Controller
             'curp' => 'nullable|string|max:20',
             'ine_numero' => 'nullable|string|max:20',
             'ine_documento' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'comprobante_domicilio_path' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'contrato_firmado' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'comprobante_deposito' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'telefono_alternativo' => 'nullable|string|max:20',
@@ -164,6 +169,20 @@ class ClienteController extends Controller
                 Storage::disk('public')->delete($cliente->ine_documento);
             }
             $cliente->ine_documento = $request->file('ine_documento')->store('clientes/ine', 'public');
+        }
+
+        if ($request->input('eliminar_comprobante') == '1' && !$request->hasFile('comprobante_domicilio_path')) {
+            if ($cliente->comprobante_domicilio_path && Storage::disk('public')->exists($cliente->comprobante_domicilio_path)) {
+                Storage::disk('public')->delete($cliente->comprobante_domicilio_path);
+            }
+            $cliente->comprobante_domicilio_path = null;
+        }
+
+        if ($request->hasFile('comprobante_domicilio_path')) {
+            if ($cliente->comprobante_domicilio_path && Storage::disk('public')->exists($cliente->comprobante_domicilio_path)) {
+                Storage::disk('public')->delete($cliente->comprobante_domicilio_path);
+            }
+            $cliente->comprobante_domicilio_path = $request->file('comprobante_domicilio_path')->store('clientes/comprobantes_domicilio', 'public');
         }
 
         $cliente->save();

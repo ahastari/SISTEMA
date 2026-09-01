@@ -9,7 +9,8 @@ class Venta extends Model
     protected $fillable = [
         'folio', 'corte_caja_id', 'sucursal_id', 'cliente_id', 'cliente_nombre', 
         'subtotal', 'iva', 'total', 'metodo_pago', 'monto_recibido', 'cambio', 'pagos_mixtos',
-        'estado', 'observaciones', 'requiere_factura', 'rfc_cliente'
+        'estado', 'observaciones', 'requiere_factura', 'rfc_cliente',
+        'autorizacion_solicitada', 'solicitado_por_id', 'autorizado_por_id', 'motivo_cancelacion' // <- NUEVOS CAMPOS
     ];
 
     protected static function booted(): void
@@ -58,5 +59,13 @@ class Venta extends Model
         }
 
         return 'V-' . $year . $month . '-' . $nuevoNumero;
+    }
+
+    public function solicitadoPor() {
+        return $this->belongsTo(User::class, 'solicitado_por_id');
+    }
+
+    public function autorizadoPor() {
+        return $this->belongsTo(User::class, 'autorizado_por_id');
     }
 }
