@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\PlantillaDocumento;
+use App\Models\Configuracion;
 
 class RentaController extends Controller
 {
@@ -356,14 +358,635 @@ class RentaController extends Controller
 
     public function pagare(Renta $renta)
     {
-        $renta->load('cliente');
-        $convertirNumeroALetras = function ($numero) {
-            $f = new \NumberFormatter("es", \NumberFormatter::SPELLOUT);
-            return ucfirst($f->format($numero));
+        $renta->load('cliente', 'sucursal');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PLANTILLA
+        |--------------------------------------------------------------------------
+        */
+        $plantilla = PlantillaDocumento::where('tipo', 'pagare')->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | CONFIGURACIÓN PERSONALIZADA DEL PAGARÉ
+        |--------------------------------------------------------------------------
+        */
+        $pagareConfig = Configuracion::where('key', 'like', 'pagare_%')
+            ->pluck('value', 'key')
+            ->toArray();
+
+        $cfg = function ($key, $default = '') use ($pagareConfig) {
+            return $pagareConfig[$key] ?? $default;
         };
-        $pdf = Pdf::loadView('rentas.pdf_pagare', compact('renta', 'convertirNumeroALetras'));
-        $pdf->setPaper('letter', 'portrait');
-        return $pdf->stream('Pagare_' . $renta->folio . '.pdf');
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTO = 5% DEL TOTAL
+        |--------------------------------------------------------------------------
+        */
+        $montoTotal = (float) ($renta->total ?? 0);
+
+        /*
+        |--------------------------------------------------------------------------
+        | EL PAGARÉ ES POR EL TOTAL COMPLETO DE LA RENTA
+        |--------------------------------------------------------------------------
+        */
+        $montoPagare = $montoTotal;
+
+        $formatter = new \NumberFormatter(
+            'es',
+            \NumberFormatter::SPELLOUT
+        );
+
+        $entero = floor($montoTotal);
+
+        $centavos = (int) round(
+            ($montoTotal - $entero) * 100
+        );
+
+        if ($centavos >= 100) {
+            $entero++;
+            $centavos = 0;
+        }
+
+        $montoTotalLetras =
+            mb_strtoupper(
+                $formatter->format($entero),
+                'UTF-8'
+            )
+            . ' PESOS '
+            . str_pad(
+                $centavos,
+                2,
+                '0',
+                STR_PAD_LEFT
+            )
+            . '/100 M.N.';
+
+        /*
+        |--------------------------------------------------------------------------
+        | Como el pagaré es por el total, ambos son iguales
+        |--------------------------------------------------------------------------
+        */
+        $montoPagareLetras = $montoTotalLetras;
+
+        /*
+        |--------------------------------------------------------------------------
+        | FECHAS
+        |--------------------------------------------------------------------------
+        */
+        $fechaExpedicion = $renta->created_at
+            ? \Carbon\Carbon::parse($renta->created_at)
+            : now();
+
+        $fechaPago = $renta->fecha_fin
+            ? \Carbon\Carbon::parse($renta->fecha_fin)
+            : now();
+
+        /*
+        |--------------------------------------------------------------------------
+        | EMPRESA
+        |--------------------------------------------------------------------------
+        */
+        $empresa =
+            \App\Helpers\ContentHelper::getCompanyData(
+                'empresa_nombre'
+            )
+            ?: 'Sistema de Gestión';
+
+        $duenoEmpresa =
+            \App\Helpers\ContentHelper::getCompanyData(
+                'empresa_dueno'
+            )
+            ?? '';
+
+        /*
+        |--------------------------------------------------------------------------
+        | DATOS CLIENTE
+        |--------------------------------------------------------------------------
+        */
+        $cliente = $renta->cliente;
+
+        $nombreCliente =
+            $cliente->nombre_completo ?? '';
+
+        $direccionCliente =
+            $cliente->direccion ?? '';
+
+        /*
+        * IMPORTANTE:
+        * Aquí utilizamos CIUDAD, no sucursal.
+        */
+        $ciudadCliente =
+            $cliente->ciudad ?? 'Durango, Dgo.';
+
+        $telefonoCliente =
+            $cliente->telefono ?? '';
+
+        /*
+        |--------------------------------------------------------------------------
+        | VARIABLES DINÁMICAS
+        |--------------------------------------------------------------------------
+        */
+        $variables = [
+
+            '{cliente}' =>
+                $nombreCliente,
+
+            '{folio}' =>
+                $renta->folio ?? '',
+
+            '{empresa}' =>
+                $empresa,
+
+            '{dueno_empresa}' =>
+                $duenoEmpresa,
+
+            '{monto_total}' =>
+                number_format(
+                    $montoTotal,
+                    2,
+                    '.',
+                    ','
+                ),
+
+            '{monto_total_letras}' =>
+                $montoTotalLetras,
+
+            '{monto_pagare}' =>
+                number_format(
+                    $montoPagare,
+                    2,
+                    '.',
+                    ','
+                ),
+
+            '{monto_pagare_letras}' =>
+                $montoPagareLetras,
+
+            '{numero_pagare}' =>
+                $cfg(
+                    'pagare_numero',
+                    '1/1'
+                ),
+
+            '{fecha_inicio}' =>
+                $renta->fecha_inicio
+                    ? \Carbon\Carbon::parse(
+                        $renta->fecha_inicio
+                    )->format('d/m/Y')
+                    : '',
+
+            '{fecha_fin}' =>
+                $renta->fecha_fin
+                    ? \Carbon\Carbon::parse(
+                        $renta->fecha_fin
+                    )->format('d/m/Y')
+                    : '',
+
+            '{fecha_pago}' =>
+                $fechaPago->format('d/m/Y'),
+
+            '{lugar_pago}' =>
+                $ciudadCliente,
+
+            '{lugar_expedicion}' =>
+                $ciudadCliente,
+
+            '{direccion_cliente}' =>
+                $direccionCliente,
+
+            '{ciudad_cliente}' =>
+                $ciudadCliente,
+
+            '{telefono_cliente}' =>
+                $telefonoCliente,
+
+            '{dia_expedicion}' =>
+                $fechaExpedicion->format('d'),
+
+            '{mes_expedicion}' =>
+                $fechaExpedicion
+                    ->locale('es')
+                    ->translatedFormat('F'),
+
+            '{anio_expedicion}' =>
+                $fechaExpedicion->format('Y'),
+        ];
+
+        /*
+        |--------------------------------------------------------------------------
+        | FUNCIÓN PARA REEMPLAZAR VARIABLES
+        |--------------------------------------------------------------------------
+        */
+        $resolver = function ($texto) use ($variables) {
+
+            return str_replace(
+                array_keys($variables),
+                array_values($variables),
+                $texto ?? ''
+            );
+        };
+
+        /*
+        |--------------------------------------------------------------------------
+        | ENCABEZADO
+        |--------------------------------------------------------------------------
+        */
+        $pagareTitulo =
+            $resolver(
+                $cfg(
+                    'pagare_titulo',
+                    'PAGARÉ'
+                )
+            );
+
+        $pagareTextoBuenoPor =
+            $resolver(
+                $cfg(
+                    'pagare_texto_bueno_por',
+                    'BUENO POR $'
+                )
+            );
+
+        $pagareEtiquetaNumero =
+            $resolver(
+                $cfg(
+                    'pagare_etiqueta_numero',
+                    'No.'
+                )
+            );
+
+        $pagareNumero =
+            $resolver(
+                $cfg(
+                    'pagare_numero',
+                    '1/1'
+                )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | EXPEDICIÓN
+        |--------------------------------------------------------------------------
+        */
+        $pagareTextoEn =
+            $cfg(
+                'pagare_texto_en',
+                'En'
+            );
+
+        $pagareTextoA =
+            $cfg(
+                'pagare_texto_a',
+                'a'
+            );
+
+        $pagareTextoDeMes =
+            $cfg(
+                'pagare_texto_de_mes',
+                'de'
+            );
+
+        $pagareTextoDeAnio =
+            $cfg(
+                'pagare_texto_de_anio',
+                'de'
+            );
+
+        $pagareEtiquetaExpedicion =
+            $resolver(
+                $cfg(
+                    'pagare_etiqueta_expedicion',
+                    'Lugar y fecha de expedición'
+                )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | CUERPO
+        |--------------------------------------------------------------------------
+        */
+        $pagareTextoPromesa =
+            $resolver(
+                $cfg(
+                    'pagare_texto_promesa',
+                    'Debo(mos) y pagaré(mos) incondicionalmente por este Pagaré a la orden de'
+                )
+            );
+
+        $pagareEtiquetaBeneficiario =
+            $resolver(
+                $cfg(
+                    'pagare_etiqueta_beneficiario',
+                    'Nombre de la persona a quien ha de pagarse'
+                )
+            );
+
+        $pagareLugarPago =
+            $resolver(
+                $cfg(
+                    'pagare_texto_lugar',
+                    '{ciudad_cliente}'
+                )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALORES CONFIGURABLES
+        |--------------------------------------------------------------------------
+        */
+
+        $pagareBeneficiario = $resolver(
+            $cfg(
+                'pagare_valor_beneficiario',
+                '{empresa}'
+            )
+        );
+
+
+        $pagareLugarPago = $resolver(
+            $cfg(
+                'pagare_valor_lugar_pago',
+                '{ciudad_cliente}'
+            )
+        );
+
+
+        $pagareFechaPagoMostrar = $resolver(
+            $cfg(
+                'pagare_valor_fecha_pago',
+                '{fecha_fin}'
+            )
+        );
+
+
+        $pagareMontoMostrar = $resolver(
+            $cfg(
+                'pagare_valor_monto',
+                '{monto_total}'
+            )
+        );
+
+
+        $pagareMontoLetrasMostrar = $resolver(
+            $cfg(
+                'pagare_valor_monto_letras',
+                '{monto_total_letras}'
+            )
+        );
+
+
+        $pagareTextoImporte = $resolver(
+            $cfg(
+                'pagare_texto_importe',
+                'Importe correspondiente al total de la renta.'
+            )
+        );
+        $pagareEtiquetaLugarPago =
+            $cfg(
+                'pagare_etiqueta_lugar_pago',
+                'Lugar de pago'
+            );
+
+        $pagareEtiquetaFechaPago =
+            $cfg(
+                'pagare_etiqueta_fecha_pago',
+                'Fecha de pago'
+            );
+
+        $pagareTextoCantidad =
+            $cfg(
+                'pagare_texto_cantidad',
+                'La cantidad de:'
+            );
+
+        $pagareTextoPorcentaje =
+            $resolver(
+                $cfg(
+                    'pagare_texto_porcentaje',
+                    'Importe equivalente al {porcentaje_pagare}% del total de la renta.'
+                )
+            );
+
+        $pagareClausulaLegal =
+            $resolver(
+                $cfg(
+                    'pagare_clausula_legal',
+                    $plantilla->contenido ?? ''
+                )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | DEUDOR
+        |--------------------------------------------------------------------------
+        */
+        $pagareTituloDeudor =
+            $cfg(
+                'pagare_titulo_deudor',
+                'Datos del deudor'
+            );
+
+        $pagareEtiquetaNombre =
+            $cfg(
+                'pagare_etiqueta_nombre',
+                'Nombre:'
+            );
+
+        $pagareEtiquetaDireccion =
+            $cfg(
+                'pagare_etiqueta_direccion',
+                'Dirección:'
+            );
+
+        $pagareEtiquetaPoblacion =
+            $cfg(
+                'pagare_etiqueta_poblacion',
+                'Población:'
+            );
+
+        $pagareEtiquetaTelefono =
+            $cfg(
+                'pagare_etiqueta_telefono',
+                'Tel:'
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | FIRMA
+        |--------------------------------------------------------------------------
+        */
+        $pagareTextoAcepto =
+            $cfg(
+                'pagare_texto_acepto',
+                'Acepto(amos)'
+            );
+
+        $pagareTextoFirma =
+            $cfg(
+                'pagare_texto_firma',
+                'Firma(s)'
+            );
+
+        $pagareTextoPie =
+            $resolver(
+                $cfg(
+                    'pagare_texto_pie',
+                    'Escriba al reverso los datos personales y firma(s) del(os) aval(es).'
+                )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | APARIENCIA
+        |--------------------------------------------------------------------------
+        */
+        $pagareColorPrincipal =
+            $cfg(
+                'pagare_color_principal',
+                '#2e7d32'
+            );
+
+        $pagareColorFondo =
+            $cfg(
+                'pagare_color_fondo',
+                '#e8f5e9'
+            );
+
+        $pagareTamanoTexto =
+            (int) $cfg(
+                'pagare_tamano_texto',
+                11
+            );
+
+        $pagareNumeroMostrar = $resolver(
+            $cfg(
+                'pagare_valor_numero',
+                '{numero_pagare}'
+            )
+        );
+
+        $pagareImporteMostrar = $resolver(
+            $cfg(
+                'pagare_valor_importe',
+                '{monto_total}'
+            )
+        );
+
+        $pagareLugarExpedicionMostrar = $resolver(
+            $cfg(
+                'pagare_valor_lugar_expedicion',
+                '{ciudad_cliente}'
+            )
+        );
+
+        $pagareDiaExpedicionMostrar = $resolver(
+            $cfg(
+                'pagare_valor_dia_expedicion',
+                '{dia_expedicion}'
+            )
+        );
+
+        $pagareMesExpedicionMostrar = $resolver(
+            $cfg(
+                'pagare_valor_mes_expedicion',
+                '{mes_expedicion}'
+            )
+        );
+
+        $pagareAnioExpedicionMostrar = $resolver(
+            $cfg(
+                'pagare_valor_anio_expedicion',
+                '{anio_expedicion}'
+            )
+        );
+        /*
+        |--------------------------------------------------------------------------
+        | GENERAR PDF
+        |--------------------------------------------------------------------------
+        */
+        $pdf = Pdf::loadView(
+            'rentas.pdf_pagare',
+            compact(
+                'renta',
+
+                'montoTotal',
+                'montoPagare',
+                'montoPagareLetras',
+
+                'fechaExpedicion',
+                'fechaPago',
+
+                'empresa',
+
+                'nombreCliente',
+                'direccionCliente',
+                'ciudadCliente',
+                'telefonoCliente',
+
+                'pagareTitulo',
+                'pagareTextoBuenoPor',
+                'pagareEtiquetaNumero',
+                'pagareNumero',
+
+                'pagareTextoEn',
+                'pagareTextoA',
+                'pagareTextoDeMes',
+                'pagareTextoDeAnio',
+                'pagareEtiquetaExpedicion',
+
+                'pagareTextoPromesa',
+                'pagareEtiquetaBeneficiario',
+                'pagareLugarPago',
+                'pagareEtiquetaLugarPago',
+                'pagareEtiquetaFechaPago',
+                'pagareTextoCantidad',
+                'pagareTextoPorcentaje',
+                'pagareClausulaLegal',
+
+                'pagareTituloDeudor',
+                'pagareEtiquetaNombre',
+                'pagareEtiquetaDireccion',
+                'pagareEtiquetaPoblacion',
+                'pagareEtiquetaTelefono',
+
+                'pagareTextoAcepto',
+                'pagareTextoFirma',
+                'pagareTextoPie',
+
+                'pagareColorPrincipal',
+                'pagareColorFondo',
+                'pagareTamanoTexto',
+
+                'pagareBeneficiario',
+                'pagareLugarPago',
+                'pagareFechaPagoMostrar',
+                'pagareMontoMostrar',
+                'pagareMontoLetrasMostrar',
+                'pagareTextoImporte',
+
+                'pagareNumeroMostrar',
+                'pagareImporteMostrar',
+
+                'pagareLugarExpedicionMostrar',
+                'pagareDiaExpedicionMostrar',
+                'pagareMesExpedicionMostrar',
+                'pagareAnioExpedicionMostrar',
+            )
+        );
+
+        $pdf->setPaper(
+            'letter',
+            'portrait'
+        );
+
+        return $pdf->stream(
+            'Pagare_' .
+            $renta->folio .
+            '.pdf'
+        );
     }
 
     public function uploadContrato(Request $request, Renta $renta)

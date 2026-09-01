@@ -124,6 +124,153 @@
         transform: translateY(-2px); /* Pequeño salto al pasar el mouse */
         box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
     }
+
+    /* =========================================================
+    EDITOR DEL PAGARÉ
+    ========================================================= */
+
+    .pagare-editor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .pagare-editor-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 12px;
+        background: var(--bs-tertiary-bg);
+    }
+
+    .pagare-editor-tabs .nav-item {
+        flex: 1;
+    }
+
+    .pagare-editor-tabs .nav-link {
+        width: 100%;
+        border-radius: 8px;
+        color: var(--bs-body-color);
+        font-size: 13px;
+        font-weight: 600;
+        padding: 10px;
+    }
+
+    .pagare-editor-tabs .nav-link.active {
+        background: var(--bs-primary);
+        color: #fff;
+    }
+
+
+    .editor-section {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 14px;
+        padding: 22px;
+        background: var(--bs-body-bg);
+    }
+
+    .editor-section-title {
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 5px;
+        color: var(--bs-primary);
+    }
+
+    .editor-section-title span {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+
+        width: 25px;
+        height: 25px;
+
+        margin-right: 6px;
+
+        border-radius: 50%;
+
+        background: var(--bs-primary);
+        color: white;
+
+        font-size: 12px;
+    }
+
+
+    .pagare-preview-card,
+    .pagare-variable-card {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 14px;
+        padding: 18px;
+        background: var(--bs-tertiary-bg);
+    }
+
+
+    .mini-pagare {
+        background: #e8f5e9;
+        border: 3px solid #2e7d32;
+        border-radius: 9px;
+        padding: 14px;
+        color: #1b5e20;
+        font-size: 10px;
+    }
+
+    .mini-title {
+        background: white;
+        border: 2px solid #2e7d32;
+        border-radius: 6px;
+        padding: 4px 9px;
+
+        font-size: 15px;
+        font-weight: bold;
+        font-style: italic;
+    }
+
+    .mini-amount {
+        background: white;
+        border: 2px solid #2e7d32;
+        border-radius: 5px;
+
+        margin-top: 3px;
+        padding: 3px 12px;
+
+        font-weight: bold;
+    }
+
+    .mini-line {
+        text-align: center;
+        border-bottom: 1px solid rgba(46, 125, 50, .35);
+        padding-bottom: 5px;
+    }
+
+    .mini-body {
+        line-height: 1.5;
+    }
+
+
+    .pagare-variable {
+        border-radius: 20px;
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+
+    @media (max-width: 991px) {
+
+        .pagare-editor-tabs {
+            flex-direction: column;
+        }
+
+        .pagare-editor-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+
+    .campo-variable-activo {
+        border-color: var(--bs-primary) !important;
+        box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .20) !important;
+    }
 </style>
 
 <div class="container-fluid p-0 py-2">
@@ -566,67 +713,1341 @@
         </div>
         @endif
 
-        {{-- ============================================ --}}
-        {{-- PANEL DE PLANTILLAS --}}
-        {{-- ============================================ --}}
+        {{-- =========================================================
+            PANEL DE PLANTILLAS DE DOCUMENTOS
+        ========================================================= --}}
         @if(auth()->user()->isAdmin() || auth()->user()->isGerente())
+
         <div class="tab-pane fade" id="panel-plantillas" role="tabpanel">
+
             <div class="card form-card p-4">
+
                 <div class="section-title mb-4">
-                    <i class="bi bi-file-earmark-text me-2"></i>Estructura Legal de Documentos
+                    <i class="bi bi-file-earmark-text me-2"></i>
+                    Plantillas de Documentos
                 </div>
-                
-                <div class="row g-4">
-                    @forelse($plantillas as $p)
-                    <div class="col-12 col-xl-6">
-                        <div class="card border p-3 p-md-4 rounded-4 bg-body-tertiary h-100 shadow-sm">
-                            <form action="{{ route('configuracion.plantilla.update', $p->id) }}" method="POST" class="d-flex flex-column h-100 m-0">
-                                @csrf @method('PUT')
-                                <div class="mb-3">
-                                    <label class="form-label small fw-bold text-primary text-uppercase" style="font-size: 11px;">
-                                        <i class="bi bi-card-text me-1"></i> Tipo: {{ str_replace('_', ' ', $p->tipo) }}
-                                    </label>
-                                    <input type="text" name="titulo" class="form-control bg-body fw-semibold" value="{{ $p->titulo }}" placeholder="Título oficial del documento">
+
+                @foreach($plantillas as $p)
+
+                    {{-- =====================================================
+                        PAGARÉ - EDITOR AVANZADO
+                    ====================================================== --}}
+                    @if($p->tipo === 'pagare')
+
+                        @php
+                            $pc = $pagareConfig ?? [];
+
+                            $valor = function($key, $default = '') use ($pc) {
+                                return old($key, $pc[$key] ?? $default);
+                            };
+                        @endphp
+
+
+                        <form
+                            action="{{ route('configuracion.plantilla.update', $p->id) }}"
+                            method="POST"
+                            id="formPagare"
+                            class="mb-4"
+                        >
+
+                            @csrf
+                            @method('PUT')
+
+                            <input
+                                type="hidden"
+                                name="titulo"
+                                id="plantillaTituloPagare"
+                                value="{{ $p->titulo ?? 'PAGARÉ' }}"
+                            >
+
+
+                            {{-- CABECERA DEL EDITOR --}}
+                            <div class="pagare-editor-header mb-4">
+
+                                <div>
+                                    <h5 class="mb-1 fw-bold">
+                                        <i class="bi bi-file-earmark-text me-2"></i>
+                                        Configuración del Pagaré
+                                    </h5>
+
+                                    <small class="text-secondary">
+                                        Personaliza cada elemento del documento
+                                    </small>
                                 </div>
-                                <div class="mb-3 flex-grow-1">
-                                    <label class="form-label text-secondary small fw-semibold mb-1">Cláusulas Editables</label>
-                                    <textarea name="contenido" class="form-control font-monospace small bg-body" rows="12" style="font-size: 13px; line-height: 1.5; resize: vertical;" required>{{ $p->contenido }}</textarea>
-                                </div>
-                                
-                                <div class="p-3 bg-body border rounded-3 mb-3">
-                                    <span class="d-block fw-bold text-secondary mb-2" style="font-size: 11px; text-transform: uppercase;">
-                                        <i class="bi bi-braces text-primary me-1"></i> Variables Dinámicas:
-                                    </span>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{cliente}')">{cliente}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{folio}')">{folio}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{deposito}')">{deposito}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{monto_total}')">{monto_total}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{fecha_inicio}')">{fecha_inicio}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{fecha_fin}')">{fecha_fin}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{empresa}')">{empresa}</button>
-                                        <button type="button" class="btn btn-sm rounded-pill btn-variable font-monospace shadow-sm" onclick="insertVariable(this, '{dueno_empresa}')">{dueno_empresa}</button>
+
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
+                                    Total de la renta · No. 1/1
+                                </span>
+
+                            </div>
+
+
+                            {{-- =================================================
+                                NAVEGACIÓN INTERNA
+                            ================================================== --}}
+                            <ul
+                                class="nav nav-pills pagare-editor-tabs mb-4"
+                                id="pagareEditorTabs"
+                                role="tablist"
+                            >
+
+                                <li class="nav-item">
+                                    <button
+                                        class="nav-link active"
+                                        id="pagare-encabezado-tab"
+                                        data-bs-toggle="pill"
+                                        data-bs-target="#pagare-encabezado"
+                                        type="button"
+                                        role="tab"
+                                        aria-controls="pagare-encabezado"
+                                        aria-selected="true"
+                                    >
+                                        <i class="bi bi-card-heading me-1"></i>
+                                        Encabezado
+                                    </button>
+                                </li>
+
+                                <li class="nav-item">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="pill"
+                                        data-bs-target="#pagare-cuerpo"
+                                        type="button"
+                                    >
+                                        <i class="bi bi-text-paragraph me-1"></i>
+                                        Cuerpo de Texto
+                                    </button>
+                                </li>
+
+                                <li class="nav-item">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="pill"
+                                        data-bs-target="#pagare-deudor"
+                                        type="button"
+                                    >
+                                        <i class="bi bi-person-vcard me-1"></i>
+                                        Datos del Deudor
+                                    </button>
+                                </li>
+
+                                <li class="nav-item">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="pill"
+                                        data-bs-target="#pagare-firma"
+                                        type="button"
+                                    >
+                                        <i class="bi bi-pen me-1"></i>
+                                        Pie y Firmas
+                                    </button>
+                                </li>
+
+                                <li class="nav-item">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="pill"
+                                        data-bs-target="#pagare-apariencia"
+                                        type="button"
+                                    >
+                                        <i class="bi bi-palette me-1"></i>
+                                        Apariencia
+                                    </button>
+                                </li>
+
+                            </ul>
+
+
+                            <div class="row g-4">
+
+                                {{-- ==============================================
+                                    EDITOR IZQUIERDO
+                                =============================================== --}}
+                                <div class="col-12 col-xl-8">
+
+                                    <div class="tab-content">
+
+
+                                        {{-- =========================================
+                                            1. ENCABEZADO
+                                        ========================================== --}}
+                                        <div
+                                        class="tab-pane fade show active"
+                                        id="pagare-encabezado"
+                                        role="tabpanel"
+                                        aria-labelledby="pagare-encabezado-tab"
+                                    >
+
+                                        <div class="editor-section">
+
+                                            <div class="editor-section-title">
+                                                <span>1</span>
+                                                Encabezado
+                                            </div>
+
+                                            <p class="text-secondary small">
+                                                Personaliza textos y valores dinámicos del encabezado.
+                                            </p>
+
+
+                                            <div class="row g-3">
+
+                                                {{-- TÍTULO --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Título del documento
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_titulo"
+                                                        id="pagare_titulo"
+                                                        class="form-control pagare-live"
+                                                        value="{{ $valor(
+                                                            'pagare_titulo',
+                                                            'PAGARÉ'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- BUENO POR --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Texto del importe
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_bueno_por"
+                                                        id="pagare_texto_bueno_por"
+                                                        class="form-control pagare-live"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_bueno_por',
+                                                            'BUENO POR $'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- ETIQUETA NÚMERO --}}
+                                                <div class="col-md-4">
+
+                                                    <label class="form-label">
+                                                        Etiqueta número
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_etiqueta_numero"
+                                                        id="pagare_etiqueta_numero"
+                                                        class="form-control pagare-live"
+                                                        value="{{ $valor(
+                                                            'pagare_etiqueta_numero',
+                                                            'No.'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- VALOR NÚMERO --}}
+                                                <div class="col-md-4">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del número
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_numero"
+                                                        id="pagare_valor_numero"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_numero',
+                                                            '1/1'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- VALOR DEL MONTO --}}
+                                                <div class="col-md-4">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del importe
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_importe"
+                                                        id="pagare_valor_importe"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_importe',
+                                                            '{monto_total}'
+                                                        ) }}"
+                                                    >
+
+                                                    <small class="text-secondary">
+                                                        Ejemplo: {monto_total}
+                                                    </small>
+
+                                                </div>
+
+                                            </div>
+
+
+                                            <hr class="my-4">
+
+
+                                            <h6 class="fw-bold mb-3">
+                                                Lugar y fecha de expedición
+                                            </h6>
+
+
+                                            <div class="row g-3">
+
+                                                {{-- TEXTO EN --}}
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label">
+                                                        Texto inicial
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_en"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_en',
+                                                            'En'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- VALOR CIUDAD --}}
+                                                <div class="col-md-9">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del lugar de expedición
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_lugar_expedicion"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_lugar_expedicion',
+                                                            '{ciudad_cliente}'
+                                                        ) }}"
+                                                    >
+
+                                                    <small class="text-secondary">
+                                                        Puedes usar {ciudad_cliente}, {lugar_expedicion} o texto fijo.
+                                                    </small>
+
+                                                </div>
+
+
+                                                {{-- TEXTO A --}}
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label">
+                                                        Texto antes del día
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_a"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_a',
+                                                            'a'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- VALOR DÍA --}}
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del día
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_dia_expedicion"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_dia_expedicion',
+                                                            '{dia_expedicion}'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- TEXTO DE --}}
+                                                <div class="col-md-2">
+
+                                                    <label class="form-label">
+                                                        Texto
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_de_mes"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_de_mes',
+                                                            'de'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- VALOR MES --}}
+                                                <div class="col-md-4">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del mes
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_mes_expedicion"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_mes_expedicion',
+                                                            '{mes_expedicion}'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- TEXTO DE AÑO --}}
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label">
+                                                        Texto antes del año
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_de_anio"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_de_anio',
+                                                            'de'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- VALOR AÑO --}}
+                                                <div class="col-md-4">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del año
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_anio_expedicion"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_anio_expedicion',
+                                                            '{anio_expedicion}'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                {{-- ETIQUETA EXPEDICIÓN --}}
+                                                <div class="col-md-5">
+
+                                                    <label class="form-label">
+                                                        Leyenda inferior
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_etiqueta_expedicion"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_etiqueta_expedicion',
+                                                            'Lugar y fecha de expedición'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
                                     </div>
+
+
+                                        {{-- =========================================
+                                            2. CUERPO
+                                        ========================================== --}}
+                                        <div
+                                            class="tab-pane fade"
+                                            id="pagare-cuerpo"
+                                        >
+
+                                            <div class="editor-section">
+
+                                                <div class="editor-section-title">
+                                                    <span>2</span>
+                                                    Cuerpo del pagaré
+                                                </div>
+
+
+                                                <div class="mb-3">
+
+                                                    <label class="form-label">
+                                                        Texto principal
+                                                    </label>
+
+                                                    <textarea
+                                                        name="pagare_texto_promesa"
+                                                        class="form-control"
+                                                        rows="4"
+                                                    >{{ $valor(
+                                                        'pagare_texto_promesa',
+                                                        'Debo(mos) y pagaré(mos) incondicionalmente por este Pagaré a la orden de'
+                                                    ) }}</textarea>
+
+                                                    <small class="text-secondary">
+                                                        Este texto aparece antes del nombre de la empresa.
+                                                    </small>
+
+                                                </div>
+
+
+                                                <div class="row g-3">
+                                                {{-- =====================================================
+                                                    BENEFICIARIO
+                                                ====================================================== --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Etiqueta beneficiario
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_etiqueta_beneficiario"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_etiqueta_beneficiario',
+                                                            'Nombre de la persona a quien ha de pagarse'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del beneficiario
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_beneficiario"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_beneficiario',
+                                                            '{empresa}'
+                                                        ) }}"
+                                                        placeholder="{empresa}"
+                                                    >
+
+                                                    <small class="text-secondary">
+                                                        Puedes usar por ejemplo {empresa}, {dueno_empresa} o escribir texto fijo.
+                                                    </small>
+
+                                                </div>
+
+
+                                                {{-- =====================================================
+                                                    LUGAR DE PAGO
+                                                ====================================================== --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Etiqueta lugar de pago
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_etiqueta_lugar_pago"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_etiqueta_lugar_pago',
+                                                            'Lugar de pago'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del lugar de pago
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_lugar_pago"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_lugar_pago',
+                                                            '{ciudad_cliente}'
+                                                        ) }}"
+                                                        placeholder="{ciudad_cliente}"
+                                                    >
+
+                                                    <small class="text-secondary">
+                                                        Ejemplo: {ciudad_cliente}, {lugar_expedicion} o texto fijo.
+                                                    </small>
+
+                                                </div>
+
+
+                                                {{-- =====================================================
+                                                    FECHA DE PAGO
+                                                ====================================================== --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Etiqueta fecha de pago
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_etiqueta_fecha_pago"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_etiqueta_fecha_pago',
+                                                            'Fecha de pago'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor de la fecha de pago
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_fecha_pago"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_fecha_pago',
+                                                            '{fecha_fin}'
+                                                        ) }}"
+                                                        placeholder="{fecha_fin}"
+                                                    >
+
+                                                    <small class="text-secondary">
+                                                        Puedes usar {fecha_fin}, {fecha_inicio} o {fecha_pago}.
+                                                    </small>
+
+                                                </div>
+
+
+                                                {{-- =====================================================
+                                                    CANTIDAD
+                                                ====================================================== --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Texto antes de cantidad
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_cantidad"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_cantidad',
+                                                            'La cantidad de:'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label fw-bold">
+                                                        Valor del pagaré
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_monto"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_monto',
+                                                            '{monto_total}'
+                                                        ) }}"
+                                                        placeholder="{monto_total}"
+                                                    >
+
+                                                    <small class="text-success">
+                                                        Para usar el total completo de la renta deja {monto_total}.
+                                                    </small>
+
+                                                </div>
+
+
+                                                {{-- =====================================================
+                                                    CANTIDAD EN LETRAS
+                                                ====================================================== --}}
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label fw-bold">
+                                                        Cantidad en letras
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_valor_monto_letras"
+                                                        class="form-control font-monospace"
+                                                        value="{{ $valor(
+                                                            'pagare_valor_monto_letras',
+                                                            '{monto_total_letras}'
+                                                        ) }}"
+                                                        placeholder="{monto_total_letras}"
+                                                    >
+
+                                                </div>
+
+
+                                                <div class="col-md-6">
+
+                                                    <label class="form-label">
+                                                        Leyenda debajo del importe
+                                                    </label>
+
+                                                    <input
+                                                        type="text"
+                                                        name="pagare_texto_importe"
+                                                        class="form-control"
+                                                        value="{{ $valor(
+                                                            'pagare_texto_importe',
+                                                            'Importe correspondiente al total de la renta.'
+                                                        ) }}"
+                                                    >
+
+                                                </div>
+
+                                            </div>
+
+
+                                                <hr class="my-4">
+
+
+                                                <div class="mb-3">
+
+                                                    <label class="form-label fw-bold">
+                                                        Cláusula legal
+                                                    </label>
+
+                                                    <textarea
+                                                        name="pagare_clausula_legal"
+                                                        id="pagare_clausula_legal"
+                                                        class="form-control font-monospace"
+                                                        rows="9"
+                                                    >{{ $valor(
+                                                        'pagare_clausula_legal',
+                                                        $p->contenido
+                                                    ) }}</textarea>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+
+
+                                        {{-- =========================================
+                                            3. DEUDOR
+                                        ========================================== --}}
+                                        <div
+                                            class="tab-pane fade"
+                                            id="pagare-deudor"
+                                        >
+
+                                            <div class="editor-section">
+
+                                                <div class="editor-section-title">
+                                                    <span>3</span>
+                                                    Datos del deudor
+                                                </div>
+
+
+                                                <div class="row g-3">
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">
+                                                            Título
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_titulo_deudor"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_titulo_deudor', 'Datos del deudor') }}"
+                                                        >
+                                                    </div>
+
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">
+                                                            Etiqueta nombre
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_etiqueta_nombre"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_etiqueta_nombre', 'Nombre:') }}"
+                                                        >
+                                                    </div>
+
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">
+                                                            Etiqueta dirección
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_etiqueta_direccion"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_etiqueta_direccion', 'Dirección:') }}"
+                                                        >
+                                                    </div>
+
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">
+                                                            Etiqueta población
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_etiqueta_poblacion"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_etiqueta_poblacion', 'Población:') }}"
+                                                        >
+                                                    </div>
+
+
+                                                    <div class="col-md-6">
+                                                        <label class="form-label">
+                                                            Etiqueta teléfono
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_etiqueta_telefono"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_etiqueta_telefono', 'Tel:') }}"
+                                                        >
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+
+
+                                        {{-- =========================================
+                                            4. FIRMA
+                                        ========================================== --}}
+                                        <div
+                                            class="tab-pane fade"
+                                            id="pagare-firma"
+                                        >
+
+                                            <div class="editor-section">
+
+                                                <div class="editor-section-title">
+                                                    <span>4</span>
+                                                    Pie y firmas
+                                                </div>
+
+                                                <div class="row g-3">
+
+                                                    <div class="col-md-6">
+
+                                                        <label class="form-label">
+                                                            Texto aceptación
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_texto_acepto"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_texto_acepto', 'Acepto(amos)') }}"
+                                                        >
+
+                                                    </div>
+
+
+                                                    <div class="col-md-6">
+
+                                                        <label class="form-label">
+                                                            Texto firma
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_texto_firma"
+                                                            class="form-control"
+                                                            value="{{ $valor('pagare_texto_firma', 'Firma(s)') }}"
+                                                        >
+
+                                                    </div>
+
+
+                                                    <div class="col-12">
+
+                                                        <label class="form-label">
+                                                            Texto del pie
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            name="pagare_texto_pie"
+                                                            class="form-control"
+                                                            value="{{ $valor(
+                                                                'pagare_texto_pie',
+                                                                'Escriba al reverso los datos personales y firma(s) del(os) aval(es).'
+                                                            ) }}"
+                                                        >
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+
+
+                                        {{-- =========================================
+                                            5. APARIENCIA
+                                        ========================================== --}}
+                                        <div
+                                            class="tab-pane fade"
+                                            id="pagare-apariencia"
+                                        >
+
+                                            <div class="editor-section">
+
+                                                <div class="editor-section-title">
+                                                    <span>5</span>
+                                                    Apariencia
+                                                </div>
+
+                                                <div class="row g-3">
+
+                                                    <div class="col-md-4">
+
+                                                        <label class="form-label">
+                                                            Color principal
+                                                        </label>
+
+                                                        <input
+                                                            type="color"
+                                                            name="pagare_color_principal"
+                                                            class="form-control form-control-color"
+                                                            value="{{ $valor(
+                                                                'pagare_color_principal',
+                                                                '#2e7d32'
+                                                            ) }}"
+                                                        >
+
+                                                    </div>
+
+
+                                                    <div class="col-md-4">
+
+                                                        <label class="form-label">
+                                                            Fondo
+                                                        </label>
+
+                                                        <input
+                                                            type="color"
+                                                            name="pagare_color_fondo"
+                                                            class="form-control form-control-color"
+                                                            value="{{ $valor(
+                                                                'pagare_color_fondo',
+                                                                '#e8f5e9'
+                                                            ) }}"
+                                                        >
+
+                                                    </div>
+
+
+                                                    <div class="col-md-4">
+
+                                                        <label class="form-label">
+                                                            Tamaño texto
+                                                        </label>
+
+                                                        <div class="input-group">
+
+                                                            <input
+                                                                type="number"
+                                                                name="pagare_tamano_texto"
+                                                                min="8"
+                                                                max="16"
+                                                                step="1"
+                                                                class="form-control"
+                                                                value="{{ $valor(
+                                                                    'pagare_tamano_texto',
+                                                                    '11'
+                                                                ) }}"
+                                                            >
+
+                                                            <span class="input-group-text">
+                                                                px
+                                                            </span>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
                                 </div>
-                                
-                                <button type="submit" class="btn btn-dark btn-sm w-100 py-2 fw-bold mt-auto rounded-3">
-                                    <i class="bi bi-cloud-arrow-up-fill me-1"></i> Actualizar Plantilla
+
+
+
+                                {{-- =================================================
+                                    COLUMNA DERECHA
+                                ================================================== --}}
+                                <div class="col-12 col-xl-4">
+
+                                    {{-- VISTA PREVIA --}}
+                                    <div class="pagare-preview-card mb-3">
+
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+
+                                            <span class="fw-bold">
+                                                <i class="bi bi-eye me-1"></i>
+                                                Vista previa
+                                            </span>
+
+                                            <span class="badge bg-success">
+                                                5%
+                                            </span>
+
+                                        </div>
+
+
+                                        <div class="mini-pagare">
+
+                                            <div class="d-flex justify-content-between align-items-start">
+
+                                                <div
+                                                    class="mini-title"
+                                                    id="previewPagareTitulo"
+                                                >
+                                                    {{ $valor('pagare_titulo', 'PAGARÉ') }}
+                                                </div>
+
+
+                                                <div class="text-center small">
+
+                                                    <strong
+                                                        id="previewNumeroEtiqueta"
+                                                    >
+                                                        {{ $valor('pagare_etiqueta_numero', 'No.') }}
+                                                    </strong>
+
+                                                    <span id="previewNumero">
+                                                        {{ $valor('pagare_valor_numero', '1/1') }}
+                                                    </span>
+
+                                                </div>
+
+
+                                                <div class="text-end">
+
+                                                    <strong
+                                                        class="d-block"
+                                                        id="previewBuenoPor"
+                                                    >
+                                                        {{ $valor('pagare_texto_bueno_por', 'BUENO POR $') }}
+                                                    </strong>
+
+                                                    <div class="mini-amount">
+                                                        5.80
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+
+                                            <div class="mini-line mt-4">
+                                                En
+                                                <strong>Durango, Dgo.</strong>
+                                                a 05 de agosto de 2026
+                                            </div>
+
+
+                                            <div class="mini-body mt-4">
+                                                Debo(mos) y pagaré(mos)
+                                                incondicionalmente por este Pagaré
+                                                a la orden de
+                                                <strong>Sistema de Gestión</strong>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+
+                                    {{-- VARIABLES EXCLUSIVAS --}}
+                                    <div class="pagare-variable-card">
+
+                                        <div class="fw-bold mb-2">
+                                            <i class="bi bi-braces me-1"></i>
+                                            Variables del pagaré
+                                        </div>
+
+                                        <small class="text-secondary d-block mb-3">
+                                            Estas variables solo pertenecen al pagaré.
+                                        </small>
+
+
+                                        <div class="d-flex flex-wrap gap-2">
+
+                                            @foreach([
+                                                '{cliente}',
+                                                '{folio}',
+
+                                                '{empresa}',
+                                                '{dueno_empresa}',
+
+                                                '{monto_total}',
+                                                '{monto_total_letras}',
+
+                                                '{numero_pagare}',
+
+                                                '{fecha_inicio}',
+                                                '{fecha_fin}',
+                                                '{fecha_pago}',
+                                                '{fecha_expedicion}',
+
+                                                '{lugar_pago}',
+                                                '{lugar_expedicion}',
+
+                                                '{direccion_cliente}',
+                                                '{ciudad_cliente}',
+                                                '{telefono_cliente}',
+
+                                                '{dia_expedicion}',
+                                                '{mes_expedicion}',
+                                                '{anio_expedicion}'
+                                            ] as $variable)
+
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-variable pagare-variable"
+                                                    data-variable="{{ $variable }}"
+                                                >
+                                                    {{ $variable }}
+                                                </button>
+
+                                            @endforeach
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+
+                            {{-- ============================================
+                                BOTÓN GUARDAR
+                            ============================================= --}}
+                            <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-success px-4 fw-bold"
+                                >
+
+                                    <i class="bi bi-cloud-check me-2"></i>
+                                    Guardar Plantilla del Pagaré
+
                                 </button>
+
+                            </div>
+
+                        </form>
+
+
+                    {{-- =====================================================
+                        CONTRATO - CONSERVAR EDITOR SIMPLE
+                    ====================================================== --}}
+                    @else
+
+                        <div class="card border p-3 p-md-4 rounded-4 bg-body-tertiary mb-4">
+
+                            <form
+                                action="{{ route('configuracion.plantilla.update', $p->id) }}"
+                                method="POST"
+                            >
+
+                                @csrf
+                                @method('PUT')
+
+
+                                <div class="mb-3">
+
+                                    <label class="form-label small fw-bold text-primary text-uppercase">
+
+                                        <i class="bi bi-card-text me-1"></i>
+
+                                        Tipo:
+                                        {{ str_replace('_', ' ', $p->tipo) }}
+
+                                    </label>
+
+
+                                    <input
+                                        type="text"
+                                        name="titulo"
+                                        class="form-control bg-body fw-semibold"
+                                        value="{{ $p->titulo }}"
+                                    >
+
+                                </div>
+
+
+                                <div class="mb-3">
+
+                                    <label class="form-label">
+                                        Cláusulas Editables
+                                    </label>
+
+                                    <textarea
+                                        name="contenido"
+                                        class="form-control font-monospace"
+                                        rows="12"
+                                        required
+                                    >{{ $p->contenido }}</textarea>
+
+                                </div>
+
+
+                                {{-- VARIABLES SOLO DEL CONTRATO --}}
+                                <div class="p-3 bg-body border rounded-3 mb-3">
+
+                                    <span class="d-block fw-bold text-secondary mb-2">
+                                        Variables del contrato
+                                    </span>
+
+
+                                    <div class="d-flex flex-wrap gap-2">
+
+                                        @foreach([
+                                            '{cliente}',
+                                            '{folio}',
+                                            '{deposito}',
+                                            '{monto_total}',
+                                            '{fecha_inicio}',
+                                            '{fecha_fin}',
+                                            '{empresa}',
+                                            '{dueno_empresa}'
+                                        ] as $variable)
+
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm rounded-pill btn-variable font-monospace"
+                                                onclick="insertVariable(this, '{{ $variable }}')"
+                                            >
+                                                {{ $variable }}
+                                            </button>
+
+                                        @endforeach
+
+                                    </div>
+
+                                </div>
+
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-dark btn-sm w-100 py-2 fw-bold"
+                                >
+
+                                    <i class="bi bi-cloud-arrow-up-fill me-1"></i>
+                                    Actualizar Plantilla
+
+                                </button>
+
                             </form>
+
                         </div>
-                    </div>
-                    @empty
-                    <div class="col-12 text-center py-5 border border-dashed rounded-4 bg-body-tertiary">
-                        <i class="bi bi-file-earmark-x text-secondary fs-1 mb-2"></i>
-                        <h6 class="fw-bold text-body">No hay plantillas registradas</h6>
-                    </div>
-                    @endforelse
-                </div>
+
+                    @endif
+
+                @endforeach
+
             </div>
+
         </div>
-    </div>
-    @endif
-</div>
+
+        @endif
+        </div>
 
 {{-- ============================================ --}}
 {{-- MODAL CREAR SUCURSAL (SOLO ADMIN) --}}
@@ -749,25 +2170,217 @@
         }
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
-        // Gestión de Pestañas Activas (LocalStorage)
-        let activeTab = "{{ session('tab') }}" || localStorage.getItem('activeConfigTab');
-        if (activeTab) {
-            let tabTrigger = document.querySelector(`#${activeTab}-tab`);
-            if (tabTrigger) {
-                document.querySelectorAll('.premium-tabs .nav-link').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.tab-content .tab-pane').forEach(pane => pane.classList.remove('show', 'active'));
-                
-                tabTrigger.classList.add('active');
-                let targetPane = document.querySelector(tabTrigger.getAttribute('data-bs-target'));
-                if (targetPane) targetPane.classList.add('show', 'active');
+            document.addEventListener("DOMContentLoaded", function() {
+
+            // =====================================================
+            // PESTAÑAS PRINCIPALES DE CONFIGURACIÓN
+            // =====================================================
+
+            let activeTab =
+                "{{ session('tab') }}"
+                || localStorage.getItem('activeConfigTab');
+
+            if (activeTab) {
+
+                let tabTrigger =
+                    document.querySelector(`#${activeTab}-tab`);
+
+                if (tabTrigger) {
+
+                    // SOLO botones principales
+                    document
+                        .querySelectorAll('#configTabs > .nav-item > .nav-link')
+                        .forEach(function (btn) {
+                            btn.classList.remove('active');
+                        });
+
+
+                    // SOLO paneles principales.
+                    // IMPORTANTE: NO TOCAR LOS TABS INTERNOS DEL PAGARÉ
+                    document
+                        .querySelectorAll(
+                            '#configTabsContent > .tab-pane'
+                        )
+                        .forEach(function (pane) {
+
+                            pane.classList.remove(
+                                'show',
+                                'active'
+                            );
+
+                        });
+
+
+                    tabTrigger.classList.add('active');
+
+
+                    const targetSelector =
+                        tabTrigger.getAttribute(
+                            'data-bs-target'
+                        );
+
+                    const targetPane =
+                        document.querySelector(
+                            targetSelector
+                        );
+
+                    if (targetPane) {
+
+                        targetPane.classList.add(
+                            'show',
+                            'active'
+                        );
+
+                    }
+                }
             }
-        }
-        document.querySelectorAll('#configTabs button').forEach(button => {
-            button.addEventListener('shown.bs.tab', function (e) {
-                let id = e.target.id.replace('-tab', '');
-                localStorage.setItem('activeConfigTab', id);
-            });
+
+
+            // =====================================================
+            // GUARDAR PESTAÑA PRINCIPAL
+            // =====================================================
+
+            document
+                .querySelectorAll('#configTabs button')
+                .forEach(function (button) {
+
+                    button.addEventListener(
+                        'shown.bs.tab',
+                        function (e) {
+
+                            let id =
+                                e.target.id.replace(
+                                    '-tab',
+                                    ''
+                                );
+
+                            localStorage.setItem(
+                                'activeConfigTab',
+                                id
+                            );
+
+                        }
+                    );
+
+                });
+
+
+            // =====================================================
+            // GARANTIZAR ENCABEZADO DEL PAGARÉ
+            // =====================================================
+
+            function mostrarEncabezadoPagare() {
+
+                const boton =
+                    document.getElementById(
+                        'pagare-encabezado-tab'
+                    );
+
+                const panel =
+                    document.getElementById(
+                        'pagare-encabezado'
+                    );
+
+                if (!boton || !panel) {
+                    return;
+                }
+
+
+                // Quitar activo solamente a tabs INTERNOS del pagaré
+                document
+                    .querySelectorAll(
+                        '#pagareEditorTabs .nav-link'
+                    )
+                    .forEach(function (tab) {
+
+                        tab.classList.remove('active');
+
+                        tab.setAttribute(
+                            'aria-selected',
+                            'false'
+                        );
+
+                    });
+
+
+                // Ocultar solamente contenidos INTERNOS del pagaré
+                const contenedor =
+                    panel.closest('.tab-content');
+
+                if (contenedor) {
+
+                    Array.from(
+                        contenedor.children
+                    ).forEach(function (pane) {
+
+                        if (
+                            pane.classList.contains(
+                                'tab-pane'
+                            )
+                        ) {
+                            pane.classList.remove(
+                                'show',
+                                'active'
+                            );
+                        }
+
+                    });
+
+                }
+
+
+                // Activar Encabezado
+                boton.classList.add('active');
+
+                boton.setAttribute(
+                    'aria-selected',
+                    'true'
+                );
+
+                panel.classList.add(
+                    'show',
+                    'active'
+                );
+            }
+
+
+            // Si Plantillas ya viene abierta
+            const panelPlantillas =
+                document.getElementById(
+                    'panel-plantillas'
+                );
+
+            if (
+                panelPlantillas &&
+                panelPlantillas.classList.contains(
+                    'active'
+                )
+            ) {
+
+                mostrarEncabezadoPagare();
+
+            }
+
+
+            // Cuando el usuario abra Plantillas
+            const plantillasTab =
+                document.getElementById(
+                    'plantillas-tab'
+                );
+
+            if (plantillasTab) {
+
+                plantillasTab.addEventListener(
+                    'shown.bs.tab',
+                    function () {
+
+                        mostrarEncabezadoPagare();
+
+                    }
+                );
+
+            }
+
         });
 
         // Previsualización de Logo de Empresa
@@ -857,6 +2470,195 @@
                 }
             });
         });
+
+        document.addEventListener('DOMContentLoaded', function () {
+
+        // =====================================================
+        // PREVIEW EN TIEMPO REAL
+        // =====================================================
+
+        const mappings = [
+            ['pagare_titulo', 'previewPagareTitulo'],
+            ['pagare_etiqueta_numero', 'previewNumeroEtiqueta'],
+            ['pagare_valor_numero', 'previewNumero'],
+            ['pagare_texto_bueno_por', 'previewBuenoPor']
+        ];
+
+
+        mappings.forEach(function (map) {
+
+            const input = document.getElementById(map[0]);
+            const preview = document.getElementById(map[1]);
+
+            if (!input || !preview) {
+                return;
+            }
+
+            input.addEventListener('input', function () {
+                preview.textContent = this.value;
+            });
+
+        });
+
+
+        // =====================================================
+        // SINCRONIZAR TÍTULO DE PLANTILLA
+        // =====================================================
+
+        const tituloPagare = document.getElementById('pagare_titulo');
+        const tituloPlantilla = document.getElementById('plantillaTituloPagare');
+
+        if (tituloPagare && tituloPlantilla) {
+
+            tituloPagare.addEventListener('input', function () {
+
+                tituloPlantilla.value =
+                    this.value.trim() !== ''
+                        ? this.value
+                        : 'PAGARÉ';
+
+            });
+
+        }
+
+        // =====================================================
+        // INSERTAR VARIABLES DEL PAGARÉ EN CUALQUIER CAMPO
+        // =====================================================
+
+        let ultimoCampoPagare = null;
+
+        const formPagare = document.getElementById('formPagare');
+
+        if (formPagare) {
+
+            // Detectar cualquier campo editable del pagaré
+            formPagare
+                .querySelectorAll(
+                    'input[type="text"], textarea'
+                )
+                .forEach(function (campo) {
+
+                    campo.addEventListener('focus', function () {
+
+                        ultimoCampoPagare = this;
+
+                        // Marcamos visualmente el campo seleccionado
+                        formPagare
+                            .querySelectorAll('.campo-variable-activo')
+                            .forEach(function (el) {
+                                el.classList.remove(
+                                    'campo-variable-activo'
+                                );
+                            });
+
+                        this.classList.add(
+                            'campo-variable-activo'
+                        );
+
+                    });
+
+                    // También por clic, por si Bootstrap no dispara focus como esperamos
+                    campo.addEventListener('click', function () {
+                        ultimoCampoPagare = this;
+                    });
+
+                });
+
+
+            // Botones de variables
+            formPagare
+                .querySelectorAll('.pagare-variable')
+                .forEach(function (boton) {
+
+                    boton.addEventListener(
+                        'click',
+                        function () {
+
+                            const variable =
+                                this.dataset.variable;
+
+                            if (!ultimoCampoPagare) {
+
+                                alert(
+                                    'Primero selecciona el campo donde quieres colocar la variable.'
+                                );
+
+                                return;
+                            }
+
+
+                            const campo =
+                                ultimoCampoPagare;
+
+
+                            const inicio =
+                                typeof campo.selectionStart === 'number'
+                                    ? campo.selectionStart
+                                    : campo.value.length;
+
+
+                            const fin =
+                                typeof campo.selectionEnd === 'number'
+                                    ? campo.selectionEnd
+                                    : campo.value.length;
+
+
+                            const antes =
+                                campo.value.substring(
+                                    0,
+                                    inicio
+                                );
+
+                            const despues =
+                                campo.value.substring(
+                                    fin
+                                );
+
+
+                            campo.value =
+                                antes +
+                                variable +
+                                despues;
+
+
+                            const nuevaPosicion =
+                                inicio +
+                                variable.length;
+
+
+                            campo.focus();
+
+
+                            if (
+                                typeof campo.setSelectionRange ===
+                                'function'
+                            ) {
+
+                                campo.setSelectionRange(
+                                    nuevaPosicion,
+                                    nuevaPosicion
+                                );
+
+                            }
+
+
+                            // Disparar input para actualizar preview
+                            campo.dispatchEvent(
+                                new Event(
+                                    'input',
+                                    {
+                                        bubbles: true
+                                    }
+                                )
+                            );
+
+                        }
+                    );
+
+                });
+
+}
+
     });
 </script>
 @endsection
