@@ -140,48 +140,27 @@
 
             <div class="col-12 col-md-4">
                 <label class="form-label small fw-semibold text-body">Documento INE / Identificación</label>
-                
-                <!-- Input para seleccionar archivo -->
                 <input type="file" name="ine_documento" id="input_ine" class="form-control form-control-sm bg-body text-body @error('ine_documento') is-invalid @enderror" accept="image/*,application/pdf">
                 <small class="text-body-secondary d-block mt-1" style="font-size: 11px;">Dejar vacío para conservar el archivo actual</small>
 
-                <!-- Campo oculto para enviar orden de eliminación -->
                 <input type="hidden" name="eliminar_ine" id="eliminar_ine" value="0">
 
-                <!-- Indicador de Archivo Guardado Anteriormente -->
-                @if($cliente->ine_documento)
-                    <div id="contenedor_ine_actual" class="mt-2 d-flex align-items-center gap-2">
-                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">
-                            <i class="bi bi-check-circle-fill me-1"></i> Archivo guardado
-                        </span>
-                        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2" onclick="verDocumento('{{ Storage::url($cliente->ine_documento) }}', 'INE - {{ $cliente->nombre_completo }}')" style="font-size: 11px;">
-                            <i class="bi bi-eye me-1"></i> Ver guardado
-                        </button>
-                        <button type="button" id="btn_eliminar_ine" class="btn btn-xs btn-outline-danger py-0 px-2" style="font-size: 11px;" title="Eliminar archivo guardado">
-                            <i class="bi bi-trash me-1"></i> Eliminar
-                        </button>
-                    </div>
-                @endif
+                @php
+                    $hasIne = !empty($cliente->ine_documento);
+                    $isPdfIne = $hasIne && Str::endsWith(strtolower($cliente->ine_documento), '.pdf');
+                    $urlIne = $hasIne ? asset('storage/' . $cliente->ine_documento) : '';
+                @endphp
 
-                <!-- CONTENEDOR DE PREVISUALIZACIÓN AUTOMÁTICA -->
-                <div id="contenedor_preview_automatico" class="mt-2 d-none border rounded-3 p-2 bg-body-tertiary">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small">
-                            <i class="bi bi-file-earmark-arrow-up me-1"></i> Previsualización del nuevo archivo
-                        </span>
-                        <button type="button" id="btn_cancelar_nuevo" class="btn-close btn-sm" aria-label="Cancelar selección" title="Quitar archivo"></button>
-                    </div>
+                <div id="preview_container_ine" class="mt-2 {{ $hasIne ? '' : 'd-none' }} border rounded-3 p-2 bg-body-tertiary position-relative">
+                    <span id="label_ine" class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small mb-2 d-inline-block">
+                        <i class="bi bi-file-earmark-check me-1"></i> Archivo actual guardado
+                    </span>
+                    <button type="button" class="btn-close btn-sm position-absolute top-0 end-0 m-2" onclick="limpiarArchivo('ine')" title="Eliminar archivo"></button>
                     
-                    <!-- Previsualización si es Imagen -->
-                    <img id="preview_img" src="" class="img-fluid rounded border d-none" style="max-height: 250px; width: 100%; object-fit: contain;">
-
-                    <!-- Previsualización si es PDF -->
-                    <iframe id="preview_pdf" src="" class="w-100 rounded border d-none" style="height: 250px;"></iframe>
+                    <img id="img_ine" src="{{ !$isPdfIne ? $urlIne : '' }}" class="img-fluid rounded border {{ $hasIne && !$isPdfIne ? '' : 'd-none' }}" style="max-height: 180px; width: 100%; object-fit: contain;">
+                    <iframe id="pdf_ine" src="{{ $isPdfIne ? $urlIne : '' }}" class="w-100 rounded border {{ $hasIne && $isPdfIne ? '' : 'd-none' }}" style="height: 180px;"></iframe>
                 </div>
-
-                @error('ine_documento')
-                    <div class="invalid-feedback">{{ $message }}</div>
-                @enderror
+                @error('ine_documento') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
             </div>
         </div>
 
@@ -212,8 +191,26 @@
 
             <div class="col-12 col-md-4">
                 <label class="form-label small fw-semibold text-body">Comprobante de Domicilio</label>
-                <input type="file" name="comprobante_domicilio_path" class="form-control form-control-sm bg-body text-body" accept="image/*,application/pdf">
-                <small class="text-body-secondary d-block mt-1" style="font-size: 11px;">Formatos: JPG, PNG, PDF (Máx. 5MB)</small>
+                <input type="file" name="comprobante_domicilio_path" id="input_comprobante" class="form-control form-control-sm bg-body text-body" accept="image/*,application/pdf">
+                <small class="text-body-secondary d-block mt-1" style="font-size: 11px;">Dejar vacío para conservar el archivo actual</small>
+                
+                <input type="hidden" name="eliminar_comprobante" id="eliminar_comprobante" value="0">
+
+                @php
+                    $hasComp = !empty($cliente->comprobante_domicilio_path);
+                    $isPdfComp = $hasComp && Str::endsWith(strtolower($cliente->comprobante_domicilio_path), '.pdf');
+                    $urlComp = $hasComp ? asset('storage/' . $cliente->comprobante_domicilio_path) : '';
+                @endphp
+
+                <div id="preview_container_comprobante" class="mt-2 {{ $hasComp ? '' : 'd-none' }} border rounded-3 p-2 bg-body-tertiary position-relative">
+                    <span id="label_comprobante" class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small mb-2 d-inline-block">
+                        <i class="bi bi-file-earmark-check me-1"></i> Archivo actual guardado
+                    </span>
+                    <button type="button" class="btn-close btn-sm position-absolute top-0 end-0 m-2" onclick="limpiarArchivo('comprobante')" title="Eliminar archivo"></button>
+                    
+                    <img id="img_comprobante" src="{{ !$isPdfComp ? $urlComp : '' }}" class="img-fluid rounded border {{ $hasComp && !$isPdfComp ? '' : 'd-none' }}" style="max-height: 180px; width: 100%; object-fit: contain;">
+                    <iframe id="pdf_comprobante" src="{{ $isPdfComp ? $urlComp : '' }}" class="w-100 rounded border {{ $hasComp && $isPdfComp ? '' : 'd-none' }}" style="height: 180px;"></iframe>
+                </div>
             </div>
         </div>
 
@@ -337,95 +334,6 @@ document.addEventListener('DOMContentLoaded', function () {
             validarCampo(this, regexCURP.test(this.value), true);
         });
     }
-
-    // =========================================================
-    // LÓGICA DE PREVISUALIZACIÓN AUTOMÁTICA Y ELIMINACIÓN
-    // =========================================================
-    const inputIne = document.getElementById('input_ine');
-    const contenedorPreview = document.getElementById('contenedor_preview_automatico');
-    const previewImg = document.getElementById('preview_img');
-    const previewPdf = document.getElementById('preview_pdf');
-    const btnCancelarNuevo = document.getElementById('btn_cancelar_nuevo');
-
-    const btnEliminarIne = document.getElementById('btn_eliminar_ine');
-    const inputEliminarIne = document.getElementById('eliminar_ine');
-    const contenedorIneActual = document.getElementById('contenedor_ine_actual');
-
-    let archivoUrlTemporal = null;
-
-    // Función para limpiar la previsualización automática
-    function limpiarPrevisualizacion() {
-        if (archivoUrlTemporal) {
-            URL.revokeObjectURL(archivoUrlTemporal);
-            archivoUrlTemporal = null;
-        }
-        if (previewImg) { previewImg.src = ''; previewImg.classList.add('d-none'); }
-        if (previewPdf) { previewPdf.src = ''; previewPdf.classList.add('d-none'); }
-        if (contenedorPreview) contenedorPreview.classList.add('d-none');
-    }
-
-    // Detectar cuando se sube un nuevo archivo
-    if (inputIne) {
-        inputIne.addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            limpiarPrevisualizacion();
-
-            if (file) {
-                archivoUrlTemporal = URL.createObjectURL(file);
-
-                if (file.type.startsWith('image/')) {
-                    // Es una imagen: Mostrar <img>
-                    previewImg.src = archivoUrlTemporal;
-                    previewImg.classList.remove('d-none');
-                    contenedorPreview.classList.remove('d-none');
-                } else if (file.type === 'application/pdf') {
-                    // Es un PDF: Mostrar <iframe>
-                    previewPdf.src = archivoUrlTemporal;
-                    previewPdf.classList.remove('d-none');
-                    contenedorPreview.classList.remove('d-none');
-                }
-            }
-        });
-    }
-
-    // Botón (X) para descartar el archivo recién seleccionado
-    if (btnCancelarNuevo) {
-        btnCancelarNuevo.addEventListener('click', function () {
-            inputIne.value = ''; // Limpiar el input
-            limpiarPrevisualizacion();
-        });
-    }
-
-    // Marcar el documento previamente guardado para su eliminación
-    if (btnEliminarIne) {
-        btnEliminarIne.addEventListener('click', function () {
-            if (confirm('¿Estás seguro de que deseas eliminar el documento guardado? Se borrará al guardar los cambios.')) {
-                if (inputEliminarIne) inputEliminarIne.value = "1";
-                if (contenedorIneActual) contenedorIneActual.classList.add('d-none');
-            }
-        });
-    }
-
-    // Validación general al enviar
-    if (form) {
-        form.addEventListener('submit', function (event) {
-            let formValido = true;
-
-            if (inputTel && !validarCampo(inputTel, regexTel.test(inputTel.value))) formValido = false;
-            if (inputTelAlt && !validarCampo(inputTelAlt, regexTel.test(inputTelAlt.value), true)) formValido = false;
-            if (inputEmail && !validarCampo(inputEmail, regexEmail.test(inputEmail.value), true)) formValido = false;
-            if (inputRFC && !validarCampo(inputRFC, regexRFC.test(inputRFC.value), true)) formValido = false;
-            if (inputCURP && !validarCampo(inputCURP, regexCURP.test(inputCURP.value), true)) formValido = false;
-
-            if (!formValido) {
-                event.preventDefault();
-                event.stopPropagation();
-                
-                const primerError = form.querySelector('.is-invalid');
-                if (primerError) primerError.focus();
-            }
-        });
-    }
 });
 
 // Función global para el modal dinámico (mantenida para el botón "Ver guardado")
@@ -447,5 +355,71 @@ function verDocumento(url, titulo) {
         modalInstance.show();
     }
 }
+
+// =========================================================
+// LÓGICA DE PREVISUALIZACIÓN AUTOMÁTICA Y ELIMINACIÓN
+// =========================================================
+
+function setupFilePreview(key) {
+    const input = document.getElementById(`input_${key}`);
+    const container = document.getElementById(`preview_container_${key}`);
+    const img = document.getElementById(`img_${key}`);
+    const pdf = document.getElementById(`pdf_${key}`);
+    const hiddenEliminar = document.getElementById(`eliminar_${key}`);
+    const label = document.getElementById(`label_${key}`);
+
+    if (input) {
+        input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            
+            // Si elige uno nuevo, cancelamos la eliminación del anterior
+            if (hiddenEliminar) hiddenEliminar.value = "0";
+
+            if (file) {
+                const url = URL.createObjectURL(file);
+                container.classList.remove('d-none');
+                
+                if (label) {
+                    label.innerHTML = '<i class="bi bi-file-earmark-arrow-up me-1"></i> Previsualización de nuevo archivo';
+                }
+
+                if (file.type.startsWith('image/')) {
+                    img.src = url;
+                    img.classList.remove('d-none');
+                    pdf.classList.add('d-none');
+                } else if (file.type === 'application/pdf') {
+                    pdf.src = url;
+                    pdf.classList.remove('d-none');
+                    img.classList.add('d-none');
+                }
+            } else {
+                limpiarArchivo(key);
+            }
+        });
+    }
+}
+
+// Función que limpia la vista y marca para eliminación
+window.limpiarArchivo = function(key) {
+    const input = document.getElementById(`input_${key}`);
+    const container = document.getElementById(`preview_container_${key}`);
+    const img = document.getElementById(`img_${key}`);
+    const pdf = document.getElementById(`pdf_${key}`);
+    const hiddenEliminar = document.getElementById(`eliminar_${key}`);
+
+    if(input) input.value = '';
+    if(container) container.classList.add('d-none');
+    if(img) { img.src = ''; img.classList.add('d-none'); }
+    if(pdf) { pdf.src = ''; pdf.classList.add('d-none'); }
+    
+    // Si estamos editando y cerramos, mandamos un "1" al backend para borrar el archivo
+    if (hiddenEliminar) {
+        hiddenEliminar.value = "1";
+    }
+};
+
+// Inicializamos ambos campos
+setupFilePreview('ine');
+setupFilePreview('comprobante');
 </script>
 @endsection

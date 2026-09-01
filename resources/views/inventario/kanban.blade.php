@@ -114,82 +114,81 @@
     </div>
 </div>
 
+<!-- PESTAÑAS (TABS) PARA USUARIOS NO GLOBALES -->
+@if(!$isGlobalAdmin)
+<ul class="nav nav-tabs mb-3" style="border-bottom: 2px solid var(--bs-border-color);">
+    <li class="nav-item">
+        <a class="nav-link {{ $tabActivo == 'local' ? 'active fw-bold border-primary border-bottom-0 text-primary' : 'text-secondary border-0' }}" style="background: {{ $tabActivo == 'local' ? 'var(--bs-body-bg)' : 'transparent' }};" 
+           href="{{ route('inventario.kanban', array_merge(request()->query(), ['tab' => 'local'])) }}">
+            <i class="bi bi-grid me-1"></i> Mi Inventario
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {{ $tabActivo == 'externos' ? 'active fw-bold border-info border-bottom-0 text-info' : 'text-secondary border-0' }}" style="background: {{ $tabActivo == 'externos' ? 'var(--bs-body-bg)' : 'transparent' }};" 
+           href="{{ route('inventario.kanban', array_merge(request()->query(), ['tab' => 'externos'])) }}">
+            <i class="bi bi-globe me-1"></i> Catálogo Externo
+        </a>
+    </li>
+</ul>
+@endif
+
+<!-- Ocultamos los botones de filtro si estamos en el catálogo externo -->
+@if($tabActivo === 'local' || $isGlobalAdmin)
+<div class="row mb-3">
+    <!-- Tus botones de filtro All, Stock Normal, etc. se mantienen igual -->
+</div>
+@endif
+
 <div class="row g-3" id="productsGrid">
     @foreach($equipos as $equipo)
         @php
-            if($equipo->stock <= 0) { $stockClass = 'agotado'; $stockStatus = 'Agotado'; $bgClass = 'bg-danger text-white'; } 
-            elseif($equipo->stock <= $equipo->stock_minimo) { $stockClass = 'bajo'; $stockStatus = 'Stock Bajo'; $bgClass = 'bg-warning text-dark'; } 
-            else { $stockClass = 'normal'; $stockStatus = 'Disponible'; $bgClass = 'bg-success text-white'; }
+            if($tabActivo === 'externos') {
+                $stockClass = 'externo'; 
+                $stockStatus = 'En otras sucursales'; 
+                $bgClass = 'bg-info text-white';
+            } else {
+                if($equipo->stock <= 0) { $stockClass = 'agotado'; $stockStatus = 'Agotado'; $bgClass = 'bg-danger text-white'; } 
+                elseif($equipo->stock <= $equipo->stock_minimo) { $stockClass = 'bajo'; $stockStatus = 'Stock Bajo'; $bgClass = 'bg-warning text-dark'; } 
+                else { $stockClass = 'normal'; $stockStatus = 'Disponible'; $bgClass = 'bg-success text-white'; }
+            }
         @endphp
         
         <div class="col-12 col-sm-6 col-md-4 col-lg-3 product-item {{ $stockClass }}">
             <div class="card product-card shadow-sm h-100 position-relative">
                 
-                @if($equipo->imagen)
-                    <img src="{{ Storage::url($equipo->imagen) }}" class="product-image" alt="{{ $equipo->nombre }}">
-                @else
-                    <div class="product-image bg-body-secondary d-flex align-items-center justify-content-center">
-                        <i class="bi bi-box-seam text-secondary" style="font-size: 44px;"></i>
-                    </div>
-                @endif
+                <img src="{{ $equipo->imagen ? Storage::url($equipo->imagen) : '' }}" class="product-image {{ !$equipo->imagen ? 'bg-secondary bg-opacity-25' : '' }}" alt="Imagen">
                 
-                <div class="stock-badge {{ $bgClass }}">
-                    {{ $stockStatus }}
-                </div>
+                <div class="stock-badge {{ $bgClass }}">{{ $stockStatus }}</div>
                 
                 <div class="card-body p-3 d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="badge bg-body border text-body small font-weight-normal"><i class="bi bi-tag me-1 text-primary"></i>{{ $equipo->categoria ? $equipo->categoria->nombre : 'General' }}</span>
+                        <span class="badge bg-body border text-body small font-weight-normal">{{ $equipo->categoria->nombre ?? 'General' }}</span>
                         <span class="badge bg-secondary font-monospace">{{ $equipo->codigo }}</span>
                     </div>
                     
-                    <h6 class="card-title fw-bold text-body text-truncate mb-2" title="{{ $equipo->nombre }}">{{ $equipo->nombre }}</h6>
-                    
-                    @if($equipo->codigo_barras)
-                    <div class="barcode-container mb-3">
-                        <i class="bi bi-upc-scan text-secondary me-2"></i>
-                        <span class="font-monospace fw-bold text-body small">{{ $equipo->codigo_barras }}</span>
-                    </div>
-                    @else
-                    <div class="mb-3" style="height: 33px;"></div>
-                    @endif
-                    
-                    <div class="mt-auto mb-3" style="font-size: 13px;">
-                        @if(in_array($equipo->tipo_operacion, ['renta', 'ambas']))
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="text-secondary">Renta:</span>
-                                <strong class="text-primary">${{ number_format($equipo->precio_dia, 2) }} <small class="text-secondary fw-normal">/día</small></strong>
-                            </div>
-                        @endif
-                        @if(in_array($equipo->tipo_operacion, ['venta', 'ambas']))
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span class="text-secondary">Venta:</span>
-                                <strong class="text-success">${{ number_format($equipo->precio_venta, 2) }}</strong>
-                            </div>
-                        @endif
-                    </div>
+                    <h6 class="card-title fw-bold text-body text-truncate mb-2">{{ $equipo->nombre }}</h6>
                     
                     <div class="d-flex justify-content-between align-items-center pt-2 border-top mb-3">
-                        <small class="text-secondary">En Almacén:</small>
-                        <strong class="{{ $equipo->stock <= 0 ? 'text-danger' : 'text-body' }} small">
-                            {{ $equipo->stock }} {{ $equipo->unidadMedida ? $equipo->unidadMedida->abreviatura : 'uds' }}
-                        </strong>
+                        @if($tabActivo === 'externos')
+                            <small class="text-info fw-bold"><i class="bi bi-globe me-1"></i> Catálogo Externo</small>
+                        @else
+                            <small class="text-secondary">En Almacén:</small>
+                            <strong class="{{ $equipo->stock <= 0 ? 'text-danger' : 'text-body' }} small">
+                                {{ $equipo->stock }} {{ $equipo->unidadMedida->abreviatura ?? 'uds' }}
+                            </strong>
+                        @endif
                     </div>
                     
-                    <div class="d-flex gap-1">
+                    <div class="d-flex gap-1 mt-auto">
                         <a href="{{ route('inventario.show', $equipo) }}" class="btn btn-sm btn-outline-primary border-0 btn-action flex-grow-1" title="Ver Detalles">
-                            <i class="bi bi-eye fs-6"></i>
+                            <i class="bi bi-eye fs-6"></i> Ver Detalles
                         </a>
-                        <a href="{{ route('inventario.edit', $equipo) }}" class="btn btn-sm btn-outline-warning border-0 btn-action flex-grow-1" title="Editar Producto">
-                            <i class="bi bi-pencil fs-6"></i>
-                        </a>
-                        <form action="{{ route('inventario.destroy', $equipo) }}" method="POST" class="d-flex flex-grow-1 m-0">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 btn-action w-100" title="Eliminar Producto" onclick="return confirm('¿Estás seguro de que deseas eliminar este producto?')">
-                                <i class="bi bi-trash fs-6"></i>
-                            </button>
-                        </form>
+                        
+                        @if($tabActivo === 'local' || $isGlobalAdmin)
+                            <a href="{{ route('inventario.edit', $equipo) }}" class="btn btn-sm btn-outline-warning border-0 btn-action" title="Editar Producto">
+                                <i class="bi bi-pencil fs-6"></i>
+                            </a>
+                        @endif
                     </div>
                 </div>
             </div>

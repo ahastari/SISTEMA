@@ -132,6 +132,19 @@
                                 @endif
                             </td>
                         </tr>
+                        <!-- NUEVA FILA: COMPROBANTE DE DOMICILIO -->
+                        <tr>
+                            <th class="text-body-secondary py-1">Comprobante Dom:</th>
+                            <td class="py-1">
+                                @if($cliente->comprobante_domicilio_path)
+                                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 rounded-3" onclick="verDocumento('{{ Storage::url($cliente->comprobante_domicilio_path) }}', 'Comprobante - {{ $cliente->nombre_completo }}')" style="font-size: 11px;">
+                                        <i class="bi bi-file-earmark-pdf me-1"></i> Ver Documento
+                                    </button>
+                                @else
+                                    <span class="text-body-secondary">No adjuntado</span>
+                                @endif
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>

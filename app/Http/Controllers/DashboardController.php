@@ -6,8 +6,10 @@ use App\Models\Cliente;
 use App\Models\Equipo;
 use App\Models\Renta;
 use App\Models\Obra;
+use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\CorteCaja;
+use App\Models\Pago;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -18,200 +20,167 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
         $sucursalId = session('activo_sucursal_id');
-
+        
+        // 1. Determinar el rol y alcance visual
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
+        $sucursalNombre = 'Consola / Matriz General';
 
-        // =====================================================
-        // CLIENTES
-        // =====================================================
-        $totalClientes = $isGlobalAdmin
-            ? Cliente::count()
-            : Cliente::where('sucursal_id', $sucursalId)->count();
+        if (!$isGlobalAdmin && $sucursalId) {
+            $sucursal = Sucursal::find($sucursalId);
+            $sucursalNombre = $sucursal ? $sucursal->nombre : 'Sucursal Desconocida';
+        }
 
-        // =====================================================
-        // INVENTARIO
-        // =====================================================
+        // ==========================================
+        // 2. INDICADORES DE CAJA POS DEL USUARIO
+        // ==========================================
+        $corteAbierto = CorteCaja::where('estado', 'abierto')
+            ->where('user_id', $user->id)
+            ->first();
+        $cajaAbierta = $corteAbierto ? true : false;
+
+        // ==========================================
+        // 3. KPIs FINANCIEROS Y OPERATIVOS (Mes y Hoy)
+        // ==========================================
+        // Ventas del mes actual
+        $ventasMesQuery = Venta::where('estado', 'completada')->whereMonth('created_at', date('m'))->whereYear('created_at', date('Y'));
+        if (!$isGlobalAdmin) $ventasMesQuery->where('sucursal_id', $sucursalId);
+        $ingresoVentasMes = $ventasMesQuery->sum('total');
+
+        // Pagos de rentas del mes actual
+        $pagosRentasMesQuery = Pago::whereMonth('created_at', date('m'))->whereYear('created_at', date('Y'))
+            ->whereHas('renta', function($q) use ($isGlobalAdmin, $sucursalId) {
+                if (!$isGlobalAdmin) $q->where('sucursal_id', $sucursalId);
+            });
+        $ingresoRentasMes = $pagosRentasMesQuery->sum('monto');
+        
+        $ingresoTotalMes = $ingresoVentasMes + $ingresoRentasMes;
+
+        // Ventas exclusivas de Hoy
+        $ventasHoyQuery = Venta::where('estado', 'completada')->whereDate('created_at', date('Y-m-d'));
+        if (!$isGlobalAdmin) $ventasHoyQuery->where('sucursal_id', $sucursalId);
+        $ventasHoy = $ventasHoyQuery->count();
+        $ingresosVentasHoy = $ventasHoyQuery->sum('total');
+
+
+        // ==========================================
+        // 4. MÉTRICAS DE CLIENTES Y OBRAS
+        // ==========================================
+        $queryClientes = Cliente::query();
+        if (!$isGlobalAdmin) $queryClientes->where('sucursal_id', $sucursalId);
+        $totalClientes = $queryClientes->count();
+
+        $queryObras = Obra::query();
+        if (!$isGlobalAdmin && \Illuminate\Support\Facades\Schema::hasColumn('obras', 'sucursal_id')) {
+            $queryObras->where('sucursal_id', $sucursalId);
+        }
+        $totalObras = $queryObras->count();
+
+
+        // ==========================================
+        // 5. MÉTRICAS DE INVENTARIO (EQUIPOS Y STOCK)
+        // ==========================================
         if ($isGlobalAdmin) {
             $totalEquipos = Equipo::where('activo', true)->count();
-            $totalStock = DB::table('equipo_sucursal')->sum('stock');
-            $stockBajo = DB::table('equipo_sucursal')
-                ->where('stock', '<=', 5)
-                ->where('stock', '>', 0)
-                ->count();
-            $stockAgotado = DB::table('equipo_sucursal')
-                ->where('stock', 0)
-                ->count();
+            $totalStock = Equipo::where('activo', true)->sum('stock');
+            $stockBajo = Equipo::where('activo', true)->where('stock', '>', 0)->where('stock', '<=', 5)->count();
+            $stockAgotado = Equipo::where('activo', true)->where('stock', '<=', 0)->count();
         } else {
-            $totalEquipos = Equipo::where('activo', true)
-                ->whereHas('sucursales', function ($q) use ($sucursalId) {
-                    $q->where('sucursal_id', $sucursalId);
-                })
-                ->count();
-
-            $totalStock = DB::table('equipo_sucursal')
-                ->where('sucursal_id', $sucursalId)
-                ->sum('stock');
-
-            $stockBajo = DB::table('equipo_sucursal')
-                ->where('sucursal_id', $sucursalId)
-                ->where('stock', '<=', 5)
-                ->where('stock', '>', 0)
-                ->count();
-
-            $stockAgotado = DB::table('equipo_sucursal')
-                ->where('sucursal_id', $sucursalId)
-                ->where('stock', 0)
-                ->count();
+            $equiposSucursal = DB::table('equipo_sucursal')->where('sucursal_id', $sucursalId)->get();
+            $totalEquipos = $equiposSucursal->count();
+            $totalStock = $equiposSucursal->sum('stock');
+            $stockBajo = $equiposSucursal->where('stock', '>', 0)->where('stock', '<=', 5)->count();
+            $stockAgotado = $equiposSucursal->where('stock', '<=', 0)->count();
         }
 
-        // =====================================================
-        // OBRAS
-        // =====================================================
-        $totalObras = $isGlobalAdmin
-            ? Obra::where('activa', true)->count()
-            : Obra::where('activa', true)->where('sucursal_id', $sucursalId)->count();
 
-        // =====================================================
-        // RENTAS
-        // =====================================================
-        $rentasQuery = Renta::query();
+        // ==========================================
+        // 6. MÉTRICAS DE RENTAS Y ALERTAS DE VENCIMIENTO
+        // ==========================================
+        $queryRentas = Renta::query();
+        if (!$isGlobalAdmin) $queryRentas->where('sucursal_id', $sucursalId);
 
-        if (!$isGlobalAdmin) {
-            $rentasQuery->where('sucursal_id', $sucursalId);
-        }
-
-        $rentasActivas = (clone $rentasQuery)->where('estado', 'activa')->count();
-        $rentasFinalizadas = (clone $rentasQuery)->where('estado', 'finalizada')->count();
-        $rentasCanceladas = (clone $rentasQuery)->where('estado', 'cancelada')->count();
-        $rentasTotales = (clone $rentasQuery)->count();
-
-        // Universo real para "tasa de cierre": activa + finalizada (las canceladas no cuentan como pendientes)
+        $rentasTotales = (clone $queryRentas)->count();
+        $rentasCanceladas = (clone $queryRentas)->where('estado', 'cancelada')->count();
+        $rentasFinalizadas = (clone $queryRentas)->where('estado', 'finalizada')->count();
         $rentasNoCanceladas = $rentasTotales - $rentasCanceladas;
 
-        // Contratos vencidos: usa el accessor del modelo Renta::estaVencida()
-        // (activa === true y fecha_fin ya pasó), para mantener una sola fuente de verdad
-        $rentasVencidas = (clone $rentasQuery)
-            ->where('estado', 'activa')
-            ->whereDate('fecha_fin', '<', now())
-            ->count();
-
-        // Ingresos por rentas del mes actual (excluye canceladas, igual criterio que en Ventas)
-        $ingresosRentasMes = (clone $rentasQuery)
-            ->where('estado', '!=', 'cancelada')
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
-            ->sum('total');
-
-        $rentasPorMes = (clone $rentasQuery)
-            ->select(
-                DB::raw("EXTRACT(MONTH FROM created_at) as mes"),
-                DB::raw("EXTRACT(YEAR FROM created_at) as año"),
-                DB::raw("COUNT(*) as total")
-            )
-            ->whereRaw("EXTRACT(YEAR FROM created_at) >= ?", [now()->subYear()->year])
-            ->groupBy('año', 'mes')
-            ->orderBy('año', 'asc')
-            ->orderBy('mes', 'asc')
-            ->get()
-            ->map(function ($item) {
-                $item->mes_nombre = Carbon::create()->month($item->mes)->locale('es')->monthName;
-                return $item;
-            });
-
-<<<<<<< HEAD
+        $rentasActivasQuery = (clone $queryRentas)->where('estado', 'activa');
+        $rentasActivas = $rentasActivasQuery->count();
         
-=======
->>>>>>> e1c7d27 (Agregar la generación de comprobantes de pago y mejorar los campos de autorización)
-        $topClientes = (clone $rentasQuery)
+        // Calcular manualmente cuántas rentas activas están vencidas
+        $rentasVencidas = 0;
+        foreach ($rentasActivasQuery->get() as $renta) {
+            if ($renta->estaVencida()) {
+                $rentasVencidas++;
+            }
+        }
+        
+        $ultimasRentas = (clone $queryRentas)->where('estado', '!=', 'cancelada')->with('cliente')->latest()->take(6)->get();
+
+
+        // ==========================================
+        // 7. RANKING: TOP CLIENTES (Lealtad)
+        // ==========================================
+        $queryTop = Renta::select('cliente_id', DB::raw('count(*) as total_rentas'))
             ->with('cliente')
-            ->select('cliente_id', DB::raw('COUNT(*) as total_rentas'))
+            ->whereNotNull('cliente_id')
+            ->where('estado', '!=', 'cancelada')
             ->groupBy('cliente_id')
-            ->orderBy('total_rentas', 'desc')
-            ->limit(5)
-            ->get()
-            ->map(function ($item) {
-                $item->cliente_nombre = $item->cliente->nombre_completo ?? 'N/A';
-                return $item;
-            });
-
-        $ultimasRentas = (clone $rentasQuery)
-            ->with('cliente')
-            ->latest()
-            ->limit(5)
-            ->get();
-
-        // =====================================================
-        // VENTAS (PUNTO DE VENTA)
-        // estado 'completada' = venta válida, 'cancelada' = anulada (confirmado en PuntoVentaController)
-        // =====================================================
-        $ventasQuery = Venta::where('estado', 'completada');
-
+            ->orderByDesc('total_rentas')
+            ->take(5);
+        
         if (!$isGlobalAdmin) {
-            $ventasQuery->where('sucursal_id', $sucursalId);
+            $queryTop->where('sucursal_id', $sucursalId);
+        }
+        
+        $topClientes = $queryTop->get()->map(function($item) {
+            return (object)[
+                'cliente_nombre' => $item->cliente ? $item->cliente->nombre_completo : 'Público General',
+                'total_rentas' => $item->total_rentas
+            ];
+        });
+
+
+        // ==========================================
+        // 8. GRÁFICOS: RENDIMIENTO MENSUAL (Rentas vs Ventas)
+        // ==========================================
+        $mesesNombres = [1=>'Ene', 2=>'Feb', 3=>'Mar', 4=>'Abr', 5=>'May', 6=>'Jun', 7=>'Jul', 8=>'Ago', 9=>'Sep', 10=>'Oct', 11=>'Nov', 12=>'Dic'];
+        
+        // RENTAS
+        $queryRentasMes = Renta::select(DB::raw('MONTH(created_at) as mes'), DB::raw('count(*) as total'))
+            ->whereYear('created_at', date('Y'))->where('estado', '!=', 'cancelada')->groupBy('mes')->orderBy('mes');
+        if (!$isGlobalAdmin) $queryRentasMes->where('sucursal_id', $sucursalId);
+        
+        $rentasMesAgrupadas = $queryRentasMes->get()->keyBy('mes');
+        $rentasPorMes = collect();
+        
+        // VENTAS (Monto monetario de ventas por mes)
+        $queryVentasMes = Venta::select(DB::raw('MONTH(created_at) as mes'), DB::raw('SUM(total) as monto'))
+            ->whereYear('created_at', date('Y'))->where('estado', 'completada')->groupBy('mes')->orderBy('mes');
+        if (!$isGlobalAdmin) $queryVentasMes->where('sucursal_id', $sucursalId);
+
+        $ventasMesAgrupadas = $queryVentasMes->get()->keyBy('mes');
+        $ventasPorMes = collect();
+
+        // Rellenar array de 12 meses
+        for ($i = 1; $i <= 12; $i++) {
+            $rentasPorMes->push((object)[
+                'mes_nombre' => $mesesNombres[$i],
+                'total' => isset($rentasMesAgrupadas[$i]) ? $rentasMesAgrupadas[$i]->total : 0
+            ]);
+
+            $ventasPorMes->push((object)[
+                'mes' => $mesesNombres[$i],
+                'monto' => isset($ventasMesAgrupadas[$i]) ? $ventasMesAgrupadas[$i]->monto : 0
+            ]);
         }
 
-        $ventasHoyQuery = (clone $ventasQuery)->whereDate('created_at', now()->toDateString());
-
-        $ventasHoy = (clone $ventasHoyQuery)->count();
-        $ingresosVentasHoy = (clone $ventasHoyQuery)->sum('total');
-
-        $ingresosVentasMes = (clone $ventasQuery)
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
-            ->sum('total');
-
-        $ventasPorMes = (clone $ventasQuery)
-            ->select(
-                DB::raw('MONTH(created_at) as mes'),
-                DB::raw('YEAR(created_at) as año'),
-                DB::raw('COUNT(*) as total'),
-                DB::raw('SUM(total) as monto')
-            )
-            ->whereYear('created_at', '>=', now()->subYear()->year)
-            ->groupBy('año', 'mes')
-            ->orderBy('año', 'asc')
-            ->orderBy('mes', 'asc')
-            ->get();
-
-        // Ingreso combinado del mes (lo que más le importa a un directivo)
-        $ingresoTotalMes = $ingresosVentasMes + $ingresosRentasMes;
-
-        // Estado de caja del cajero actual (CorteCaja: 1 corte "abierto" por user_id a la vez)
-        $corteAbierto = CorteCaja::where('user_id', $user->id)
-            ->where('estado', 'abierto')
-            ->latest('fecha_apertura')
-            ->first();
-
-        $cajaAbierta = $corteAbierto !== null;
-
-        $sucursalNombre = session('activo_sucursal_nombre', 'Todas las sucursales');
-        $isAdmin = $user->isAdmin();
-
         return view('dashboard', compact(
-            'totalClientes',
-            'totalEquipos',
-            'totalStock',
-            'totalObras',
-            'rentasActivas',
-            'rentasFinalizadas',
-            'rentasCanceladas',
-            'rentasNoCanceladas',
-            'rentasTotales',
-            'rentasVencidas',
-            'stockBajo',
-            'stockAgotado',
-            'rentasPorMes',
-            'ventasPorMes',
-            'topClientes',
-            'ultimasRentas',
-            'ventasHoy',
-            'ingresosVentasHoy',
-            'ingresoTotalMes',
-            'cajaAbierta',
-            'corteAbierto',
-            'sucursalNombre',
-            'isAdmin',
-            'isGlobalAdmin'
+            'isGlobalAdmin', 'sucursalNombre', 'cajaAbierta', 'corteAbierto',
+            'ingresoTotalMes', 'ventasHoy', 'ingresosVentasHoy', 
+            'totalClientes', 'totalEquipos', 'totalStock', 'stockBajo', 'stockAgotado',
+            'rentasActivas', 'rentasVencidas', 'rentasTotales', 'rentasNoCanceladas', 'rentasFinalizadas', 'rentasCanceladas',
+            'totalObras', 'ultimasRentas', 'topClientes', 'rentasPorMes', 'ventasPorMes'
         ));
     }
 }

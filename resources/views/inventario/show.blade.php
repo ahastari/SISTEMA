@@ -87,14 +87,20 @@
                 </div>
 
                 <h6 class="border-bottom pb-2 mb-3 text-body fw-bold"><i class="bi bi-building me-2 text-primary"></i>Stock por Sucursal</h6>
-                
+
                 <div class="row g-2 mb-4">
                     @forelse($sucursalesConStock as $sucursal)
                     <div class="col-12 col-sm-6 col-md-4">
-                        <div class="border rounded-3 p-3 bg-body-tertiary h-100">
+                        <!-- Resalta con un borde azul si es la sucursal del usuario actual -->
+                        <div class="border rounded-3 p-3 bg-body-tertiary h-100 {{ $sucursal['es_mi_sucursal'] ? 'border-primary border-2 shadow-sm' : '' }}">
                             <div class="d-flex justify-content-between align-items-start gap-1">
                                 <span class="d-block fw-bold text-body small text-truncate" title="{{ $sucursal['nombre'] }}">
                                     <i class="bi bi-building text-primary me-1"></i> {{ $sucursal['nombre'] }}
+                                    
+                                    <!-- Etiqueta de "TU SUCURSAL" -->
+                                    @if($sucursal['es_mi_sucursal'])
+                                        <span class="badge bg-primary ms-1" style="font-size: 8px;">TU SUCURSAL</span>
+                                    @endif
                                 </span>
                                 <span class="badge bg-secondary rounded-pill" style="font-size: 9px;">{{ $sucursal['stock_minimo'] }} mín.</span>
                             </div>

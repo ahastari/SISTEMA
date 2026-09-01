@@ -61,9 +61,21 @@
                             </select>
                         </div>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label small fw-semibold text-body-secondary">Actualizar Fotografía</label>
-                        <input type="file" name="foto" class="form-control rounded-3 bg-body-tertiary text-body border" accept="image/*">
+                    <div class="mb-0 mt-2">
+                        <label class="form-label small fw-semibold text-body-secondary">Fotografía de Perfil</label>
+                        <div class="d-flex align-items-center gap-3">
+                            <!-- Contenedor de la miniatura -->
+                            <div class="border rounded-circle d-flex align-items-center justify-content-center overflow-hidden bg-body-tertiary shadow-sm flex-shrink-0" style="width: 50px; height: 50px;">
+                                @if($user->foto)
+                                    <img id="preview-user-{{ $user->id }}" src="{{ asset('storage/' . $user->foto) }}" class="img-fluid w-100 h-100 object-fit-cover" alt="Foto">
+                                @else
+                                    <img id="preview-user-{{ $user->id }}" src="" class="img-fluid w-100 h-100 object-fit-cover d-none" alt="Preview">
+                                    <i id="icon-user-{{ $user->id }}" class="bi bi-person-fill fs-3 text-secondary opacity-50"></i>
+                                @endif
+                            </div>
+                            <!-- Input de archivo -->
+                            <input type="file" name="foto" class="form-control form-control-sm rounded-3 bg-body-tertiary text-body border" accept="image/*" onchange="previewImageGlobal(this, 'preview-user-{{ $user->id }}', 'icon-user-{{ $user->id }}')">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-top p-3 bg-body-tertiary">

@@ -258,10 +258,11 @@ class ConfiguracionController extends Controller
             'empresa_direccion' => 'nullable|string|max:500',
             'empresa_rfc' => ['nullable', 'string', 'regex:/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/i'],
             'empresa_telefono' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'],
-            'empresa_logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
+            'empresa_logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'folio_global_rentas' => 'nullable|integer|min:4000' // <-- NUEVA VALIDACIÓN
         ]);
 
-        $campos = $request->only(['empresa_nombre', 'empresa_dueno', 'empresa_direccion', 'empresa_rfc', 'empresa_telefono']);
+        $campos = $request->only(['empresa_nombre', 'empresa_dueno', 'empresa_direccion', 'empresa_rfc', 'empresa_telefono', 'folio_global_rentas']);
         
         foreach ($campos as $key => $value) {
             Configuracion::set($key, $value);

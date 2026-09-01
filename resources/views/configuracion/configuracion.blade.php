@@ -403,16 +403,21 @@
                             
                             <!-- SECCIÓN: IDENTIDAD -->
                             <div class="section-title">
-                                <i class="bi bi-card-heading me-2"></i>Identidad Corporativa
+                                <i class="bi bi-card-heading me-2"></i>Identidad Corporativa y Sistema
                             </div>
                             <div class="row g-3 mb-4">
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label small fw-semibold text-body">Nombre de la Empresa o Razón Social <span class="text-danger">*</span></label>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label small fw-semibold text-body">Nombre de la Empresa <span class="text-danger">*</span></label>
                                     <input type="text" name="empresa_nombre" class="form-control form-control-sm bg-body text-body" placeholder="Ej. Corporativo Viramontes S.A." value="{{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre') }}" required>
                                 </div>
-                                <div class="col-12 col-md-6">
+                                <div class="col-12 col-md-4">
                                     <label class="form-label small fw-semibold text-body">Dueño / Representante Legal</label>
                                     <input type="text" name="empresa_dueno" class="form-control form-control-sm bg-body text-body" placeholder="Ej. Juan Pérez" value="{{ \App\Helpers\ContentHelper::getCompanyData('empresa_dueno') }}">
+                                </div>
+                                <!-- NUEVO CAMPO: FOLIO GLOBAL -->
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label small fw-semibold text-body">Folio Inicial Global (Rentas)</label>
+                                    <input type="number" name="folio_global_rentas" class="form-control form-control-sm bg-body text-body" placeholder="Mínimo 4000" min="4000" value="{{ \App\Helpers\ContentHelper::getCompanyData('folio_global_rentas', '4000') }}">
                                 </div>
                             </div>
 
@@ -538,8 +543,18 @@
                                             </div>
                                             <div class="row g-2 align-items-end">
                                                 <div class="{{ auth()->user()->isAdmin() ? 'col-8' : 'col-12' }}">
-                                                    <label class="form-label fw-semibold small text-muted">Cambiar Logo</label>
-                                                    <input type="file" name="logo" class="form-control form-control-sm" accept="image/*">
+                                                    <label class="form-label fw-semibold small text-muted">Logotipo actual / Cambiar</label>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <div class="border rounded-2 d-flex align-items-center justify-content-center overflow-hidden bg-body-tertiary flex-shrink-0 shadow-sm" style="width: 40px; height: 40px;">
+                                                            @if($suc->logo)
+                                                                <img id="preview-sucursal-{{ $suc->id }}" src="{{ asset('storage/' . $suc->logo) }}" class="img-fluid w-100 h-100 object-fit-cover" alt="Logo">
+                                                            @else
+                                                                <img id="preview-sucursal-{{ $suc->id }}" src="" class="img-fluid w-100 h-100 object-fit-cover d-none" alt="Preview">
+                                                                <i id="icon-sucursal-{{ $suc->id }}" class="bi bi-image text-secondary opacity-50"></i>
+                                                            @endif
+                                                        </div>
+                                                        <input type="file" name="logo" class="form-control form-control-sm w-100" accept="image/*" onchange="previewImageGlobal(this, 'preview-sucursal-{{ $suc->id }}', 'icon-sucursal-{{ $suc->id }}')">
+                                                    </div>
                                                 </div>
                                                 <div class="col-12 col-md-4">
                                                     <label class="form-label fw-semibold small text-muted">Folio Inicial Rentas</label>
@@ -2660,5 +2675,24 @@
 }
 
     });
+
+    function previewImageGlobal(input, imgId, iconId) {
+        const preview = document.getElementById(imgId);
+        const icon = document.getElementById(iconId);
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.classList.remove('d-none'); // Mostramos la imagen
+                if(icon) {
+                    icon.classList.add('d-none'); // Ocultamos el icono genérico
+                }
+            }
+            
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
 </script>
 @endsection

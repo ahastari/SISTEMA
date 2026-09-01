@@ -130,7 +130,7 @@
                     <select name="sucursal_id" class="form-select form-select-sm bg-body text-body" required>
                         <option value="">Seleccione sucursal...</option>
                         @foreach($sucursales as $suc)
-                            <option value="{{ $suc->id }}" {{ loop->first ? 'selected' : '' }}>{{ $suc->nombre }}</option>
+                            <option value="{{ $suc->id }}" {{ $loop->first ? 'selected' : '' }}>{{ $suc->nombre }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -187,15 +187,21 @@
             <div class="card border-0 shadow-sm rounded-3 mb-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
                 <div class="card-body p-3">
                     <label class="form-label small fw-semibold text-body">Fotografía del Producto</label>
-                    <div id="dropzone" class="w-100 p-3 text-center border rounded-3 bg-body-tertiary" style="border: 2px dashed #0d6efd !important; cursor: pointer; transition: all 0.3s;">
-                        <input type="file" name="imagen" id="imagen_input" class="d-none" accept="image/jpeg, image/png, image/jpg">
+                    
+                    <div id="dropzone" class="w-100 p-3 text-center border rounded-3 bg-body-tertiary position-relative" style="border: 2px dashed #0d6efd !important; cursor: pointer; transition: all 0.3s;">
+                        <input type="file" name="imagen" id="imagen_input" class="d-none" accept="image/*">
+                        
                         <div id="dropzone-text">
                             <i class="bi bi-camera text-primary mb-1" style="font-size: 1.8rem;"></i>
-                            <h6 class="text-secondary small mb-0">Seleccionar o soltar imagen</h6>
+                            <h6 class="text-secondary small mb-0">Haz clic aquí o arrastra una imagen</h6>
                         </div>
-                        <div id="image-preview-container" style="display: none; position: relative;">
-                            <img id="image-preview" src="" alt="Vista previa" class="img-fluid rounded-3 shadow-sm" style="max-height: 140px;">
-                            <button type="button" id="remove-image-btn" class="btn btn-danger btn-sm rounded-circle shadow" style="position: absolute; top: -10px; right: -10px;"><i class="bi bi-x-lg"></i></button>
+                        
+                        <div id="image-preview-container" class="d-none">
+                            <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small mb-2 d-inline-block position-relative z-1">
+                                <i class="bi bi-file-earmark-arrow-up me-1"></i> Previsualización
+                            </span>
+                            <button type="button" id="remove-image-btn" class="btn-close btn-sm position-absolute top-0 end-0 m-2 z-2" title="Quitar imagen"></button>
+                            <img id="image-preview" src="" alt="Vista previa" class="img-fluid rounded-3 shadow-sm" style="max-height: 180px; width: 100%; object-fit: contain;">
                         </div>
                     </div>
                     @error('imagen')
@@ -292,48 +298,82 @@ document.addEventListener('DOMContentLoaded', function() {
     if (opVenta) opVenta.addEventListener('change', actualizarPrecios);
     actualizarPrecios();
 
-    // Dropzone Fotografía
+    // ==========================================
+    // DROPZONE Y PREVISUALIZACIÓN DE FOTOGRAFÍA
+    // ==========================================
     const dropzone = document.getElementById('dropzone');
     const inputImagen = document.getElementById('imagen_input');
     const dropzoneText = document.getElementById('dropzone-text');
     const previewContainer = document.getElementById('image-preview-container');
     const imagePreview = document.getElementById('image-preview');
     const removeBtn = document.getElementById('remove-image-btn');
+    const inputQuitarImagen = document.getElementById('quitar_imagen');
+    const labelImagen = document.getElementById('label_imagen');
+    
+    let archivoUrlTemporal = null;
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => dropzone.addEventListener(e, preventDef, false));
-    function preventDef(e) { e.preventDefault(); e.stopPropagation(); }
-
-    dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
-    dropzone.addEventListener('click', e => {
-        if (e.target !== removeBtn && !removeBtn.contains(e.target)) inputImagen.click();
+    // Prevenir comportamientos por defecto del navegador al arrastrar
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+        dropzone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false);
     });
 
-    inputImagen.addEventListener('change', function() { handleFiles(this.files); });
+    // Eventos de Soltar y Clic
+    dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+    dropzone.addEventListener('click', e => { 
+        // Si no hicimos clic en el botón de borrar, abrimos el selector de archivos
+        if (e.target !== removeBtn && !removeBtn.contains(e.target)) inputImagen.click(); 
+    });
+
+    // Evento change del input file
+    inputImagen.addEventListener('change', function() { 
+        if (this.files.length > 0) handleFiles(this.files); 
+    });
 
     function handleFiles(files) {
         if (!files.length) return;
         const file = files[0];
-        if (!file.type.startsWith('image/')) return alert('Selecciona una imagen válida.');
         
-        const dt = new DataTransfer();
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor selecciona un archivo de imagen válido (JPG, PNG).');
+            return;
+        }
+        
+        // Asignar el archivo arrastrado al input hidden nativo
+        const dt = new DataTransfer(); 
         dt.items.add(file);
         inputImagen.files = dt.files;
-
-        const reader = new FileReader();
-        reader.onload = e => {
-            imagePreview.src = e.target.result;
-            dropzoneText.style.display = 'none';
-            previewContainer.style.display = 'inline-block';
-        };
-        reader.readAsDataURL(file);
+        
+        // Limpiar URL anterior de la memoria si existe
+        if (archivoUrlTemporal) URL.revokeObjectURL(archivoUrlTemporal);
+        
+        archivoUrlTemporal = URL.createObjectURL(file);
+        imagePreview.src = archivoUrlTemporal;
+        
+        dropzoneText.classList.add('d-none');
+        previewContainer.classList.remove('d-none');
+        
+        if (labelImagen) {
+            labelImagen.innerHTML = '<i class="bi bi-file-earmark-arrow-up me-1"></i> Nueva imagen lista';
+        }
+        if (inputQuitarImagen) inputQuitarImagen.value = '0';
     }
 
+    // Botón (X) para quitar la imagen
     removeBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        inputImagen.value = '';
+        e.stopPropagation(); // Evita que se abra el explorador de archivos al dar clic en la X
+        inputImagen.value = ''; 
         imagePreview.src = '';
-        previewContainer.style.display = 'none';
-        dropzoneText.style.display = 'block';
+        
+        if (archivoUrlTemporal) {
+            URL.revokeObjectURL(archivoUrlTemporal);
+            archivoUrlTemporal = null;
+        }
+
+        previewContainer.classList.add('d-none'); 
+        dropzoneText.classList.remove('d-none');
+        
+        // Si estamos en la vista de edición, mandamos la orden al backend para borrar la foto actual
+        if (inputQuitarImagen) inputQuitarImagen.value = '1';
     });
 
     // Peticiones AJAX Modales
