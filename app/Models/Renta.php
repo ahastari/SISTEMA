@@ -101,26 +101,27 @@ class Renta extends Model
 
     public static function generarFolio($sucursalId = null)
     {
-        $year = date('Y');
+        $folioNumber = 4000;
 
         if ($sucursalId && $sucursalId !== 'global') {
-            $sucursal = \App\Models\Sucursal::find($sucursalId);
-            if ($sucursal && $sucursal->siguiente_folio_rentas) {
-                return 'R-' . $year . '-' . str_pad($sucursal->siguiente_folio_rentas, 4, '0', STR_PAD_LEFT);
+            $sucursal = Sucursal::find($sucursalId);
+            if ($sucursal && $sucursal->siguiente_folio_rentas >= 4000) {
+                $folioNumber = $sucursal->siguiente_folio_rentas;
+            } else {
+                $count = self::where('sucursal_id', $sucursalId)->count();
+                $folioNumber = 4000 + $count;
+            }
+        } else {
+            $folioGlobal = Configuracion::where('key', 'folio_global_rentas')->value('value');
+            if ($folioGlobal && $folioGlobal >= 4000) {
+                $folioNumber = $folioGlobal;
+            } else {
+                $count = self::count();
+                $folioNumber = 4000 + $count;
             }
         }
 
-        $ultimaRenta = self::whereYear('created_at', $year)->orderBy('id', 'desc')->first();
-        
-        if ($ultimaRenta) {
-            $partes = explode('-', $ultimaRenta->folio);
-            $ultimoNumero = intval(end($partes));
-            $nuevoNumero = str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
-        } else {
-            $nuevoNumero = '0001';
-        }
-        
-        return 'R-' . $year . '-' . $nuevoNumero;
+        return str_pad($folioNumber, 5, '0', STR_PAD_LEFT); 
     }
 
     public static function calcularDias($fechaInicio, $fechaFin)

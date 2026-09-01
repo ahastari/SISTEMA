@@ -53,41 +53,47 @@ class EquipoController extends Controller
      */
     public function index(Request $request)
     {
-        // 1. Control y persistencia de la vista en Sesión
         if ($request->has('view')) {
             if ($request->view == 'table') {
                 session(['inventory_view' => 'table']);
             } elseif ($request->view == 'kanban') {
                 session(['inventory_view' => 'kanban']);
-                return redirect()->route('inventario.kanban');
+                return redirect()->route('inventario.kanban', ['tab' => $request->get('tab', 'local')]);
             }
         }
 
-        // Si la sesión dice que es Kanban y la petición no fuerza la tabla, redirigir
         if (session('inventory_view') === 'kanban' && !$request->has('view')) {
-            return redirect()->route('inventario.kanban');
+            return redirect()->route('inventario.kanban', ['tab' => $request->get('tab', 'local')]);
         }
 
-        // Asegurar estado por defecto si no hay sesión
         if (!session()->has('inventory_view')) {
             session(['inventory_view' => 'table']);
         }
 
-        // 2. Obtener sucursal activa y usuario
         $sucursalId = session('activo_sucursal_id');
         $user = auth()->user();
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
+        
+        // PESTAÑA ACTIVA ('local' o 'externos')
+        $tabActivo = $request->get('tab', 'local');
 
         $query = Equipo::with(['categoria', 'unidadMedida', 'sucursales']);
         
         if (!$isGlobalAdmin) {
-            // Gerente/Cajero: solo ve equipos de su sucursal
-            $query->whereHas('sucursales', function($q) use ($sucursalId) {
-                $q->where('sucursal_id', $sucursalId);
-            });
+            if ($tabActivo === 'externos') {
+                // Catálogo Externo: Productos NO asignados a mi sucursal, pero SÍ a otras
+                $query->whereDoesntHave('sucursales', function($q) use ($sucursalId) {
+                    $q->where('sucursal_id', $sucursalId);
+                })->whereHas('sucursales'); // Que al menos existan en 1 sucursal
+            } else {
+                // Mi Inventario: Productos asignados a mi sucursal
+                $query->whereHas('sucursales', function($q) use ($sucursalId) {
+                    $q->where('sucursal_id', $sucursalId);
+                });
+            }
         }
 
-        // 3. Aplicación de Filtros (Buscador)
+        // Filtros de búsqueda y categorías...
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -97,145 +103,52 @@ class EquipoController extends Controller
             });
         }
 
-        // Filtro por nombre de Categoría
         if ($request->filled('categoria')) {
             $query->whereHas('categoria', function($q) use ($request) {
                 $q->where('nombre', $request->categoria);
             });
         }
 
-        if ($request->filled('tipo_operacion')) {
-            $query->where('tipo_operacion', $request->tipo_operacion);
-        }
+        $query->where('activo', true);
 
-        if ($request->filled('estado')) {
-            if ($request->estado == 'activo') {
-                $query->where('activo', true);
-            } elseif ($request->estado == 'inactivo') {
-                $query->where('activo', false);
+        // Filtros de stock (solo aplican a la pestaña local)
+        if ($tabActivo === 'local') {
+            if ($request->filled('stock_bajo') && $request->stock_bajo == '1') {
+                if (!$isGlobalAdmin) {
+                    $query->whereHas('sucursales', function($q) use ($sucursalId) {
+                        $q->where('sucursal_id', $sucursalId)->where('stock', '<=', DB::raw('equipo_sucursal.stock_minimo'))->where('stock', '>', 0);
+                    });
+                } else {
+                    $query->where('stock', '<=', 5)->where('stock', '>', 0);
+                }
             }
-        } else {
-            // Por defecto, solo mostrar activos
-            $query->where('activo', true);
-        }
 
-        if ($request->filled('stock_bajo') && $request->stock_bajo == '1') {
-            if (!$isGlobalAdmin) {
-                // Filtrar por stock bajo en la sucursal específica
-                $query->whereHas('sucursales', function($q) use ($sucursalId) {
-                    $q->where('sucursal_id', $sucursalId)
-                      ->where('stock', '<=', DB::raw('equipo_sucursal.stock_minimo'))
-                      ->where('stock', '>', 0);
-                });
-            } else {
-                // Stock bajo global
-                $query->where('stock', '<=', 5)->where('stock', '>', 0);
+            if ($request->filled('stock_agotado') && $request->stock_agotado == '1') {
+                if (!$isGlobalAdmin) {
+                    $query->whereHas('sucursales', function($q) use ($sucursalId) {
+                        $q->where('sucursal_id', $sucursalId)->where('stock', 0);
+                    });
+                } else {
+                    $query->where('stock', 0);
+                }
             }
         }
 
-        if ($request->filled('stock_agotado') && $request->stock_agotado == '1') {
-            if (!$isGlobalAdmin) {
-                $query->whereHas('sucursales', function($q) use ($sucursalId) {
-                    $q->where('sucursal_id', $sucursalId)
-                      ->where('stock', 0);
-                });
-            } else {
-                $query->where('stock', 0);
-            }
-        }
+        $equipos = $query->latest()->paginate($request->get('per_page', 12))->withQueryString();
 
-        $ordenarPor = $request->get('ordenar', 'recientes');
-        switch ($ordenarPor) {
-            case 'nombre_asc':
-                $query->orderBy('nombre', 'asc');
-                break;
-            case 'nombre_desc':
-                $query->orderBy('nombre', 'desc');
-                break;
-            case 'stock_asc':
-                $query->orderBy('stock', 'asc');
-                break;
-            case 'stock_desc':
-                $query->orderBy('stock', 'desc');
-                break;
-            case 'codigo_asc':
-                $query->orderBy('codigo', 'asc');
-                break;
-            case 'codigo_desc':
-                $query->orderBy('codigo', 'desc');
-                break;
-            case 'recientes':
-            default:
-                $query->latest();
-                break;
-        }
-
-        $equipos = $query->paginate($request->get('per_page', 12))->withQueryString();
-
-        if (!$isGlobalAdmin) {
+        // Sobrescribir variables de stock local si estamos en "Mi Inventario"
+        if (!$isGlobalAdmin && $tabActivo === 'local') {
             foreach ($equipos as $equipo) {
-                // 1. Guardamos el total global por si acaso
                 $equipo->stock_global = $equipo->stock;
-                
-                // 2. SOBRESCRIBIMOS el atributo principal
                 $equipo->stock = $equipo->getStockEnSucursal($sucursalId);
                 $equipo->stock_minimo = $this->getStockMinimoEnSucursal($equipo, $sucursalId);
-                
-                // 3. Mantenemos las variables originales por compatibilidad
-                $equipo->stock_sucursal = $equipo->stock;
-                $equipo->stock_minimo_sucursal = $equipo->stock_minimo;
             }
         }
 
         $categorias = Categoria::where('activa', true)->orderBy('nombre')->get();
-
-        $statsQuery = Equipo::where('activo', true);
-        if (!$isGlobalAdmin) {
-            $statsQuery->whereHas('sucursales', function($q) use ($sucursalId) {
-                $q->where('sucursal_id', $sucursalId);
-            });
-        }
-
-        $totalProductos = $statsQuery->count();
-        
-        if (!$isGlobalAdmin) {
-            $totalStock = DB::table('equipo_sucursal')
-                ->where('sucursal_id', $sucursalId)
-                ->sum('stock');
-            $stockBajo = DB::table('equipo_sucursal')
-                ->where('sucursal_id', $sucursalId)
-                ->where('stock', '<=', DB::raw('stock_minimo'))
-                ->where('stock', '>', 0)
-                ->count();
-            $stockAgotado = DB::table('equipo_sucursal')
-                ->where('sucursal_id', $sucursalId)
-                ->where('stock', 0)
-                ->count();
-        } else {
-            $totalStock = Equipo::where('activo', true)->sum('stock');
-            $stockBajo = Equipo::where('activo', true)
-                ->where('stock', '<=', 5)
-                ->where('stock', '>', 0)
-                ->count();
-            $stockAgotado = Equipo::where('activo', true)
-                ->where('stock', 0)
-                ->count();
-        }
-
         $vistaActual = session('inventory_view', 'table');
-        $sucursalNombre = session('activo_sucursal_nombre', 'Todas las sucursales');
 
-        return view('inventario.index', compact(
-            'equipos',
-            'categorias',
-            'totalProductos',
-            'totalStock',
-            'stockBajo',
-            'stockAgotado',
-            'vistaActual',
-            'isGlobalAdmin',
-            'sucursalNombre'
-        ));
+        return view('inventario.index', compact('equipos', 'categorias', 'vistaActual', 'isGlobalAdmin', 'tabActivo'));
     }
 
     /**
@@ -249,16 +162,22 @@ class EquipoController extends Controller
         $user = auth()->user();
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
         
-        $query = Equipo::with(['categoria', 'unidadMedida', 'sucursales'])
-            ->where('activo', true);
+        $tabActivo = $request->get('tab', 'local');
+
+        $query = Equipo::with(['categoria', 'unidadMedida', 'sucursales'])->where('activo', true);
         
         if (!$isGlobalAdmin) {
-            $query->whereHas('sucursales', function($q) use ($sucursalId) {
-                $q->where('sucursal_id', $sucursalId);
-            });
+            if ($tabActivo === 'externos') {
+                $query->whereDoesntHave('sucursales', function($q) use ($sucursalId) {
+                    $q->where('sucursal_id', $sucursalId);
+                })->whereHas('sucursales');
+            } else {
+                $query->whereHas('sucursales', function($q) use ($sucursalId) {
+                    $q->where('sucursal_id', $sucursalId);
+                });
+            }
         }
 
-        // Filtros
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -275,29 +194,17 @@ class EquipoController extends Controller
 
         $equipos = $query->orderBy('nombre')->get();
         
-        // Asignar stock de sucursal
-        if (!$isGlobalAdmin) {
+        if (!$isGlobalAdmin && $tabActivo === 'local') {
             foreach ($equipos as $equipo) {
-                // Guardamos el total global
                 $equipo->stock_global = $equipo->stock;
-                
-                // Sobrescribimos el atributo principal con el stock local
                 $equipo->stock = $equipo->getStockEnSucursal($sucursalId);
-                $equipo->stock_sucursal = $equipo->stock;
             }
         }
         
         $categorias = Categoria::where('activa', true)->orderBy('nombre')->get();
         $vistaActual = 'kanban';
-        $sucursalNombre = session('activo_sucursal_nombre', 'Todas las sucursales');
 
-        return view('inventario.kanban', compact(
-            'equipos',
-            'categorias',
-            'vistaActual',
-            'isGlobalAdmin',
-            'sucursalNombre'
-        ));
+        return view('inventario.kanban', compact('equipos', 'categorias', 'vistaActual', 'isGlobalAdmin', 'tabActivo'));
     }
 
     /**
@@ -311,33 +218,22 @@ class EquipoController extends Controller
         $user = auth()->user();
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
         
-        // Obtener stock por sucursal
+        // AHORA TODOS PUEDEN VER EL STOCK DE TODAS LAS SUCURSALES
         $sucursalesConStock = [];
         
-        if ($isGlobalAdmin) {
-            // Admin ve todas las sucursales
-            foreach ($equipo->sucursales as $sucursal) {
-                $sucursalesConStock[] = [
-                    'id' => $sucursal->id,
-                    'nombre' => $sucursal->nombre,
-                    'stock' => $sucursal->pivot->stock,
-                    'stock_minimo' => $sucursal->pivot->stock_minimo,
-                ];
-            }
-        } else {
-            // Gerente solo ve su sucursal
-            $sucursalAsignada = $equipo->sucursales()
-                ->where('sucursal_id', $sucursalId)
-                ->first();
-            
-            if ($sucursalAsignada) {
-                $sucursalesConStock[] = [
-                    'id' => $sucursalAsignada->id,
-                    'nombre' => $sucursalAsignada->nombre,
-                    'stock' => $sucursalAsignada->pivot->stock,
-                    'stock_minimo' => $sucursalAsignada->pivot->stock_minimo,
-                ];
-            }
+        // Ordenamos para que la sucursal actual del cajero/gerente aparezca de primero en la lista
+        $sucursales = $equipo->sucursales->sortByDesc(function($sucursal) use ($sucursalId) {
+            return $sucursal->id == $sucursalId ? 1 : 0;
+        });
+
+        foreach ($sucursales as $sucursal) {
+            $sucursalesConStock[] = [
+                'id' => $sucursal->id,
+                'nombre' => $sucursal->nombre,
+                'stock' => $sucursal->pivot->stock,
+                'stock_minimo' => $sucursal->pivot->stock_minimo,
+                'es_mi_sucursal' => ($sucursal->id == $sucursalId) // Identificador para la vista
+            ];
         }
         
         // Movimientos recientes de este equipo
@@ -347,7 +243,7 @@ class EquipoController extends Controller
             ->limit(10)
             ->get();
         
-        return view('inventario.show', compact('equipo', 'sucursalesConStock', 'movimientosRecientes', 'isGlobalAdmin'));
+        return view('inventario.show', compact('equipo', 'sucursalesConStock', 'movimientosRecientes', 'isGlobalAdmin', 'sucursalId'));
     }
 
     /**

@@ -200,8 +200,20 @@ class RentaController extends Controller
 
             if ($sucursalIdGuardar && $sucursalIdGuardar !== 'global') {
                 $sucursal = \App\Models\Sucursal::find($sucursalIdGuardar);
-                if ($sucursal && $sucursal->siguiente_folio_rentas) {
-                    $sucursal->increment('siguiente_folio_rentas');
+                if ($sucursal) {
+                    $sucursal->siguiente_folio_rentas = $sucursal->siguiente_folio_rentas >= 4000 
+                        ? $sucursal->siguiente_folio_rentas + 1 
+                        : 4001;
+                    $sucursal->save();
+                }
+            } else {
+                $folioGlobal = \App\Models\Configuracion::where('key', 'folio_global_rentas')->first();
+                if ($folioGlobal) {
+                    $folioGlobal->value = $folioGlobal->value + 1;
+                    $folioGlobal->save();
+                    \Illuminate\Support\Facades\Cache::forget('config_folio_global_rentas');
+                } else {
+                    \App\Models\Configuracion::set('folio_global_rentas', 4001);
                 }
             }
 

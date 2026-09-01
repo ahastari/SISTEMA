@@ -202,17 +202,20 @@
                     <label class="form-label small fw-semibold text-body">Fotografía del Producto</label>
                     <input type="hidden" name="quitar_imagen" id="quitar_imagen" value="0">
                     
-                    <div id="dropzone" class="w-100 p-3 text-center border rounded-3 bg-body-tertiary" style="border: 2px dashed #0d6efd !important; cursor: pointer; transition: all 0.3s;">
-                        <input type="file" name="imagen" id="imagen_input" class="d-none" accept="image/jpeg, image/png, image/jpg">
+                    <div id="dropzone" class="w-100 p-3 text-center border rounded-3 bg-body-tertiary position-relative" style="border: 2px dashed #0d6efd !important; cursor: pointer; transition: all 0.3s;">
+                        <input type="file" name="imagen" id="imagen_input" class="d-none" accept="image/*">
                         
-                        <div id="dropzone-text" style="{{ $equipo->imagen ? 'display: none;' : 'display: block;' }}">
+                        <div id="dropzone-text" class="{{ $equipo->imagen ? 'd-none' : '' }}">
                             <i class="bi bi-camera text-primary mb-1" style="font-size: 1.8rem;"></i>
-                            <h6 class="text-secondary small mb-0">Seleccionar o soltar nueva imagen</h6>
+                            <h6 class="text-secondary small mb-0">Haz clic aquí o arrastra una imagen</h6>
                         </div>
 
-                        <div id="image-preview-container" style="{{ $equipo->imagen ? 'display: inline-block;' : 'display: none;' }} position: relative;">
-                            <img id="image-preview" src="{{ $equipo->imagen ? Storage::url($equipo->imagen) : '' }}" alt="Vista previa" class="img-fluid rounded-3 shadow-sm" style="max-height: 140px;">
-                            <button type="button" id="remove-image-btn" class="btn btn-danger btn-sm rounded-circle shadow" style="position: absolute; top: -10px; right: -10px;"><i class="bi bi-x-lg"></i></button>
+                        <div id="image-preview-container" class="{{ $equipo->imagen ? '' : 'd-none' }}">
+                            <span id="label_imagen" class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small mb-2 d-inline-block position-relative z-1">
+                                <i class="bi bi-file-earmark-check me-1"></i> Imagen actual guardada
+                            </span>
+                            <button type="button" id="remove-image-btn" class="btn-close btn-sm position-absolute top-0 end-0 m-2 z-2" title="Eliminar imagen"></button>
+                            <img id="image-preview" src="{{ $equipo->imagen ? Storage::url($equipo->imagen) : '' }}" alt="Vista previa" class="img-fluid rounded-3 shadow-sm" style="max-height: 180px; width: 100%; object-fit: contain;">
                         </div>
                     </div>
                     @error('imagen')
@@ -308,7 +311,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (opRenta) opRenta.addEventListener('change', actualizarPrecios);
     if (opVenta) opVenta.addEventListener('change', actualizarPrecios);
 
-    // Dropzone de Fotografía
+    // ==========================================
+    // DROPZONE Y PREVISUALIZACIÓN DE FOTOGRAFÍA
+    // ==========================================
     const dropzone = document.getElementById('dropzone');
     const inputImagen = document.getElementById('imagen_input');
     const dropzoneText = document.getElementById('dropzone-text');
@@ -316,37 +321,72 @@ document.addEventListener('DOMContentLoaded', function() {
     const imagePreview = document.getElementById('image-preview');
     const removeBtn = document.getElementById('remove-image-btn');
     const inputQuitarImagen = document.getElementById('quitar_imagen');
+    const labelImagen = document.getElementById('label_imagen');
+    
+    let archivoUrlTemporal = null;
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => dropzone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false));
+    // Prevenir comportamientos por defecto del navegador al arrastrar
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+        dropzone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false);
+    });
 
+    // Eventos de Soltar y Clic
     dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
-    dropzone.addEventListener('click', e => { if (e.target !== removeBtn && !removeBtn.contains(e.target)) inputImagen.click(); });
+    dropzone.addEventListener('click', e => { 
+        // Si no hicimos clic en el botón de borrar, abrimos el selector de archivos
+        if (e.target !== removeBtn && !removeBtn.contains(e.target)) inputImagen.click(); 
+    });
 
-    inputImagen.addEventListener('change', function() { if (this.files.length > 0) handleFiles(this.files); });
+    // Evento change del input file
+    inputImagen.addEventListener('change', function() { 
+        if (this.files.length > 0) handleFiles(this.files); 
+    });
 
     function handleFiles(files) {
         if (!files.length) return;
         const file = files[0];
-        if (!file.type.startsWith('image/')) return alert('Selecciona una imagen válida.');
         
-        const dt = new DataTransfer(); dt.items.add(file);
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor selecciona un archivo de imagen válido (JPG, PNG).');
+            return;
+        }
+        
+        // Asignar el archivo arrastrado al input hidden nativo
+        const dt = new DataTransfer(); 
+        dt.items.add(file);
         inputImagen.files = dt.files;
         
-        const reader = new FileReader();
-        reader.onload = e => {
-            imagePreview.src = e.target.result;
-            dropzoneText.style.display = 'none';
-            previewContainer.style.display = 'inline-block';
-            if(inputQuitarImagen) inputQuitarImagen.value = '0';
-        };
-        reader.readAsDataURL(file);
+        // Limpiar URL anterior de la memoria si existe
+        if (archivoUrlTemporal) URL.revokeObjectURL(archivoUrlTemporal);
+        
+        archivoUrlTemporal = URL.createObjectURL(file);
+        imagePreview.src = archivoUrlTemporal;
+        
+        dropzoneText.classList.add('d-none');
+        previewContainer.classList.remove('d-none');
+        
+        if (labelImagen) {
+            labelImagen.innerHTML = '<i class="bi bi-file-earmark-arrow-up me-1"></i> Nueva imagen lista';
+        }
+        if (inputQuitarImagen) inputQuitarImagen.value = '0';
     }
 
+    // Botón (X) para quitar la imagen
     removeBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        inputImagen.value = ''; imagePreview.src = '';
-        previewContainer.style.display = 'none'; dropzoneText.style.display = 'block';
-        if(inputQuitarImagen) inputQuitarImagen.value = '1';
+        e.stopPropagation(); // Evita que se abra el explorador de archivos al dar clic en la X
+        inputImagen.value = ''; 
+        imagePreview.src = '';
+        
+        if (archivoUrlTemporal) {
+            URL.revokeObjectURL(archivoUrlTemporal);
+            archivoUrlTemporal = null;
+        }
+
+        previewContainer.classList.add('d-none'); 
+        dropzoneText.classList.remove('d-none');
+        
+        // Si estamos en la vista de edición, mandamos la orden al backend para borrar la foto actual
+        if (inputQuitarImagen) inputQuitarImagen.value = '1';
     });
 
     // Peticiones AJAX Modales

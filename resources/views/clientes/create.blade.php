@@ -126,30 +126,17 @@
 
             <div class="col-12 col-md-4">
                 <label class="form-label small fw-semibold text-body">Documento INE / Identificación</label>
-                
-                <!-- Input para seleccionar archivo -->
                 <input type="file" name="ine_documento" id="input_ine" class="form-control form-control-sm bg-body text-body @error('ine_documento') is-invalid @enderror" accept="image/*,application/pdf">
                 <small class="text-body-secondary d-block mt-1" style="font-size: 11px;">Formatos: JPG, PNG, PDF (Máx. 5MB)</small>
 
-                <!-- CONTENEDOR DE PREVISUALIZACIÓN AUTOMÁTICA -->
-                <div id="contenedor_preview_automatico" class="mt-2 d-none border rounded-3 p-2 bg-body-tertiary">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small">
-                            <i class="bi bi-file-earmark-arrow-up me-1"></i> Previsualización del archivo
-                        </span>
-                        <button type="button" id="btn_cancelar_nuevo" class="btn-close btn-sm" aria-label="Cancelar selección" title="Quitar archivo"></button>
-                    </div>
+                <div id="preview_container_ine" class="mt-2 d-none border rounded-3 p-2 bg-body-tertiary position-relative">
+                    <span id="label_ine" class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small mb-2 d-inline-block"></span>
+                    <button type="button" class="btn-close btn-sm position-absolute top-0 end-0 m-2" onclick="limpiarArchivo('ine')" title="Quitar archivo"></button>
                     
-                    <!-- Previsualización si es Imagen -->
-                    <img id="preview_img" src="" class="img-fluid rounded border d-none" style="max-height: 250px; width: 100%; object-fit: contain;">
-
-                    <!-- Previsualización si es PDF -->
-                    <iframe id="preview_pdf" src="" class="w-100 rounded border d-none" style="height: 250px;"></iframe>
+                    <img id="img_ine" src="" class="img-fluid rounded border d-none" style="max-height: 180px; width: 100%; object-fit: contain;">
+                    <iframe id="pdf_ine" src="" class="w-100 rounded border d-none" style="height: 180px;"></iframe>
                 </div>
-
-                @error('ine_documento')
-                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                @enderror
+                @error('ine_documento') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
             </div>
         </div>
 
@@ -180,8 +167,16 @@
 
             <div class="col-12 col-md-4">
                 <label class="form-label small fw-semibold text-body">Comprobante de Domicilio</label>
-                <input type="file" name="comprobante_domicilio_path" class="form-control form-control-sm bg-body text-body" accept="image/*,application/pdf">
+                <input type="file" name="comprobante_domicilio_path" id="input_comprobante" class="form-control form-control-sm bg-body text-body" accept="image/*,application/pdf">
                 <small class="text-body-secondary d-block mt-1" style="font-size: 11px;">Formatos: JPG, PNG, PDF (Máx. 5MB)</small>
+
+                <div id="preview_container_comprobante" class="mt-2 d-none border rounded-3 p-2 bg-body-tertiary position-relative">
+                    <span id="label_comprobante" class="badge bg-info-subtle text-info border border-info-subtle rounded-pill small mb-2 d-inline-block"></span>
+                    <button type="button" class="btn-close btn-sm position-absolute top-0 end-0 m-2" onclick="limpiarArchivo('comprobante')" title="Quitar archivo"></button>
+                    
+                    <img id="img_comprobante" src="" class="img-fluid rounded border d-none" style="max-height: 180px; width: 100%; object-fit: contain;">
+                    <iframe id="pdf_comprobante" src="" class="w-100 rounded border d-none" style="height: 180px;"></iframe>
+                </div>
             </div>
         </div>
 
@@ -209,6 +204,7 @@
 </form>
 
 <script>
+    
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.querySelector('form');
 
@@ -281,82 +277,72 @@ document.addEventListener('DOMContentLoaded', function () {
             validarCampo(this, regexCURP.test(this.value), true);
         });
     }
+});
 
-    // =========================================================
-    // LÓGICA DE PREVISUALIZACIÓN AUTOMÁTICA DE ARCHIVO
-    // =========================================================
-    const inputIne = document.getElementById('input_ine');
-    const contenedorPreview = document.getElementById('contenedor_preview_automatico');
-    const previewImg = document.getElementById('preview_img');
-    const previewPdf = document.getElementById('preview_pdf');
-    const btnCancelarNuevo = document.getElementById('btn_cancelar_nuevo');
+// =========================================================
+// LÓGICA DE PREVISUALIZACIÓN AUTOMÁTICA Y ELIMINACIÓN
+// =========================================================
 
-    let archivoUrlTemporal = null;
+function setupFilePreview(key) {
+    const input = document.getElementById(`input_${key}`);
+    const container = document.getElementById(`preview_container_${key}`);
+    const img = document.getElementById(`img_${key}`);
+    const pdf = document.getElementById(`pdf_${key}`);
+    const hiddenEliminar = document.getElementById(`eliminar_${key}`);
+    const label = document.getElementById(`label_${key}`);
 
-    // Limpiar vista previa y revocar URL del objeto para liberar memoria
-    function limpiarPrevisualizacion() {
-        if (archivoUrlTemporal) {
-            URL.revokeObjectURL(archivoUrlTemporal);
-            archivoUrlTemporal = null;
-        }
-        if (previewImg) { previewImg.src = ''; previewImg.classList.add('d-none'); }
-        if (previewPdf) { previewPdf.src = ''; previewPdf.classList.add('d-none'); }
-        if (contenedorPreview) contenedorPreview.classList.add('d-none');
-    }
-
-    // Evento al seleccionar o cambiar de archivo
-    if (inputIne) {
-        inputIne.addEventListener('change', function (e) {
+    if (input) {
+        input.addEventListener('change', function(e) {
             const file = e.target.files[0];
-            limpiarPrevisualizacion();
+            
+            // Si elige uno nuevo, cancelamos la eliminación del anterior
+            if (hiddenEliminar) hiddenEliminar.value = "0";
 
             if (file) {
-                archivoUrlTemporal = URL.createObjectURL(file);
+                const url = URL.createObjectURL(file);
+                container.classList.remove('d-none');
+                
+                if (label) {
+                    label.innerHTML = '<i class="bi bi-file-earmark-arrow-up me-1"></i> Previsualización de nuevo archivo';
+                }
 
                 if (file.type.startsWith('image/')) {
-                    // Muestra la imagen en el tag <img>
-                    previewImg.src = archivoUrlTemporal;
-                    previewImg.classList.remove('d-none');
-                    contenedorPreview.classList.remove('d-none');
+                    img.src = url;
+                    img.classList.remove('d-none');
+                    pdf.classList.add('d-none');
                 } else if (file.type === 'application/pdf') {
-                    // Muestra el PDF dentro del <iframe>
-                    previewPdf.src = archivoUrlTemporal;
-                    previewPdf.classList.remove('d-none');
-                    contenedorPreview.classList.remove('d-none');
+                    pdf.src = url;
+                    pdf.classList.remove('d-none');
+                    img.classList.add('d-none');
                 }
+            } else {
+                limpiarArchivo(key);
             }
         });
     }
+}
 
-    // Evento para desmarcar/limpiar el archivo seleccionado con la botonera "X"
-    if (btnCancelarNuevo) {
-        btnCancelarNuevo.addEventListener('click', function () {
-            inputIne.value = '';
-            limpiarPrevisualizacion();
-        });
+// Función que limpia la vista y marca para eliminación
+window.limpiarArchivo = function(key) {
+    const input = document.getElementById(`input_${key}`);
+    const container = document.getElementById(`preview_container_${key}`);
+    const img = document.getElementById(`img_${key}`);
+    const pdf = document.getElementById(`pdf_${key}`);
+    const hiddenEliminar = document.getElementById(`eliminar_${key}`);
+
+    if(input) input.value = '';
+    if(container) container.classList.add('d-none');
+    if(img) { img.src = ''; img.classList.add('d-none'); }
+    if(pdf) { pdf.src = ''; pdf.classList.add('d-none'); }
+    
+    // Si estamos editando y cerramos, mandamos un "1" al backend para borrar el archivo
+    if (hiddenEliminar) {
+        hiddenEliminar.value = "1";
     }
+};
 
-    // Validación general al enviar el formulario
-    if (form) {
-        form.addEventListener('submit', function (event) {
-            let formValido = true;
-
-            if (inputTel && !validarCampo(inputTel, regexTel.test(inputTel.value))) formValido = false;
-            if (inputTelAlt && !validarCampo(inputTelAlt, regexTel.test(inputTelAlt.value), true)) formValido = false;
-            if (inputEmail && !validarCampo(inputEmail, regexEmail.test(inputEmail.value), true)) formValido = false;
-            if (inputRFC && !validarCampo(inputRFC, regexRFC.test(inputRFC.value), true)) formValido = false;
-            if (inputCURP && !validarCampo(inputCURP, regexCURP.test(inputCURP.value), true)) formValido = false;
-
-            if (!formValido) {
-                event.preventDefault();
-                event.stopPropagation();
-                
-                // Enfocar el primer campo inválido
-                const primerError = form.querySelector('.is-invalid');
-                if (primerError) primerError.focus();
-            }
-        });
-    }
-});
+// Inicializamos ambos campos
+setupFilePreview('ine');
+setupFilePreview('comprobante');
 </script>
 @endsection
