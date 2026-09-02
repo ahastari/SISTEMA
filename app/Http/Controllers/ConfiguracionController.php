@@ -71,7 +71,6 @@ class ConfiguracionController extends Controller
             // Firma
             'pagare_texto_acepto',
             'pagare_texto_firma',
-            'pagare_texto_pie',
 
             // Apariencia
             'pagare_color_principal',
@@ -178,7 +177,6 @@ class ConfiguracionController extends Controller
 
                 'pagare_texto_acepto',
                 'pagare_texto_firma',
-                'pagare_texto_pie',
 
                 'pagare_color_principal',
                 'pagare_color_fondo',

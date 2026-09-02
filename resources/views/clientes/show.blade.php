@@ -166,6 +166,10 @@
                                 <td class="py-1">{{ $cliente->direccion ?? 'N/A' }}</td>
                             </tr>
                             <tr>
+                                <th class="text-body-secondary py-1">Colonia:</th>
+                                <td class="py-1">{{ $cliente->colonia ?? 'N/A' }}</td>
+                            </tr>
+                            <tr>
                                 <th class="text-body-secondary py-1">Ciudad:</th>
                                 <td class="py-1">{{ $cliente->ciudad ?? 'N/A' }}</td>
                             </tr>

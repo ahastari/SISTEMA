@@ -1,699 +1,222 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <title>
-        {{ $pagareTitulo }} - {{ $renta->folio }}
-    </title>
-
+    <title>{{ $pagareTitulo }} - {{ $renta->folio }}</title>
     <style>
-
-        @page {
-            margin: 1cm;
-            size: letter portrait;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
+        @page { margin: 1cm; size: letter portrait; }
         body {
-            font-family: DejaVu Sans, Arial, sans-serif;
-            color: {{ $pagareColorPrincipal }};
+            font-family: Arial, sans-serif;
+            color: {{ $pagareColorPrincipal }}; /* Toma el verde configurado */
             background: #ffffff;
             font-size: {{ $pagareTamanoTexto }}px;
             margin: 0;
-            padding: 0;
         }
-
-
-        /* ==============================================
-           CONTENEDOR
-        ============================================== */
-
+        
+        /* Contenedores principal e interno (Doble borde como en la foto) */
         .pagare-wrapper {
             border: 5px solid {{ $pagareColorPrincipal }};
             border-radius: 12px;
-            padding: 9px;
+            padding: 4px;
             background-color: {{ $pagareColorFondo }};
         }
-
         .pagare-inner {
             border: 1px solid {{ $pagareColorPrincipal }};
             border-radius: 8px;
             padding: 15px;
         }
 
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        td {
-            vertical-align: middle;
-        }
-
-
-        /* ==============================================
-           ENCABEZADO
-        ============================================== */
-
-        .title-box {
+        /* Estilos para las cajas blancas redondeadas */
+        .box-title {
             border: 2px solid {{ $pagareColorPrincipal }};
-            border-radius: 7px;
-            padding: 5px 14px;
-
-            font-size: 26px;
+            border-radius: 10px;
+            padding: 5px 15px;
+            font-size: 22px;
             font-weight: bold;
             font-style: italic;
-
             background: #ffffff;
-
             display: inline-block;
-        }
-
-
-        .amount-box {
-            border: 2px solid {{ $pagareColorPrincipal }};
-            border-radius: 7px;
-            background: #ffffff;
-
-            padding: 5px 12px;
-
-            min-width: 110px;
-
-            text-align: center;
-            font-weight: bold;
-
-            display: inline-block;
-        }
-
-
-        .underline {
-            border-bottom: 1px solid {{ $pagareColorPrincipal }};
-            text-align: center;
-            font-weight: bold;
-            display: inline-block;
-        }
-
-
-        /* ==============================================
-           EXPEDICIÓN
-        ============================================== */
-
-        .expedicion {
-            margin-top: 15px;
-            text-align: right;
-            line-height: 1.8;
-        }
-
-        .sub-label {
-            font-size: 8px;
-            font-style: italic;
             color: {{ $pagareColorPrincipal }};
         }
-
-
-        /* ==============================================
-           CUERPO
-        ============================================== */
-
-        .promesa {
-            margin-top: 20px;
-            line-height: 1.6;
-            text-align: justify;
-        }
-
-
-        .beneficiario {
-            margin-top: 8px;
-            text-align: center;
-        }
-
-
-        .beneficiario .valor {
-            width: 65%;
-        }
-
-
-        .pago-table {
-            margin-top: 15px;
-        }
-
-
-        .pago-table td {
-            padding: 2px 6px;
-        }
-
-
-        .amount-words {
-            border: 2px solid {{ $pagareColorPrincipal }};
-            border-radius: 7px;
-
-            background: #ffffff;
-
-            margin-top: 8px;
-
-            padding: 8px 12px;
-
-            font-weight: bold;
-
-            text-align: center;
-        }
-
-
-        .porcentaje {
-            margin-top: 5px;
-            font-size: 8px;
-            text-align: right;
-        }
-
-
-        /* ==============================================
-           CLÁUSULA LEGAL
-        ============================================== */
-
-        .legal-text {
-            font-size: 9px;
-            line-height: 1.45;
-
-            margin-top: 14px;
-
-            text-align: justify;
-        }
-
-
-        /* ==============================================
-           DEUDOR
-        ============================================== */
-
-        .footer-table {
-            margin-top: 18px;
-        }
-
-
-        .debtor-box {
+        .box-input {
             border: 1px solid {{ $pagareColorPrincipal }};
-            border-radius: 7px;
-
-            padding: 9px;
-
-            width: 95%;
-
-            line-height: 1.8;
-
-            font-size: 10px;
-        }
-
-
-        .debtor-title {
-            text-align: center;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 4px 10px;
+            color: #000;
             font-weight: bold;
-            margin-bottom: 7px;
-        }
-
-
-        /* ==============================================
-           FIRMA
-        ============================================== */
-
-        .signature-section {
             text-align: center;
+            display: inline-block;
+        }
+        .box-full {
+            border: 1px solid {{ $pagareColorPrincipal }};
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 8px;
+            color: #000;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 2px;
         }
 
-
-        .signature-line {
+        /* Líneas para rellenar datos */
+        .linea {
             border-bottom: 1px solid {{ $pagareColorPrincipal }};
-
-            width: 80%;
-
-            margin: 38px auto 5px auto;
-        }
-
-
-        .footer-note {
-            margin-top: 10px;
-
+            color: #000;
+            font-weight: bold;
             text-align: center;
-
-            font-size: 8px;
-            font-style: italic;
+            vertical-align: bottom;
+        }
+        .linea-left {
+            border-bottom: 1px solid {{ $pagareColorPrincipal }};
+            color: #000;
+            font-weight: bold;
+            text-align: left;
+            vertical-align: bottom;
+            padding-left: 5px;
         }
 
+        /* Textos pequeños debajo de las líneas */
+        .sub-label {
+            font-size: 9px;
+            font-style: italic;
+            color: {{ $pagareColorPrincipal }};
+            text-align: center;
+            vertical-align: top;
+        }
+
+        /* Recuadro inferior izquierdo (Datos del deudor) */
+        .box-deudor {
+            border: 1px solid {{ $pagareColorPrincipal }};
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 11px;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        td { vertical-align: bottom; padding-bottom: 2px; }
     </style>
-
 </head>
-
-
 <body>
 
-
 <div class="pagare-wrapper">
-
     <div class="pagare-inner">
 
-
-        {{-- ======================================================
-             ENCABEZADO
-        ======================================================= --}}
-
+        <!-- FILA 1: Título, No. y Bueno por -->
         <table>
-
             <tr>
-
-                <td style="width: 30%;">
-
-                    <div class="title-box">
-
-                        {{ $pagareTitulo }}
-
-                    </div>
-
+                <td width="30%">
+                    <div class="box-title">{{ $pagareTitulo }}</div>
                 </td>
-
-
-                <td
-                    style="
-                        width: 25%;
-                        text-align: center;
-                    "
-                >
-
-                    <strong>
-                        {{ $pagareEtiquetaNumero }}
-                    </strong>
-
-                    <span
-                        class="underline"
-                        style="width: 80px;"
-                    >
-
-                        {{ $pagareNumeroMostrar }}
-
-                    </span>
-
+                <td width="30%" align="center" style="font-weight: bold;">
+                    {{ $pagareEtiquetaNumero }} <div class="box-input" style="width: 80px;">{{ $pagareNumeroMostrar }}</div>
                 </td>
-
-
-                <td
-                    style="
-                        width: 45%;
-                        text-align: right;
-                    "
-                >
-
-                    <strong>
-                        {{ $pagareTextoBuenoPor }}
-                    </strong>
-
-                    <div class="amount-box">
-                        {{ $pagareMontoMostrar }}
-                    </div>
-
+                <td width="40%" align="right" style="font-weight: bold;">
+                    {{ $pagareTextoBuenoPor }} <div class="box-input" style="width: 120px;">{{ $pagareMontoMostrar }}</div>
                 </td>
-
             </tr>
-
         </table>
 
-
-
-        {{-- ======================================================
-             CIUDAD Y FECHA
-        ======================================================= --}}
-
-        <div class="expedicion">
-
-            {{ $pagareTextoEn }}
-
-            <span
-                class="underline"
-                style="width: 160px;"
-            >
-                {{ $pagareLugarExpedicionMostrar }}
-            </span>
-
-
-            {{ $pagareTextoA }}
-
-
-            <span
-                class="underline"
-                style="width: 35px;"
-            >
-                {{ $pagareDiaExpedicionMostrar }}
-            </span>
-
-
-            {{ $pagareTextoDeMes }}
-
-
-            <span
-                class="underline"
-                style="width: 95px;"
-            >
-                {{ $pagareMesExpedicionMostrar }}
-            </span>
-
-
-            {{ $pagareTextoDeAnio }}
-
-
-            <span
-                class="underline"
-                style="width: 50px;"
-            >
-                {{ $pagareAnioExpedicionMostrar }}
-            </span>
-
-
-            <div
-                class="sub-label"
-                style="
-                    padding-right: 45px;
-                    margin-top: -2px;
-                "
-            >
-
-                {{ $pagareEtiquetaExpedicion }}
-
-            </div>
-
-        </div>
-
-
-
-        {{-- ======================================================
-             PROMESA DE PAGO
-        ======================================================= --}}
-
-        <div class="promesa">
-
-            {{ $pagareTextoPromesa }}
-
-        </div>
-
-
-        <div class="beneficiario">
-
-            <span
-                class="underline valor"
-            >
-                {{ $pagareBeneficiario }}
-            </span>
-
-            <div class="sub-label">
-
-                {{ $pagareEtiquetaBeneficiario }}
-
-            </div>
-
-        </div>
-
-
-
-        {{-- ======================================================
-             LUGAR / FECHA DE PAGO
-        ======================================================= --}}
-
-        <table class="pago-table">
-
+        <!-- FILA 2: Lugar y Fecha de expedición -->
+        <table style="margin-top: 10px;">
             <tr>
-
-                <td style="width: 5%;">
-                    en
-                </td>
-
-
-                <td
-                    style="
-                        width: 45%;
-                        text-align: center;
-                    "
-                >
-
-                    <span
-                        class="underline"
-                        style="width: 95%;"
-                    >
-
-                        {{ $pagareLugarPago }}
-
-                    </span>
-
-                </td>
-
-
-                <td
-                    style="
-                        width: 5%;
-                        text-align: center;
-                    "
-                >
-                    el
-                </td>
-
-
-                <td
-                    style="
-                        width: 45%;
-                        text-align: center;
-                    "
-                >
-
-                    <span
-                        class="underline"
-                        style="width: 95%;"
-                    >
-
-                        {{ $pagareFechaPagoMostrar }}
-
-                    </span>
-
-                </td>
-
+                <td width="40%"></td>
+                <td width="5%" align="right" style="padding-right: 5px;">{{ $pagareTextoEn }}</td>
+                <td width="25%" class="linea">{{ $pagareLugarExpedicionMostrar }}</td>
+                <td width="5%" align="center">{{ $pagareTextoA }}</td>
+                <td width="5%" class="linea">{{ $pagareDiaExpedicionMostrar }}</td>
+                <td width="5%" align="center">{{ $pagareTextoDeMes }}</td>
+                <td width="10%" class="linea">{{ $pagareMesExpedicionMostrar }}</td>
+                <td width="5%" align="center">{{ $pagareTextoDeAnio }}</td>
+                <td width="5%" class="linea">{{ $pagareAnioExpedicionMostrar }}</td>
             </tr>
-
-
             <tr>
-
                 <td></td>
-
-                <td
-                    class="sub-label"
-                    style="text-align: center;"
-                >
-
-                    {{ $pagareEtiquetaLugarPago }}
-
-                </td>
-
-
                 <td></td>
-
-
-                <td
-                    class="sub-label"
-                    style="text-align: center;"
-                >
-
-                    {{ $pagareEtiquetaFechaPago }}
-
-                </td>
-
+                <td colspan="7" class="sub-label">{{ $pagareEtiquetaExpedicion }}</td>
             </tr>
-
         </table>
 
-
-
-        {{-- ======================================================
-             CANTIDAD
-        ======================================================= --}}
-
-        <div style="margin-top: 9px;">
-
-            {{ $pagareTextoCantidad }}
-
-        </div>
-
-
-        <div class="amount-words">
-            ({{ $pagareMontoLetrasMostrar }})
-        </div>
-
-
-        @if(!empty($pagareTextoImporte))
-
-            <div class="porcentaje">
-                {{ $pagareTextoImporte }}
-            </div>
-
-        @endif
-
-
-
-        {{-- ======================================================
-             CLÁUSULA EDITABLE
-        ======================================================= --}}
-
-        @if(!empty(trim($pagareClausulaLegal)))
-
-            <div class="legal-text">
-
-                {!! nl2br(
-                    e($pagareClausulaLegal)
-                ) !!}
-
-            </div>
-
-        @endif
-
-
-
-        {{-- ======================================================
-             DEUDOR / FIRMA
-        ======================================================= --}}
-
-        <table class="footer-table">
-
+        <!-- FILA 3: Orden de -->
+        <table style="margin-top: 5px;">
             <tr>
-
-                <td
-                    style="
-                        width: 57%;
-                        vertical-align: top;
-                    "
-                >
-
-                    <div class="debtor-box">
-
-
-                        <div class="debtor-title">
-
-                            {{ $pagareTituloDeudor }}
-
-                        </div>
-
-
-                        <strong>
-                            {{ $pagareEtiquetaNombre }}
-                        </strong>
-
-                        <span
-                            class="underline"
-                            style="width: 235px;"
-                        >
-
-                            {{ $nombreCliente }}
-
-                        </span>
-
-                        <br>
-
-
-                        <strong>
-                            {{ $pagareEtiquetaDireccion }}
-                        </strong>
-
-                        <span
-                            class="underline"
-                            style="width: 220px;"
-                        >
-
-                            {{ $direccionCliente }}
-
-                        </span>
-
-                        <br>
-
-
-                        <strong>
-                            {{ $pagareEtiquetaPoblacion }}
-                        </strong>
-
-                        <span
-                            class="underline"
-                            style="width: 110px;"
-                        >
-
-                            {{ $ciudadCliente }}
-
-                        </span>
-
-
-                        <strong>
-                            {{ $pagareEtiquetaTelefono }}
-                        </strong>
-
-                        <span
-                            class="underline"
-                            style="width: 85px;"
-                        >
-
-                            {{ $telefonoCliente }}
-
-                        </span>
-
-
-                    </div>
-
-                </td>
-
-
-                <td
-                    style="
-                        width: 43%;
-                        vertical-align: bottom;
-                    "
-                >
-
-                    <div class="signature-section">
-
-
-                        <strong>
-
-                            {{ $pagareTextoAcepto }}
-
-                        </strong>
-
-
-                        <div class="signature-line"></div>
-
-
-                        {{ $pagareTextoFirma }}
-
-
-                    </div>
-
-                </td>
-
+                <td width="55%" style="white-space: nowrap;">{{ $pagareTextoPromesa }}</td>
+                <td width="45%" class="linea">{{ $pagareBeneficiario }}</td>
             </tr>
-
+            <tr>
+                <td></td>
+                <td class="sub-label">{{ $pagareEtiquetaBeneficiario }}</td>
+            </tr>
         </table>
 
+        <!-- FILA 4: Lugar y fecha de pago -->
+        <table style="margin-top: 0px;">
+            <tr>
+                <td width="35%" class="linea">&nbsp;</td>
+                <td width="5%" align="center">en</td>
+                <td width="30%" class="linea">{{ $pagareLugarPago }}</td>
+                <td width="5%" align="center">el</td>
+                <td width="25%" class="linea">{{ $pagareFechaPagoMostrar }}</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td></td>
+                <td class="sub-label" align="center">{{ $pagareEtiquetaLugarPago }}</td>
+                <td></td>
+                <td class="sub-label" align="center">{{ $pagareEtiquetaFechaPago }}</td>
+            </tr>
+        </table>
 
-
-        {{-- ======================================================
-             PIE
-        ======================================================= --}}
-
-        <div class="footer-note">
-
-            {{ $pagareTextoPie }}
-
+        <!-- FILA 5: Cantidad en Letras -->
+        <div style="margin-top: 10px; margin-bottom: 2px;">{{ $pagareTextoCantidad }}</div>
+        <div class="box-full">
+            {{ $pagareMontoLetrasMostrar }}
         </div>
 
+        <!-- FILA 6: Clausula Legal -->
+        <div style="margin-top: 10px; text-align: justify; line-height: 1.4; font-size: 11px;">
+            {!! nl2br(e($pagareClausulaLegal)) !!}
+        </div>
+
+        <!-- FILA 7: Deudor y Firma -->
+        <table style="margin-top: 15px;">
+            <tr>
+                <td width="55%" valign="top">
+                    <div class="box-deudor">
+                        <div style="text-align: center; margin-bottom: 5px; font-weight: bold;">{{ $pagareTituloDeudor }}</div>
+                        <table style="margin-bottom: 4px;">
+                            <tr>
+                                <td width="15%" style="padding-bottom:0;">{{ $pagareEtiquetaNombre }}</td>
+                                <td width="85%" class="linea-left" style="padding-bottom:0;">{{ $nombreCliente }}</td>
+                            </tr>
+                        </table>
+                        <table style="margin-bottom: 4px;">
+                            <tr>
+                                <td width="15%" style="padding-bottom:0;">{{ $pagareEtiquetaDireccion }}</td>
+                                <td width="55%" class="linea-left" style="padding-bottom:0;">{{ $direccionCliente }}</td>
+                                <td width="10%" align="right" style="padding-bottom:0; padding-right:3px;">{{ $pagareEtiquetaTelefono }}</td>
+                                <td width="20%" class="linea-left" style="padding-bottom:0;">{{ $telefonoCliente }}</td>
+                            </tr>
+                        </table>
+                        <table>
+                            <tr>
+                                <td width="15%" style="padding-bottom:0;">{{ $pagareEtiquetaPoblacion }}</td>
+                                <td width="85%" class="linea-left" style="padding-bottom:0;">{{ $ciudadCliente }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                <td width="5%"></td>
+                <td width="40%" valign="bottom" align="center">
+                    <div style="margin-bottom: 25px; font-weight: bold;">{{ $pagareTextoAcepto }}</div>
+                    <div style="border-top: 1px solid {{ $pagareColorPrincipal }}; width: 100%;"></div>
+                    <div class="sub-label" style="margin-top: 2px;">{{ $pagareTextoFirma }}</div>
+                </td>
+            </tr>
+        </table>
 
     </div>
-
 </div>
 
-
 </body>
-
 </html>

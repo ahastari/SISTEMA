@@ -406,41 +406,8 @@ class RentaController extends Controller
         */
         $montoPagare = $montoTotal;
 
-        $formatter = new \NumberFormatter(
-            'es',
-            \NumberFormatter::SPELLOUT
-        );
-
-        $entero = floor($montoTotal);
-
-        $centavos = (int) round(
-            ($montoTotal - $entero) * 100
-        );
-
-        if ($centavos >= 100) {
-            $entero++;
-            $centavos = 0;
-        }
-
-        $montoTotalLetras =
-            mb_strtoupper(
-                $formatter->format($entero),
-                'UTF-8'
-            )
-            . ' PESOS '
-            . str_pad(
-                $centavos,
-                2,
-                '0',
-                STR_PAD_LEFT
-            )
-            . '/100 M.N.';
-
-        /*
-        |--------------------------------------------------------------------------
-        | Como el pagaré es por el total, ambos son iguales
-        |--------------------------------------------------------------------------
-        */
+        $montoTotalLetras = $this->montoALetras($montoTotal);
+        
         $montoPagareLetras = $montoTotalLetras;
 
         /*
@@ -483,8 +450,13 @@ class RentaController extends Controller
         $nombreCliente =
             $cliente->nombre_completo ?? '';
 
-        $direccionCliente =
-            $cliente->direccion ?? '';
+        $direccionBase = $cliente->direccion ?? '';
+        $coloniaBase   = $cliente->colonia ?? '';
+        
+        $direccionCliente = $direccionBase;
+        if (!empty($coloniaBase)) {
+            $direccionCliente .= (!empty($direccionBase) ? ', ' : '') . $coloniaBase;
+        }
 
         /*
         * IMPORTANTE:
@@ -842,14 +814,6 @@ class RentaController extends Controller
                 'Firma(s)'
             );
 
-        $pagareTextoPie =
-            $resolver(
-                $cfg(
-                    'pagare_texto_pie',
-                    'Escriba al reverso los datos personales y firma(s) del(os) aval(es).'
-                )
-            );
-
         /*
         |--------------------------------------------------------------------------
         | APARIENCIA
@@ -966,7 +930,6 @@ class RentaController extends Controller
 
                 'pagareTextoAcepto',
                 'pagareTextoFirma',
-                'pagareTextoPie',
 
                 'pagareColorPrincipal',
                 'pagareColorFondo',
@@ -1455,5 +1418,57 @@ class RentaController extends Controller
     {
         $pago->load('renta.cliente');
         return view('rentas.ticket_pago', compact('pago'));
+    }
+
+    private function montoALetras($monto) {
+        $entero = floor($monto);
+        $centavos = (int) round(($monto - $entero) * 100);
+        
+        if ($centavos >= 100) {
+            $entero++;
+            $centavos = 0;
+        }
+        
+        $centavosStr = str_pad($centavos, 2, '0', STR_PAD_LEFT);
+        $letras = $this->convertirEnteroALetras($entero);
+        
+        return mb_strtoupper($letras, 'UTF-8') . ' PESOS ' . $centavosStr . '/100 M.N.';
+    }
+
+    private function convertirEnteroALetras($numero) {
+        $numero = (int)$numero;
+        if ($numero == 0) return 'cero';
+        
+        if ($numero < 21) {
+            $unidades = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
+            return $unidades[$numero];
+        } elseif ($numero < 100) {
+            $decenas = ['', 'diez', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+            $decena = floor($numero / 10);
+            $unidad = $numero % 10;
+            if ($unidad == 0) return $decenas[$decena];
+            if ($decena == 2) return 'veinti' . $this->convertirEnteroALetras($unidad);
+            return $decenas[$decena] . ' y ' . $this->convertirEnteroALetras($unidad);
+        } elseif ($numero < 1000) {
+            $centenas = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+            if ($numero == 100) return 'cien';
+            $centena = floor($numero / 100);
+            $resto = $numero % 100;
+            if ($resto == 0) return $centenas[$centena];
+            return $centenas[$centena] . ' ' . $this->convertirEnteroALetras($resto);
+        } elseif ($numero < 1000000) {
+            $miles = floor($numero / 1000);
+            $resto = $numero % 1000;
+            $strMiles = ($miles == 1) ? 'mil' : $this->convertirEnteroALetras($miles) . ' mil';
+            if ($resto == 0) return $strMiles;
+            return $strMiles . ' ' . $this->convertirEnteroALetras($resto);
+        } elseif ($numero < 1000000000) {
+            $millones = floor($numero / 1000000);
+            $resto = $numero % 1000000;
+            $strMillones = ($millones == 1) ? 'un millón' : $this->convertirEnteroALetras($millones) . ' millones';
+            if ($resto == 0) return $strMillones;
+            return $strMillones . ' ' . $this->convertirEnteroALetras($resto);
+        }
+        return 'Número muy grande';
     }
 }

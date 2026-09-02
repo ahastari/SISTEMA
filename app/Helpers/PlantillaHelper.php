@@ -69,14 +69,53 @@ class PlantillaHelper
             return "CERO PESOS 00/100 M.N.";
         }
 
-        try {
-            $formatter = new \NumberFormatter('es', \NumberFormatter::SPELLOUT);
-            $entero = floor($numero);
-            $decimales = round(($numero - $entero) * 100);
-            $texto = strtoupper($formatter->format($entero));
-            return "{$texto} PESOS " . str_pad($decimales, 2, '0', STR_PAD_LEFT) . "/100 M.N.";
-        } catch (\Exception $e) {
-            return number_format($numero, 2) . " PESOS M.N.";
+        $entero = floor($numero);
+        $decimales = round(($numero - $entero) * 100);
+
+        if ($decimales >= 100) {
+            $entero++;
+            $decimales = 0;
         }
+
+        $texto = self::convertirEnteroALetras($entero);
+        return mb_strtoupper($texto, 'UTF-8') . " PESOS " . str_pad($decimales, 2, '0', STR_PAD_LEFT) . "/100 M.N.";
+    }
+
+    private static function convertirEnteroALetras($numero)
+    {
+        $numero = (int)$numero;
+        if ($numero == 0) return 'cero';
+
+        if ($numero < 21) {
+            $unidades = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
+            return $unidades[$numero];
+        } elseif ($numero < 100) {
+            $decenas = ['', 'diez', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+            $decena = floor($numero / 10);
+            $unidad = $numero % 10;
+            if ($unidad == 0) return $decenas[$decena];
+            if ($decena == 2) return 'veinti' . self::convertirEnteroALetras($unidad);
+            return $decenas[$decena] . ' y ' . self::convertirEnteroALetras($unidad);
+        } elseif ($numero < 1000) {
+            $centenas = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+            if ($numero == 100) return 'cien';
+            $centena = floor($numero / 100);
+            $resto = $numero % 100;
+            if ($resto == 0) return $centenas[$centena];
+            return $centenas[$centena] . ' ' . self::convertirEnteroALetras($resto);
+        } elseif ($numero < 1000000) {
+            $miles = floor($numero / 1000);
+            $resto = $numero % 1000;
+            $strMiles = ($miles == 1) ? 'mil' : self::convertirEnteroALetras($miles) . ' mil';
+            if ($resto == 0) return $strMiles;
+            return $strMiles . ' ' . self::convertirEnteroALetras($resto);
+        } elseif ($numero < 1000000000) {
+            $millones = floor($numero / 1000000);
+            $resto = $numero % 1000000;
+            $strMillones = ($millones == 1) ? 'un millón' : self::convertirEnteroALetras($millones) . ' millones';
+            if ($resto == 0) return $strMillones;
+            return $strMillones . ' ' . self::convertirEnteroALetras($resto);
+        }
+        return 'Número muy grande';
     }
 }

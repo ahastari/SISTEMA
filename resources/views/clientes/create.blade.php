@@ -151,6 +151,11 @@
             </div>
 
             <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold text-body">Colonia / Fraccionamiento</label>
+                <input type="text" name="colonia" class="form-control form-control-sm bg-body text-body" value="{{ old('colonia') }}" placeholder="Ej: Zona Centro">
+            </div>
+
+            <div class="col-12 col-md-4">
                 <label class="form-label small fw-semibold text-body">Ciudad / Municipio</label>
                 <input type="text" name="ciudad" class="form-control form-control-sm bg-body text-body" value="{{ old('ciudad') }}" placeholder="Ej: Durango">
             </div>

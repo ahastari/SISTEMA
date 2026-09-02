@@ -788,11 +788,7 @@
                                     <small class="text-secondary">
                                         Personaliza cada elemento del documento
                                     </small>
-                                </div>
-
-                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
-                                    Total de la renta · No. 1/1
-                                </span>
+                                </div> 
 
                             </div>
 
@@ -1655,25 +1651,6 @@
 
                                                     </div>
 
-
-                                                    <div class="col-12">
-
-                                                        <label class="form-label">
-                                                            Texto del pie
-                                                        </label>
-
-                                                        <input
-                                                            type="text"
-                                                            name="pagare_texto_pie"
-                                                            class="form-control"
-                                                            value="{{ $valor(
-                                                                'pagare_texto_pie',
-                                                                'Escriba al reverso los datos personales y firma(s) del(os) aval(es).'
-                                                            ) }}"
-                                                        >
-
-                                                    </div>
-
                                                 </div>
 
                                             </div>
@@ -1782,88 +1759,6 @@
                                     COLUMNA DERECHA
                                 ================================================== --}}
                                 <div class="col-12 col-xl-4">
-
-                                    {{-- VISTA PREVIA --}}
-                                    <div class="pagare-preview-card mb-3">
-
-                                        <div class="d-flex justify-content-between align-items-center mb-3">
-
-                                            <span class="fw-bold">
-                                                <i class="bi bi-eye me-1"></i>
-                                                Vista previa
-                                            </span>
-
-                                            <span class="badge bg-success">
-                                                5%
-                                            </span>
-
-                                        </div>
-
-
-                                        <div class="mini-pagare">
-
-                                            <div class="d-flex justify-content-between align-items-start">
-
-                                                <div
-                                                    class="mini-title"
-                                                    id="previewPagareTitulo"
-                                                >
-                                                    {{ $valor('pagare_titulo', 'PAGARÉ') }}
-                                                </div>
-
-
-                                                <div class="text-center small">
-
-                                                    <strong
-                                                        id="previewNumeroEtiqueta"
-                                                    >
-                                                        {{ $valor('pagare_etiqueta_numero', 'No.') }}
-                                                    </strong>
-
-                                                    <span id="previewNumero">
-                                                        {{ $valor('pagare_valor_numero', '1/1') }}
-                                                    </span>
-
-                                                </div>
-
-
-                                                <div class="text-end">
-
-                                                    <strong
-                                                        class="d-block"
-                                                        id="previewBuenoPor"
-                                                    >
-                                                        {{ $valor('pagare_texto_bueno_por', 'BUENO POR $') }}
-                                                    </strong>
-
-                                                    <div class="mini-amount">
-                                                        5.80
-                                                    </div>
-
-                                                </div>
-
-                                            </div>
-
-
-                                            <div class="mini-line mt-4">
-                                                En
-                                                <strong>Durango, Dgo.</strong>
-                                                a 05 de agosto de 2026
-                                            </div>
-
-
-                                            <div class="mini-body mt-4">
-                                                Debo(mos) y pagaré(mos)
-                                                incondicionalmente por este Pagaré
-                                                a la orden de
-                                                <strong>Sistema de Gestión</strong>
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-
 
                                     {{-- VARIABLES EXCLUSIVAS --}}
                                     <div class="pagare-variable-card">
@@ -2039,15 +1934,15 @@
                                 </div>
 
 
-                                <button
-                                    type="submit"
-                                    class="btn btn-dark btn-sm w-100 py-2 fw-bold"
-                                >
-
-                                    <i class="bi bi-cloud-arrow-up-fill me-1"></i>
-                                    Actualizar Plantilla
-
-                                </button>
+                                <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+                                    <button
+                                        type="submit"
+                                        class="btn btn-success px-4 fw-bold"
+                                    >
+                                        <i class="bi bi-cloud-check me-2"></i>
+                                        Actualizar Plantilla Contrato
+                                    </button>
+                                </div>
 
                             </form>
 
@@ -2487,34 +2382,6 @@
         });
 
         document.addEventListener('DOMContentLoaded', function () {
-
-        // =====================================================
-        // PREVIEW EN TIEMPO REAL
-        // =====================================================
-
-        const mappings = [
-            ['pagare_titulo', 'previewPagareTitulo'],
-            ['pagare_etiqueta_numero', 'previewNumeroEtiqueta'],
-            ['pagare_valor_numero', 'previewNumero'],
-            ['pagare_texto_bueno_por', 'previewBuenoPor']
-        ];
-
-
-        mappings.forEach(function (map) {
-
-            const input = document.getElementById(map[0]);
-            const preview = document.getElementById(map[1]);
-
-            if (!input || !preview) {
-                return;
-            }
-
-            input.addEventListener('input', function () {
-                preview.textContent = this.value;
-            });
-
-        });
-
 
         // =====================================================
         // SINCRONIZAR TÍTULO DE PLANTILLA

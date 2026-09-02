@@ -9,7 +9,7 @@ class Cliente extends Model
     protected $fillable = [
         'nombre_completo', 'telefono', 'email', 'rfc', 'curp',
         'ine_numero', 'ine_documento', 'contrato_firmado', 'comprobante_deposito',
-        'telefono_alternativo', 'empresa', 'direccion', 'ciudad',
+        'telefono_alternativo', 'empresa', 'direccion', 'colonia', 'ciudad',
         'estado', 'codigo_postal', 'observaciones', 
         'sucursal_id', 'activo', 'fecha_ultima_actividad', 'comprobante_domicilio_path'
     ];

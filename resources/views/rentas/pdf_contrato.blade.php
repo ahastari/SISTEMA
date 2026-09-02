@@ -1,206 +1,180 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <title>Contrato de Renta - {{ $renta->folio }}</title>
     <style>
-        @page {
-            margin: 1.2cm 1.2cm 1.5cm 1.2cm;
-            size: letter portrait;
-        }
-        * { box-sizing: border-box; }
-        body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            font-size: 10pt;
-            line-height: 1.35;
-            color: #0f172a;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* ENCABEZADO CORPORATIVO SUCURSAL */
-        .header-table { width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
-        .logo-img { max-height: 55px; max-width: 160px; margin-bottom: 4px; }
-        .brand-title { font-size: 12pt; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0; letter-spacing: 0.3px; }
-        .branch-badge { display: inline-block; background: #f0f9ff; color: #0369a1; font-size: 7.5pt; font-weight: bold; padding: 2px 6px; border-radius: 3px; border: 1px solid #bae6fd; margin-top: 2px; margin-bottom: 3px; }
-        .branch-details { font-size: 7.5pt; color: #475569; line-height: 1.25; }
-
-        /* TITULARES Y SECCIONES */
-        .doc-title { font-size: 12pt; font-weight: 800; text-align: center; text-transform: uppercase; color: #0f172a; margin: 12px 0; letter-spacing: 0.5px; }
-        .section-header { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a; background: #f8fafc; border-left: 3px solid #0284c7; padding: 3px 6px; margin-top: 10px; margin-bottom: 6px; }
-
-        /* TABLAS DE DATOS */
-        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-        .data-table td, .data-table th { border: 1px solid #cbd5e1; padding: 5px 7px; font-size: 8.5pt; vertical-align: middle; }
-        .data-table th { background: #0f172a; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 7.5pt; }
-        .data-table tr:nth-child(even) td { background: #f8fafc; }
-
-        /* CAJA DE TEXTO EDITABLE */
-        .legal-box { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; font-size: 8.5pt; text-align: justify; line-height: 1.4; color: #1e293b; margin-bottom: 10px; }
-
-        /* FIRMAS ESTRUCTURADAS */
-        .signature-table { width: 100%; margin-top: 60px; }
-        .signature-line { border-top: 1px solid #0f172a; width: 50%; margin: 0 auto 4px auto; }
-        .signature-title { font-size: 8.5pt; font-weight: bold; color: #0f172a; text-transform: uppercase; }
-        .signature-sub { font-size: 7.5pt; color: #64748b; }
-
-        /* AUXILIARES */
-        .footer { position: fixed; bottom: -0.8cm; left: 0; right: 0; font-size: 7pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 3px; }
-        .text-right { text-align: right; }
+        @page { margin: 1.5cm; size: letter portrait; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; line-height: 1.4; }
+        table { width: 100%; border-collapse: collapse; }
+        td { vertical-align: top; }
         .text-center { text-align: center; }
-        .bold { font-weight: bold; }
-        .font-mono { font-family: 'Courier New', Courier, monospace; }
+        .fw-bold { font-weight: bold; }
+        
+        /* Encabezado */
+        .header-title { font-size: 20px; font-weight: bold; margin: 0; letter-spacing: 1px; }
+        .header-sub { font-size: 14px; font-weight: bold; margin: 2px 0 5px 0; }
+        .header-info { font-size: 10px; margin: 2px 0; }
+
+        /* Cláusulas */
+        .clausulas-container { margin-top: 20px; text-align: justify; }
+        .clausulas-title { font-weight: bold; font-size: 12px; margin-bottom: 5px; text-align: center; }
+
+        /* Secciones de Datos */
+        .data-section { margin-top: 20px; }
+        .data-title { font-weight: bold; font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #000; display: inline-block; padding-bottom: 2px; }
+        .data-row { margin-bottom: 6px; font-size: 11px; }
+        .data-label { display: inline-block; width: 100px; font-weight: bold; }
+        .data-value { border-bottom: 1px solid #000; display: inline-block; width: calc(100% - 105px); }
+
+        /* Aviso */
+        .aviso-container { margin-top: 40px; border-top: 1px dashed #000; padding-top: 20px; }
     </style>
 </head>
 <body>
 
 @php
-    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'EMPRESA NO CONFIGURADA');
-    
+    $empresaNombreGlobal = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre', 'INDUSTRIAS VIRAMONTES');
     $sucursal = $renta->sucursal ?? null;
-    $sucNombre    = $sucursal->nombre ?? 'MATRIZ GENERAL';
-    $sucRfc       = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'RFC NO CONFIGURADO');
-    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'DIRECCIÓN NO CONFIGURADA');
-    $sucTelefono  = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TELÉFONO NO CONFIGURADO');
-    $sucLogoPath  = $sucursal->logo ?? \App\Helpers\ContentHelper::getCompanyData('empresa_logo');
-
-    $pContrato = \App\Models\PlantillaDocumento::where('tipo', 'contrato_renta')->first() 
-              ?? \App\Models\PlantillaDocumento::where('tipo', 'contrato')->first();
-
-    $textoContrato = $pContrato ? $pContrato->contenido : "CONTRATO DE PRESTACIÓN DE SERVICIOS...";
-
+    $sucRfc = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'VIMG530129544');
+    $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'AV. DEL CIPRES 314 COL. MASIE, DURANGO, DGO, C.P. 34217');
+    $sucTelefono = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TEL. 455-36-71 CEL. 618-159-70-19');
+    $depositoVal = (float)($renta->deposito_garantia ?? ($renta->deposito ?? 0));
     $montoTotalVal = (float)($renta->total ?? 0);
-    $depositoVal   = (float)($renta->deposito_garantia ?? ($renta->deposito ?? 0));
     $fFinVal = isset($renta->fecha_fin) ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') : date('d/m/Y');
 
+    // Procesamiento de la plantilla dinámica del contrato
+    $pContrato = \App\Models\PlantillaDocumento::where('tipo', 'contrato_renta')->first() ?? \App\Models\PlantillaDocumento::where('tipo', 'contrato')->first();
+    $textoContrato = $pContrato ? $pContrato->contenido : "Cláusulas no definidas...";
+
     $reemplazos = [
-        '{empresa}'          => $empresaNombreGlobal,
-        '{cliente}'          => $renta->cliente->nombre_completo ?? 'PÚBLICO GENERAL',
-        '{folio}'            => $renta->folio ?? 'N/A',
-        '{deposito}'         => number_format($depositoVal, 2),
-        '{monto_total}'      => number_format($montoTotalVal, 2),
-        '{fecha_fin}'        => $fFinVal,
-        '{fecha_inicio}'     => isset($renta->created_at) ? \Carbon\Carbon::parse($renta->created_at)->format('d/m/Y') : date('d/m/Y'),
+        '{empresa}' => $empresaNombreGlobal,
+        '{cliente}' => $renta->cliente->nombre_completo ?? '',
+        '{folio}' => $renta->folio ?? '',
+        '{deposito}' => number_format($depositoVal, 2),
+        '{monto_total}' => number_format($montoTotalVal, 2),
+        '{fecha_fin}' => $fFinVal,
+        '{fecha_inicio}' => isset($renta->created_at) ? \Carbon\Carbon::parse($renta->created_at)->format('d/m/Y') : date('d/m/Y'),
     ];
 
     foreach ($reemplazos as $tag => $val) {
         $textoContrato = str_replace($tag, $val, $textoContrato);
     }
+
+    $logoBase64 = null;
+    $empresaLogo = \App\Helpers\ContentHelper::getCompanyData('empresa_logo');
+    $rutaLogo = null;
+
+    // 1. Validar si la sucursal tiene logo propio
+    if ($sucursal && $sucursal->logo && file_exists(public_path('storage/' . $sucursal->logo))) {
+        $rutaLogo = public_path('storage/' . $sucursal->logo);
+    } 
+    // 2. Si no tiene, usar el logo global de la empresa
+    elseif ($empresaLogo && file_exists(public_path('storage/' . $empresaLogo))) {
+        $rutaLogo = public_path('storage/' . $empresaLogo);
+    }
+
+    // 3. Convertir a Base64 (Esto asegura que DomPDF siempre cargue la imagen sin fallar)
+    if ($rutaLogo) {
+        $tipo = pathinfo($rutaLogo, PATHINFO_EXTENSION);
+        $data = file_get_contents($rutaLogo);
+        $logoBase64 = 'data:image/' . $tipo . ';base64,' . base64_encode($data);
+    }
 @endphp
 
-<!-- CABECERA SUCURSAL DINÁMICA -->
-<table class="header-table">
+<!-- ENCABEZADO CON LOGO -->
+<table width="100%" style="margin-bottom: 15px;">
     <tr>
-        <td style="width: 60%; vertical-align: top;">
-            @if($sucLogoPath && file_exists(public_path('storage/' . $sucLogoPath)))
-                <img src="{{ public_path('storage/' . $sucLogoPath) }}" class="logo-img" alt="Logo Sucursal"><br>
+        <!-- Columna Izquierda: LOGO -->
+        <td width="25%" style="vertical-align: top; text-align: left;">
+            @if($logoBase64)
+                <img src="{{ $logoBase64 }}" style="max-width: 140px; max-height: 100px; object-fit: contain;">
             @endif
-            <h1 class="brand-title">{{ $empresaNombreGlobal }}</h1>
-            <div class="branch-badge">SUCURSAL: <strong>{{ strtoupper($sucNombre) }}</strong></div>
-            <div class="branch-details">
-                <strong>RFC:</strong> {{ $sucRfc }}<br>
-                <strong>Dirección:</strong> {{ $sucDireccion }}<br>
-                <strong>Contacto:</strong> {{ $sucTelefono }}
-            </div>
         </td>
-        <td style="width: 40%; text-align: right; vertical-align: top;">
-            <div style="font-size: 11pt; font-weight: bold; color: #0f172a;">CONTRATO DE RENTA</div>
-            <div style="font-size: 10pt; font-weight: bold; color: #0284c7; margin-top: 4px;" class="font-mono">FOLIO: {{ $renta->folio }}</div>
-            <div style="font-size: 7.5pt; color: #64748b; margin-top: 4px;">
-                Fecha Emisión: {{ \Carbon\Carbon::parse($renta->created_at ?? now())->format('d/m/Y H:i') }}
+        
+        <!-- Columna Central: TEXTOS DE LA EMPRESA -->
+        <td width="50%" class="text-center" style="vertical-align: top;">
+            <h1 class="header-title">{{ $empresaNombreGlobal }}</h1>
+            <h2 class="header-sub">{{ \App\Helpers\ContentHelper::getCompanyData('empresa_dueno', 'GODOFREDO VIRAMONTES MEDINA') }}</h2>
+            <p class="header-info">R.F.C. {{ $sucRfc }}</p>
+            <p class="header-info">{{ $sucDireccion }}</p>
+            <p class="header-info fw-bold">{{ $sucTelefono }}</p>
+        </td>
+        
+        <!-- Columna Derecha: FOLIO ROJO -->
+        <td width="25%" style="vertical-align: top; text-align: right;">
+            <div style="font-weight: bold; font-size: 14px; color: #dc3545;">
+                Folio: {{ $renta->folio }}
             </div>
         </td>
     </tr>
 </table>
 
-<div class="doc-title">{{ $pContrato->titulo ?? 'CONTRATO DE PRESTACIÓN DE SERVICIOS DE RENTA' }}</div>
-
-<div class="section-header">Cláusulas</div>
-<div class="legal-box">
-    {!! nl2br(e($textoContrato)) !!}
+<!-- CLÁUSULAS (Dinámicas desde la BD) -->
+<div class="clausulas-container">
+    <p>Contrato de Prestación de servicios de Renta de {{ $empresaNombreGlobal }} que celebrarán por una parte el prestador de servicio y por otra, el usuario denominado CLIENTE</p>
+    <div class="clausulas-title">CLAUSULAS</div>
+    <div style="padding: 0 10px;">
+        {!! nl2br(e($textoContrato)) !!}
+    </div>
 </div>
 
-<div class="section-header">Datos del Cliente</div>
-<table class="data-table">
-    <tr>
-        <td style="width: 15%; font-weight: bold;">NOMBRE:</td>
-        <td colspan="3" style="font-weight: bold; color: #0284c7;">{{ $renta->cliente->nombre_completo ?? 'Cliente de Mostrador' }}</td>
-    </tr>
-    <tr>
-        <td style="font-weight: bold;">DIRECCIÓN:</td>
-        <td colspan="3">{{ $renta->cliente->direccion ?? 'No especificada' }}</td>
-    </tr>
-    <tr>
-        <td style="font-weight: bold; width: 15%;">COLONIA:</td>
-        <td style="width: 35%;">{{ $renta->cliente->colonia ?? 'No especificada' }}</td>
-        <td style="font-weight: bold; width: 15%;">CIUDAD:</td>
-        <td style="width: 35%;">{{ $renta->cliente->ciudad ?? 'Durango, Dgo.' }}</td>
-    </tr>
-    <tr>
-        <td style="font-weight: bold;">TELÉFONO:</td>
-        <td>{{ $renta->cliente->telefono ?? 'S/T' }}</td>
-        <td style="font-weight: bold;">IDENTIFICACIÓN:</td>
-        <td>{{ $renta->cliente->ine_numero ?? 'INE/OFICIAL' }}</td>
-    </tr>
-</table>
-
-@if($renta->obra_id && $renta->obra)
-<div class="section-header">Ubicación de la Obra</div>
-<table class="data-table">
-    <tr><td style="width: 15%; font-weight: bold;">OBRA:</td><td colspan="3">{{ $renta->obra->nombre }}</td></tr>
-    <tr><td style="font-weight: bold;">DIRECCIÓN:</td><td colspan="3">{{ $renta->obra->direccion }}</td></tr>
-</table>
-@endif
-
-<div class="section-header">Detalle de Equipos en Renta</div>
-<table class="data-table">
-    <thead>
+<!-- DATOS DEL CLIENTE Y OBRA -->
+<div class="data-section">
+    <table width="100%">
         <tr>
-            <th style="width: 10%; text-align: center;">CANT.</th>
-            <th>DESCRIPCIÓN DEL EQUIPO</th>
-            <th style="width: 18%; text-align: right;">PRECIO / DÍA</th>
-            <th style="width: 12%; text-align: center;">DÍAS</th>
-            <th style="width: 20%; text-align: right;">SUBTOTAL</th>
+            <td width="48%">
+                <div class="data-title">DATOS DEL CLIENTE</div>
+                <div class="data-row"><span class="data-label">NOMBRE</span> <span class="data-value">{{ $renta->cliente->nombre_completo ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">DIRECCION</span> <span class="data-value">{{ $renta->cliente->direccion ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">COLONIA</span> <span class="data-value">{{ $renta->cliente->colonia ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">CIUDAD</span> <span class="data-value">{{ $renta->cliente->ciudad ?? 'DURANGO, DGO.' }}</span></div>
+                <div class="data-row"><span class="data-label">TELEFONO</span> <span class="data-value">{{ $renta->cliente->telefono ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">IDENTIFICACION</span> <span class="data-value">{{ $renta->cliente->ine_numero ?? 'INE' }}</span></div>
+            </td>
+            <td width="4%"></td>
+            <td width="48%">
+                <div class="data-title">DATOS DE LA OBRA</div>
+                <div class="data-row"><span class="data-label">NOMBRE</span> <span class="data-value">{{ $renta->obra->nombre ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">DIRECCION</span> <span class="data-value">{{ $renta->obra->direccion ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">COLONIA</span> <span class="data-value">{{ $renta->obra->colonia ?? '' }}</span></div>
+                <div class="data-row"><span class="data-label">CIUDAD</span> <span class="data-value">{{ $renta->obra->ciudad ?? 'DURANGO, DGO.' }}</span></div>
+                <div class="data-row"><span class="data-label">TELEFONO</span> <span class="data-value">{{ $renta->obra->contacto_obra ?? '' }}</span></div>
+            </td>
         </tr>
-    </thead>
-    <tbody>
+    </table>
+</div>
+
+<!-- EQUIPO RENTADO -->
+<div class="data-section">
+    <div class="data-title">EQUIPO RENTADO:</div>
+    <div style="margin-left: 20px;">
         @foreach($renta->detalles as $detalle)
-        <tr>
-            <td style="text-align: center;" class="font-mono">{{ $detalle->cantidad }}</td>
-            <td><strong>{{ $detalle->equipo->nombre ?? ($detalle->concepto_especial ?? 'Equipo en Renta') }}</strong></td>
-            <td style="text-align: right;" class="font-mono">${{ number_format($detalle->precio_dia ?? $detalle->precio_unitario, 2) }}</td>
-            <td style="text-align: center;" class="font-mono">{{ $detalle->dias ?? 1 }}</td>
-            <td style="text-align: right;" class="font-mono">${{ number_format($detalle->subtotal, 2) }}</td>
-        </tr>
+            <div style="margin-bottom: 3px;">
+                <strong>{{ $detalle->cantidad }}</strong> {{ strtoupper($detalle->equipo->nombre ?? ($detalle->concepto_especial ?? 'EQUIPO')) }}
+            </div>
         @endforeach
-    </tbody>
-    <tfoot>
-        <tr>
-            <td colspan="4" class="text-right bold">TOTAL RENTA:</td>
-            <td class="text-right bold font-mono" style="color: #0284c7;">${{ number_format($montoTotalVal, 2) }}</td>
-        </tr>
-        @if($depositoVal > 0)
-        <tr>
-            <td colspan="4" class="text-right bold">DEPÓSITO DE GARANTÍA:</td>
-            <td class="text-right bold font-mono" style="color: #d97706;">${{ number_format($depositoVal, 2) }}</td>
-        </tr>
-        @endif
-    </tfoot>
-</table>
+    </div>
+</div>
 
-<!-- FIRMA ÚNICA DEL CLIENTE -->
-<table class="signature-table">
-    <tr>
-        <td style="width: 100%; text-align: center; vertical-align: top;">
-            <div class="signature-line"></div>
-            <div class="signature-title">{{ $renta->cliente->nombre_completo ?? 'Línea de firma' }}</div>
-            <div class="signature-sub">Nombre y Firma del Cliente (Aceptante)</div>
-        </td>
-    </tr>
-</table>
-
-<div class="footer">
-    Documento oficial de arrendamiento expedido en Durango, Dgo. el {{ \Carbon\Carbon::parse($renta->created_at ?? now())->format('d/m/Y H:i:s') }}
+<!-- AVISO DE RECOLECCIÓN (Texto Original) -->
+<<div class="aviso-container" style="page-break-before: always; border-top: none;">
+    <div style="font-weight: bold; margin-bottom: 10px;">PARA: Quien corresponda</div>
+    <p style="text-align: justify;">
+        Quedo enterado que al momento de terminar de usar el equipo en renta avisaré a "{{ $empresaNombreGlobal }}" pasar por este mismo (andamios, revolvedora, cimbra, vibrador de concreto).
+    </p>
+    <p style="text-align: justify; font-weight: bold;">
+        (Si no se avisa seguirá corriendo la renta en cuestión y se cobrará los días extras que se generen hasta que se dé aviso a "{{ $empresaNombreGlobal }}")
+    </p>
+    
+    <div style="margin-top: 50px; text-align: center;">
+        <div style="border-top: 1px solid #000; width: 250px; margin: 0 auto; padding-top: 5px; font-weight: bold;">Firma del Cliente</div>
+    </div>
+    
+    <p style="margin-top: 30px; text-align: center; font-size: 10px;">
+        Sin otro particular a que hacer referencia y esperando vernos favorecidos con sus apreciables ordenes nos es grato quedar de usted como sus amigos y S.S.<br>
+        <strong>Gracias por su preferencia</strong>
+    </p>
 </div>
 
 </body>
