@@ -87,7 +87,7 @@
         font-size: 13px;
         border: 1px solid;
         background: var(--bs-body-bg);
-        text-decoration: none; /* Quita el subrayado del enlace */
+        text-decoration: none;
         transition: all 0.2s ease;
     }
     .stat-pill:hover {
@@ -96,12 +96,10 @@
         filter: brightness(0.95);
     }
     
-    /* Para que el scroll sea suave */
     html {
         scroll-behavior: smooth;
     }
 
-    /* Para evitar que el navbar tape el título al llegar a la sección */
     .seccion-ancla {
         scroll-margin-top: 90px;
     }
@@ -144,9 +142,10 @@
 
 @php
     $totalRentas = $autorizacionesRentas->count();
+    $totalRentasCanc = $rentasCancelacion->count();
     $totalMovs = $movimientosPendientes->count();
     $totalVentas = $autorizacionesVentas->count();
-    $totalPendientes = $totalRentas + $totalMovs + $totalVentas;
+    $totalPendientes = $totalRentas + $totalRentasCanc + $totalMovs + $totalVentas;
 @endphp
 
 <!-- PESTAÑAS DE NAVEGACIÓN -->
@@ -175,7 +174,6 @@
         <div id="contenedor-autorizaciones">
 
             @if($totalPendientes === 0)
-                <!-- ESTADO VACÍO GLOBAL (UX Premium) -->
                 <div class="empty-state-global shadow-sm">
                     <div class="empty-state-icon">
                         <i class="bi bi-check2-all"></i>
@@ -184,7 +182,7 @@
                     <p class="text-secondary mb-0">No hay ninguna solicitud pendiente de autorización en este momento.</p>
                 </div>
             @else
-                <!-- QUICK STATS (Para saber qué hay abajo rápidamente) -->
+                <!-- QUICK STATS -->
                 <div class="d-flex flex-wrap gap-3 mb-4">
                     @if($totalRentas > 0)
                     <a href="#seccion-rentas" class="stat-pill border-warning text-warning-emphasis">
@@ -200,12 +198,18 @@
 
                     @if($totalVentas > 0)
                     <a href="#seccion-ventas" class="stat-pill border-danger text-danger-emphasis">
-                        <i class="bi bi-cart-x me-2"></i> {{ $totalVentas }} Cancelaciones
+                        <i class="bi bi-cart-x me-2"></i> {{ $totalVentas }} Cancelaciones Venta
+                    </a>
+                    @endif
+
+                    @if($totalRentasCanc > 0)
+                    <a href="#seccion-rentas-canc" class="stat-pill border-danger text-danger-emphasis">
+                        <i class="bi bi-x-octagon me-2"></i> {{ $totalRentasCanc }} Cancelaciones Renta
                     </a>
                     @endif
                 </div>
 
-                <!-- 1. SOLICITUDES DE RENTAS -->
+                <!-- 1. SOLICITUDES DE RENTAS (CIERRE CON ADEUDO) -->
                 @if($totalRentas > 0)
                 <div id="seccion-rentas" class="mb-5 seccion-ancla">
                     <h6 class="fw-bold text-body mb-3 text-uppercase" style="letter-spacing: 0.5px;">
@@ -234,7 +238,8 @@
                                         </div>
                                         <div class="text-end">
                                             <span class="d-block text-secondary" style="font-size: 11px;">Deuda a perdonar:</span>
-                                            <strong class="text-danger fs-6">${{ number_format($renta->saldo_pendiente, 2) }}</strong>
+                                            <!-- AQUI USAMOS EL SALDO PENDIENTE REAL QUE CREASTE EN EL CONTROLADOR -->
+                                            <strong class="text-danger fs-6">${{ number_format($renta->saldo_pendiente_real ?? $renta->saldo_pendiente, 2) }}</strong>
                                         </div>
                                     </div>
                                 </div>
@@ -371,6 +376,63 @@
                                             <i class="bi bi-x-lg me-1"></i> Denegar
                                         </button>
                                     </form>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
+                <!-- 4. SOLICITUDES DE CANCELACIÓN DE RENTAS -->
+                @if($totalRentasCanc > 0)
+                <div id="seccion-rentas-canc" class="mb-5 seccion-ancla">
+                    <h6 class="fw-bold text-body mb-3 text-uppercase" style="letter-spacing: 0.5px;">
+                        <i class="bi bi-circle-fill text-danger me-2" style="font-size: 8px; vertical-align: middle;"></i>Cancelaciones de Renta
+                    </h6>
+                    <div class="row g-3">
+                        @foreach($rentasCancelacion as $renta)
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="auth-card type-venta">
+                                <div class="auth-header">
+                                    <span class="badge bg-danger text-white font-monospace px-2 py-1"><i class="bi bi-file-text me-1"></i>{{ $renta->folio }}</span>
+                                    <span class="text-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $renta->updated_at->diffForHumans() }}</span>
+                                </div>
+                                <div class="auth-body">
+                                    <h6 class="fw-bold text-body mb-2 text-truncate" title="{{ $renta->cliente->nombre_completo ?? 'Cliente General' }}">
+                                        <i class="bi bi-person text-danger me-1"></i> {{ $renta->cliente->nombre_completo ?? 'Cliente General' }}
+                                    </h6>
+                                    <div class="p-2 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 small text-body mb-3">
+                                        <strong class="text-danger d-block mb-1"><i class="bi bi-info-circle me-1"></i>Motivo Cajero:</strong>
+                                        {{ str_replace('[CANCELACION] ', '', $renta->motivo_autorizacion) }}
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-end">
+                                        <div>
+                                            <span class="d-block text-secondary" style="font-size: 11px;">Solicitó:</span>
+                                            <span class="fw-semibold text-body small">{{ $renta->solicitadoPor->name ?? 'Usuario' }}</span>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="d-block text-secondary" style="font-size: 11px;">Saldo pendiente:</span>
+                                            <strong class="text-danger fs-6">${{ number_format($renta->saldo_pendiente_real ?? $renta->saldo_pendiente, 2) }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="auth-footer d-flex gap-2">
+                                    <form action="{{ route('autorizaciones.aprobarCancelacionRenta', $renta) }}" method="POST" class="flex-fill form-autorizacion">
+                                        @csrf
+                                        <button type="button" class="btn btn-danger btn-sm w-100 fw-bold rounded-3 btn-submit-auth" data-confirm="¿Aprobar cancelación? Los equipos regresarán al inventario.">
+                                            <i class="bi bi-check-lg me-1"></i> Cancelar Renta
+                                        </button>
+                                    </form>
+                                    <form action="{{ route('autorizaciones.rechazarCancelacionRenta', $renta) }}" method="POST" class="flex-fill form-autorizacion">
+                                        @csrf
+                                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 fw-bold rounded-3 btn-submit-auth" data-confirm="¿Denegar la solicitud y mantener la renta activa?">
+                                            <i class="bi bi-x-lg me-1"></i> Denegar
+                                        </button>
+                                    </form>
+                                    <a href="{{ route('rentas.show', $renta) }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3" title="Ver Detalles">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -554,7 +616,6 @@
         
         function asignarEventosBotones() {
             document.querySelectorAll('.btn-submit-auth').forEach(button => {
-                // Removemos el evento previo si existiera para evitar duplicados
                 const nuevoBoton = button.cloneNode(true);
                 button.parentNode.replaceChild(nuevoBoton, button);
                 

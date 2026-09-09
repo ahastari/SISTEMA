@@ -123,7 +123,7 @@
                         <select name="obra_id" class="form-select form-select-sm bg-body" id="obraSelect">
                             <option value="">Seleccionar obra (opcional)...</option>
                         </select>
-                        <small class="text-secondary" style="font-size: 11px;">¿No existe la obra? <a href="{{ route('obras.create') }}" target="_blank" class="text-primary">Regístrala aquí</a></small>
+                        <small class="text-secondary" style="font-size: 11px;">¿No existe la obra? <a href="#" data-bs-toggle="modal" data-bs-target="#modalNuevaObra" class="text-primary">Regístrala aquí</a></small>
                     </div>
                     
                     <div class="row g-2 mb-3">
@@ -152,7 +152,7 @@
                         <small class="text-secondary" style="font-size: 11px;">Se calcula día de salida y día de entrega</small>
                     </div>
                     
-                    <!-- 🔥 NUEVO: Selector de Facturación -->
+                    <!-- Selector de Facturación -->
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-body">¿Requiere Factura? <span class="text-danger">*</span></label>
                         <div class="row g-2">
@@ -265,7 +265,6 @@
                                 <th class="p-1 text-secondary">Equipos:</th>
                                 <td class="p-1 text-end text-body"><strong id="res_equipos">$0.00</strong></td>
                             </tr>
-                            <!-- 🔥 NUEVO: Filas ocultas por defecto para Flete y Mano de Obra -->
                             <tr id="fila_flete" style="display: none;">
                                 <th class="p-1 text-secondary">Flete:</th>
                                 <td class="p-1 text-end text-body"><strong id="res_flete">$0.00</strong></td>
@@ -308,33 +307,100 @@
     </div>
 </form>
 
+<!-- ======================================================= -->
+<!-- MODAL PARA REGISTRAR NUEVA OBRA (AHORA SOLO HAY UNO) -->
+<!-- ======================================================= -->
+<div class="modal fade" id="modalNuevaObra" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-primary text-white py-3 px-4 border-0">
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-building-add me-2"></i>Registrar Nueva Obra</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formNuevaObraAjax">
+                @csrf
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-body">Nombre de la Obra / Proyecto <span class="text-danger">*</span></label>
+                            <input type="text" name="nombre" class="form-control form-control-sm bg-body" placeholder="Ej: Residencial Los Arboles" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-body">Cliente Asociado <span class="text-danger">*</span></label>
+                            <select name="cliente_id" id="modal_cliente_id" class="form-select form-select-sm bg-body" required>
+                                <option value="">Seleccionar cliente...</option>
+                                @foreach($clientes as $cliente)
+                                    <option value="{{ $cliente->id }}">{{ $cliente->nombre_completo }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold text-body">Calle y Número <span class="text-danger">*</span></label>
+                            <textarea name="direccion" class="form-control form-control-sm bg-body" rows="2" required></textarea>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold text-body">Colonia</label>
+                            <input type="text" name="colonia" class="form-control form-control-sm bg-body">
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold text-body">Ciudad / Municipio</label>
+                            <input type="text" name="ciudad" class="form-control form-control-sm bg-body" value="Durango">
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold text-body">Estado</label>
+                            <input type="text" name="estado" class="form-control form-control-sm bg-body" value="Dgo.">
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold text-body">Código Postal</label>
+                            <input type="text" name="codigo_postal" class="form-control form-control-sm bg-body">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-semibold text-body">Teléfono de la Obra</label>
+                            <input type="text" name="telefono_obra" class="form-control form-control-sm bg-body" maxlength="10">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-semibold text-body">Contacto / Encargado</label>
+                            <input type="text" name="contacto_obra" class="form-control form-control-sm bg-body">
+                        </div>
+                        <div class="col-12 col-md-4 d-flex align-items-center">
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" name="activa" id="modal_activa" value="1" checked>
+                                <label class="form-check-label fw-semibold text-body small" for="modal_activa">Obra activa</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold text-body">Observaciones</label>
+                            <textarea name="observaciones" class="form-control form-control-sm bg-body" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" id="btnGuardarObraAjax" class="btn btn-success btn-sm fw-bold rounded-3 px-4 shadow-sm">
+                        <i class="bi bi-check-lg me-1"></i> Guardar Obra
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 let equipos = [];
-let requiereFactura = true; // 🔥 Por defecto: Con Factura
+let requiereFactura = true; 
 
-// 🔥 NUEVO: Función para seleccionar tipo de facturación
 function seleccionarFacturacion(conFactura) {
     requiereFactura = conFactura;
-    
-    // Actualizar UI
     document.getElementById('conFactura').classList.toggle('selected', conFactura);
     document.getElementById('sinFactura').classList.toggle('selected', !conFactura);
-    
-    // Actualizar campo hidden
     document.getElementById('requiere_factura').value = conFactura ? '1' : '0';
-    
-    // Mostrar/ocultar fila de IVA
     document.getElementById('fila_iva').style.display = conFactura ? '' : 'none';
-    
-    // Recalcular totales
     actualizarResumen();
 }
 
-// Calcular días
 function calcularDias() {
     const inicio = document.getElementById('fecha_inicio').value;
     const fin = document.getElementById('fecha_fin').value;
-    
     if (inicio && fin) {
         const fechaInicio = new Date(inicio);
         const fechaFin = new Date(fin);
@@ -354,46 +420,31 @@ function actualizarResumen() {
         subtotalEquipos += eq.precio * eq.cantidad * dias;
     });
     
-    // Obtener valores
     const flete = parseFloat(document.getElementById('flete').value) || 0;
     const manoObra = parseFloat(document.getElementById('mano_obra').value) || 0;
-    
-    // Sumar todo para el subtotal general
     let subtotal = subtotalEquipos + flete + manoObra;
-    
-    // Calcular IVA según si requiere factura
     const iva = requiereFactura ? (subtotal * 0.16) : 0;
     const total = subtotal + iva;
     const deposito = parseFloat(document.getElementById('deposito').value) || 0;
     const saldo = total - deposito;
     
-    // 🔥 ACTUALIZAR UI DEL DESGLOSE
     document.getElementById('res_equipos').innerHTML = '$' + subtotalEquipos.toFixed(2);
-    
-    // Mostrar u ocultar Flete
     document.getElementById('fila_flete').style.display = flete > 0 ? '' : 'none';
     document.getElementById('res_flete').innerHTML = '$' + flete.toFixed(2);
-    
-    // Mostrar u ocultar Mano de Obra
     document.getElementById('fila_mano_obra').style.display = manoObra > 0 ? '' : 'none';
     document.getElementById('res_mano_obra').innerHTML = '$' + manoObra.toFixed(2);
-    
     document.getElementById('res_subtotal').innerHTML = '$' + subtotal.toFixed(2);
     document.getElementById('res_iva').innerHTML = '$' + iva.toFixed(2);
     document.getElementById('res_total').innerHTML = '$' + total.toFixed(2);
     document.getElementById('res_deposito').innerHTML = '$' + deposito.toFixed(2);
     document.getElementById('res_saldo').innerHTML = '$' + saldo.toFixed(2);
-    
-    // Mostrar/ocultar fila de IVA
     document.getElementById('fila_iva').style.display = requiereFactura ? '' : 'none';
-    
     document.getElementById('btnGuardar').disabled = equipos.length === 0;
 }
 
 document.getElementById('flete').addEventListener('input', actualizarResumen);
 document.getElementById('mano_obra').addEventListener('input', actualizarResumen);
 
-// Agregar equipo
 function agregarEquipo() {
     const select = document.getElementById('selectEquipo');
     const cantidad = parseInt(document.getElementById('cantidadEquipo').value);
@@ -429,7 +480,6 @@ function agregarEquipo() {
     
     renderizarEquipos();
     actualizarResumen();
-    
     select.value = '';
     document.getElementById('cantidadEquipo').value = '';
 }
@@ -442,12 +492,10 @@ function eliminarEquipo(index) {
 
 function renderizarEquipos() {
     const container = document.getElementById('equiposLista');
-    
     if (equipos.length === 0) {
         container.innerHTML = '<div class="alert alert-info py-2 px-3 mb-0 small"><i class="bi bi-info-circle me-1"></i> No hay equipos agregados al contrato</div>';
         return;
     }
-    
     let html = '';
     equipos.forEach((eq, index) => {
         html += `
@@ -468,18 +516,15 @@ function renderizarEquipos() {
             <input type="hidden" name="equipos[${index}][cantidad]" value="${eq.cantidad}">
         `;
     });
-    
     container.innerHTML = html;
 }
 
-// Cargar obras AJAX
 document.getElementById('clienteSelect').addEventListener('change', function() {
     const clienteId = this.value;
     const obraSelect = document.getElementById('obraSelect');
     
     if (clienteId) {
         obraSelect.innerHTML = '<option value="">Cargando obras...</option>';
-        
         fetch(`/get-obras/${clienteId}`)
             .then(response => response.json())
             .then(data => {
@@ -512,5 +557,72 @@ document.addEventListener('DOMContentLoaded', function() {
 document.getElementById('fecha_inicio').addEventListener('change', actualizarResumen);
 document.getElementById('fecha_fin').addEventListener('change', actualizarResumen);
 document.getElementById('deposito').addEventListener('input', actualizarResumen);
+
+
+// ====== LÓGICA DEL MODAL DE NUEVA OBRA ====== //
+
+document.getElementById('modalNuevaObra').addEventListener('show.bs.modal', function () {
+    const clienteSelectRenta = document.getElementById('clienteSelect');
+    const modalClienteId = document.getElementById('modal_cliente_id');
+    if(clienteSelectRenta.value) {
+        modalClienteId.value = clienteSelectRenta.value;
+    }
+});
+
+document.getElementById('formNuevaObraAjax').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const form = this;
+    const formData = new FormData(form);
+    const btnGuardar = document.getElementById('btnGuardarObraAjax');
+    const originalBtnHtml = btnGuardar.innerHTML;
+    
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
+
+    fetch("{{ route('obras.store') }}", {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        },
+        body: formData 
+    })
+    .then(async response => {
+        if (!response.ok) {
+            if (response.status === 422) { 
+                const data = await response.json();
+                let errors = '';
+                for (let field in data.errors) {
+                    errors += data.errors[field].join('\n') + '\n';
+                }
+                throw new Error(errors);
+            }
+            throw new Error('Ocurrió un error en el servidor al guardar la obra.');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if(data.success) {
+            const clienteActual = document.getElementById('clienteSelect').value;
+            if(clienteActual == data.obra.cliente_id) {
+                const obraSelect = document.getElementById('obraSelect');
+                const option = new Option(data.obra.nombre + ' - ' + data.obra.direccion, data.obra.id, true, true);
+                obraSelect.add(option);
+            }
+            form.reset();
+            const modalInstance = bootstrap.Modal.getInstance(document.getElementById('modalNuevaObra'));
+            modalInstance.hide();
+            alert('¡La obra fue registrada y seleccionada exitosamente!');
+        }
+    })
+    .catch(error => {
+        alert("Errores al guardar:\n\n" + error.message);
+    })
+    .finally(() => {
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = originalBtnHtml;
+    });
+});
 </script>
 @endsection

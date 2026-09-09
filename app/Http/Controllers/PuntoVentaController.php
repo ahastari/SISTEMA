@@ -70,7 +70,8 @@ class PuntoVentaController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('nombre', 'like', "%{$search}%")
-                  ->orWhere('codigo', 'like', "%{$search}%");
+                ->orWhere('codigo', 'like', "%{$search}%")
+                ->orWhere('codigo_barras', 'like', "%{$search}%"); // 🔥 Línea agregada
             });
         }
 

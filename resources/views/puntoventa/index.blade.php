@@ -279,7 +279,14 @@
                                 <div>
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <span class="badge bg-secondary font-monospace" style="font-size: 10px;">{{ $producto->codigo }}</span>
-                                        <i class="bi bi-box-seam text-secondary small"></i>
+                                        
+                                        @if($producto->codigo_barras)
+                                            <span class="text-secondary font-monospace d-flex align-items-center" style="font-size: 10px;" title="Código de barras">
+                                                <i class="bi bi-upc-scan me-1"></i> {{ $producto->codigo_barras }}
+                                            </span>
+                                        @else
+                                            <i class="bi bi-box-seam text-secondary small" title="Sin código de barras"></i>
+                                        @endif
                                     </div>
 
                                     <div class="product-image-wrapper mb-2">
@@ -1085,7 +1092,12 @@ if(inputBusqueda) {
         if (e.key === 'Enter') {
             e.preventDefault();
             const busqueda = this.value.toLowerCase().trim();
-            const productoExacto = productos.find(p => p.codigo && p.codigo.toLowerCase() === busqueda);
+            
+            const productoExacto = productos.find(p => 
+                (p.codigo && p.codigo.toLowerCase() === busqueda) || 
+                (p.codigo_barras && p.codigo_barras.toLowerCase() === busqueda)
+            );
+            
             if (productoExacto) {
                 agregarProducto(productoExacto.id);
                 this.value = ''; 
@@ -1111,7 +1123,8 @@ function filtrarProductos() {
 
         let mostrar = true;
         if (busqueda) {
-            const texto = (producto.nombre + ' ' + (producto.codigo || '')).toLowerCase();
+            const texto = (producto.nombre + ' ' + (producto.codigo || '') + ' ' + (producto.codigo_barras || '')).toLowerCase();
+            
             if (!texto.includes(busqueda)) mostrar = false;
         }
         if (categoria && producto.categoria?.nombre !== categoria) {

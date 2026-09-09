@@ -18,7 +18,7 @@ class AutorizacionController extends Controller
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
 
         // 1. CONSULTAS DE PENDIENTES
-        $queryRentasPendientes = \App\Models\Renta::with(['cliente', 'solicitadoPor'])->where('autorizacion_solicitada', true)->where('estado', 'activa');
+        $queryRentasPendientes = \App\Models\Renta::with(['cliente', 'solicitadoPor', 'detalles'])->where('autorizacion_solicitada', true)->where('estado', 'activa');
         $queryMovimientosPendientes = \App\Models\MovimientoSucursal::with(['equipo', 'sucursalOrigen', 'sucursalDestino', 'usuario'])->where('tipo', 'transferencia')->where('estado', 'pendiente');
         $queryVentasPendientes = \App\Models\Venta::with(['cliente', 'solicitadoPor'])->where('autorizacion_solicitada', true)->where('estado', 'completada');
 
@@ -37,7 +37,38 @@ class AutorizacionController extends Controller
             $queryHistorialVentas->where('sucursal_id', $sucursalId);
         }
 
-        $autorizacionesRentas = $queryRentasPendientes->latest()->get();
+        $autorizacionesRentasAll = $queryRentasPendientes->latest()->get();
+
+        foreach ($autorizacionesRentasAll as $renta) {
+            $multaCalculada = 0;
+            $hoy = now()->startOfDay();
+            $fechaFin = \Carbon\Carbon::parse($renta->fecha_fin)->startOfDay();
+
+            if ($hoy > $fechaFin) {
+                $diasRetraso = $fechaFin->diffInDays($hoy);
+                $costoDiario = 0;
+                foreach ($renta->detalles as $detalle) {
+                    $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                    if ($pendiente > 0) {
+                        $costoDiario += ($detalle->precio_dia * $pendiente);
+                    }
+                }
+                $multaCalculada = $diasRetraso * $costoDiario;
+            }
+            
+            $renta->total_real = $renta->total + $multaCalculada;
+            $renta->saldo_pendiente_real = $renta->saldo_pendiente + $multaCalculada;
+        }
+        
+        // Separamos usando el prefijo mágico [CANCELACION]
+        $autorizacionesRentas = $autorizacionesRentasAll->filter(function($r) {
+            return !str_starts_with($r->motivo_autorizacion, '[CANCELACION]');
+        });
+        
+        $rentasCancelacion = $autorizacionesRentasAll->filter(function($r) {
+            return str_starts_with($r->motivo_autorizacion, '[CANCELACION]');
+        });
+
         $movimientosPendientes = $queryMovimientosPendientes->latest()->get();
         $autorizacionesVentas = $queryVentasPendientes->latest()->get();
 
@@ -98,7 +129,7 @@ class AutorizacionController extends Controller
             ['path' => request()->url(), 'query' => request()->query()]
         );
 
-        return view('autorizaciones.index', compact('autorizacionesRentas', 'movimientosPendientes', 'autorizacionesVentas', 'historial'));
+        return view('autorizaciones.index', compact('autorizacionesRentas', 'rentasCancelacion', 'movimientosPendientes', 'autorizacionesVentas', 'historial'));
     }
 
     // --- NUEVOS MÉTODOS PARA VENTAS ---
@@ -159,6 +190,57 @@ class AutorizacionController extends Controller
             'observaciones' => ($venta->observaciones ? $venta->observaciones . "\n" : '') . "[CANCELACIÓN DENEGADA POR GERENTE]"
         ]);
         return back()->with('success', 'Solicitud de cancelación rechazada.');
+    }
+
+    public function aprobarCancelacionRenta(\App\Models\Renta $renta)
+    {
+        try {
+            DB::beginTransaction();
+
+            $renta->load('detalles.equipo');
+            foreach ($renta->detalles as $detalle) {
+                $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                if ($pendiente > 0) {
+                    $equipo = $detalle->equipo;
+                    if ($renta->sucursal_id) {
+                        $equipo->actualizarStockEnSucursal($renta->sucursal_id, $pendiente, 'sumar');
+                    } else {
+                        $equipo->stock += $pendiente;
+                        $equipo->save();
+                    }
+                    $detalle->cantidad_devuelta = $detalle->cantidad;
+                    $detalle->save();
+                }
+            }
+
+            // Quitamos la etiqueta técnica para el texto visible
+            $motivoLimpio = str_replace('[CANCELACION] ', '', $renta->motivo_autorizacion);
+
+            $renta->update([
+                'estado' => 'cancelada',
+                'fecha_devolucion' => now(),
+                'autorizacion_solicitada' => false,
+                'autorizado_por_id' => auth()->id(),
+                'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "\n[CANCELACIÓN APROBADA POR GERENTE] Motivo: " . $motivoLimpio
+            ]);
+
+            DB::commit();
+            return back()->with('success', 'La cancelación de la renta fue aprobada y los equipos restaurados.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error al procesar la cancelación: ' . $e->getMessage());
+        }
+    }
+
+    public function rechazarCancelacionRenta(\App\Models\Renta $renta)
+    {
+        $renta->update([
+            'autorizacion_solicitada' => false,
+            'motivo_autorizacion' => null,
+            'autorizado_por_id' => auth()->id(),
+            'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "\n[CANCELACIÓN DENEGADA POR GERENTE]"
+        ]);
+        return back()->with('success', 'Solicitud de cancelación rechazada. El contrato sigue activo.');
     }
 
     public function aprobar(Renta $renta)

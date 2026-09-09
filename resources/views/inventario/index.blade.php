@@ -39,6 +39,34 @@
     </div>
 @endif
 
+<div class="row mb-3 mt-2">
+    <div class="col-12">
+        <div class="d-flex flex-wrap gap-2">
+            @php $estadoActual = request('estado_stock', 'all'); @endphp
+            
+            <a href="{{ request()->fullUrlWithQuery(['estado_stock' => 'all', 'page' => 1]) }}" 
+               class="btn btn-outline-primary btn-sm flex-fill flex-md-grow-0 rounded-3 {{ $estadoActual == 'all' ? 'active' : '' }}">
+                Todos
+            </a>
+            
+            <a href="{{ request()->fullUrlWithQuery(['estado_stock' => 'normal', 'page' => 1]) }}" 
+               class="btn btn-outline-success btn-sm flex-fill flex-md-grow-0 rounded-3 {{ $estadoActual == 'normal' ? 'active' : '' }}">
+                Stock Normal
+            </a>
+            
+            <a href="{{ request()->fullUrlWithQuery(['estado_stock' => 'bajo', 'page' => 1]) }}" 
+               class="btn btn-outline-warning btn-sm flex-fill flex-md-grow-0 rounded-3 {{ $estadoActual == 'bajo' ? 'active' : '' }}">
+                Stock Bajo
+            </a>
+            
+            <a href="{{ request()->fullUrlWithQuery(['estado_stock' => 'agotado', 'page' => 1]) }}" 
+               class="btn btn-outline-danger btn-sm flex-fill flex-md-grow-0 rounded-3 {{ $estadoActual == 'agotado' ? 'active' : '' }}">
+                Agotados
+            </a>
+        </div>
+    </div>
+</div>
+
 <!-- PESTAÑAS (TABS) PARA USUARIOS NO GLOBALES -->
 @if(!$isGlobalAdmin)
 <ul class="nav nav-tabs mb-3" style="border-bottom: 2px solid var(--bs-border-color);">
@@ -63,11 +91,15 @@
         <!-- Tu formulario de búsqueda (Buscador y Select) aquí se mantiene igual -->
         <div class="row g-2 mb-3">
             <div class="col-12 col-md-6 col-lg-5">
-                <form method="GET" action="{{ route('inventario.index') }}">
+                <form method="GET" action="{{ route('inventario.index') }}" id="formBusquedaTable">
                     <input type="hidden" name="view" value="table"> 
                     <input type="hidden" name="tab" value="{{ $tabActivo }}"> 
+                    @if(request()->filled('estado_stock'))
+                        <input type="hidden" name="estado_stock" value="{{ request('estado_stock') }}">
+                    @endif
+                    
                     <div class="input-group input-group-sm shadow-sm rounded">
-                        <input type="text" name="search" class="form-control bg-body border-end-0" placeholder="Buscar por nombre, código o código de barras..." value="{{ request('search') }}" autofocus>
+                        <input type="text" id="inputBusquedaTable" name="search" class="form-control bg-body border-end-0" placeholder="Buscar por nombre, código o código de barras..." value="{{ request('search') }}" autofocus>
                         <button class="btn btn-primary px-3" type="submit"><i class="bi bi-search"></i> Buscar</button>
                     </div>
                 </form>
@@ -211,4 +243,29 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('inputBusquedaTable');
+    const form = document.getElementById('formBusquedaTable');
+    let timer;
+
+    if(input) {
+        // Mover el cursor al final del texto para no interrumpir la escritura tras la recarga
+        const len = input.value.length;
+        if(len > 0) {
+            input.focus();
+            input.setSelectionRange(len, len);
+        }
+
+        // Búsqueda en tiempo real (Autosubmit con retraso para no saturar el servidor)
+        input.addEventListener('input', function() {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                form.submit();
+            }, 500); // 500ms = Medio segundo de espera tras dejar de teclear
+        });
+    }
+});
+</script>
 @endsection

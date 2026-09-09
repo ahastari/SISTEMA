@@ -99,7 +99,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/rentas/{renta}/finalizar', [RentaController::class, 'finalizar'])->name('rentas.finalizar');
     Route::get('/rentas/{renta}/contrato', [RentaController::class, 'contrato'])->name('rentas.contrato');
     Route::get('/rentas/{renta}/pagare', [RentaController::class, 'pagare'])->name('rentas.pagare');
-    Route::get('/rentas/{renta}/cancelar', [RentaController::class, 'cancelar'])->name('rentas.cancelar');
+    Route::post('/rentas/{renta}/cancelar', [RentaController::class, 'cancelar'])->name('rentas.cancelar');
     
     // Subida de documentos
     Route::post('/rentas/{renta}/upload-contrato', [RentaController::class, 'uploadContrato'])->name('rentas.uploadContrato');
@@ -213,6 +213,10 @@ Route::middleware(['auth', 'permission:ver_autorizaciones'])->group(function () 
         ->name('autorizaciones.aprobarVenta');
     Route::post('/autorizaciones/venta/{venta}/rechazar', [AutorizacionController::class, 'rechazarVenta'])
         ->name('autorizaciones.rechazarVenta');
+    Route::post('/autorizaciones/renta/{renta}/aprobar-cancelacion', [AutorizacionController::class, 'aprobarCancelacionRenta'])
+        ->name('autorizaciones.aprobarCancelacionRenta');
+    Route::post('/autorizaciones/renta/{renta}/rechazar-cancelacion', [AutorizacionController::class, 'rechazarCancelacionRenta'])
+        ->name('autorizaciones.rechazarCancelacionRenta');
 });
 
 /*

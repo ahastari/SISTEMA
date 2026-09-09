@@ -328,12 +328,30 @@ class RentaController extends Controller
             ->with('success', 'Renta finalizada correctamente. Los equipos han sido devueltos al inventario.');
     }
 
-    public function cancelar(Renta $renta)
+    public function cancelar(Request $request, Renta $renta)
     {
         if ($renta->estado !== 'activa') {
             return back()->with('error', 'La renta ya está ' . $renta->estado);
         }
 
+        $esGerente = auth()->user()->isAdmin() || auth()->user()->isGerente();
+
+        // Si es CAJERO, creamos la solicitud de autorización
+        if (!$esGerente) {
+            $request->validate([
+                'motivo_cancelacion' => 'required|string|max:255'
+            ]);
+
+            $renta->update([
+                'autorizacion_solicitada' => true,
+                'motivo_autorizacion' => '[CANCELACION] ' . $request->motivo_cancelacion,
+                'solicitado_por_id' => auth()->id()
+            ]);
+
+            return back()->with('success', 'Solicitud de cancelación enviada al gerente para su revisión.');
+        }
+
+        // Si ES GERENTE, cancela y devuelve el stock directamente
         $renta->load('detalles.equipo');
         foreach ($renta->detalles as $detalle) {
             $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
@@ -345,15 +363,18 @@ class RentaController extends Controller
                     $equipo->stock += $pendiente;
                     $equipo->save();
                 }
-
                 $detalle->cantidad_devuelta = $detalle->cantidad;
                 $detalle->save();
             }
         }
 
+        $motivoTexto = $request->motivo_cancelacion ? " Motivo: " . $request->motivo_cancelacion : "";
+
         $renta->update([
             'estado' => 'cancelada',
-            'fecha_devolucion' => now()
+            'fecha_devolucion' => now(),
+            'autorizacion_solicitada' => false,
+            'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "[CANCELADA POR GERENTE]" . $motivoTexto
         ]);
 
         return redirect()->route('rentas.show', $renta)

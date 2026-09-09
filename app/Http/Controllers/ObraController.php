@@ -47,7 +47,7 @@ class ObraController extends Controller
             'ciudad' => 'nullable|string|max:100',
             'estado' => 'nullable|string|max:100',
             'codigo_postal' => 'nullable|string|max:10',
-            'telefono_obra' => 'nullable|numeric|digits:10', // Validar exactamente 10 dígitos numéricos
+            'telefono_obra' => 'nullable|numeric|digits:10', 
             'contacto_obra' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string',
         ], [
@@ -59,7 +59,7 @@ class ObraController extends Controller
         $sucursalIdGuardar = ($sucursalId && $sucursalId !== 'global') ? $sucursalId : null;
         $activa = $request->has('activa') ? 1 : 0;
 
-        Obra::create([
+        $obra = Obra::create([
             'nombre' => $request->nombre,
             'direccion' => $request->direccion,
             'cliente_id' => $request->cliente_id,
@@ -73,6 +73,13 @@ class ObraController extends Controller
             'observaciones' => $request->observaciones,
             'activa' => $activa,
         ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'obra' => $obra
+            ]);
+        }
 
         return redirect()->route('obras.index')->with('success', 'Obra creada exitosamente');
     }

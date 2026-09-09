@@ -111,25 +111,39 @@ class EquipoController extends Controller
 
         $query->where('activo', true);
 
-        // Filtros de stock (solo aplican a la pestaña local)
-        if ($tabActivo === 'local') {
-            if ($request->filled('stock_bajo') && $request->stock_bajo == '1') {
-                if (!$isGlobalAdmin) {
-                    $query->whereHas('sucursales', function($q) use ($sucursalId) {
-                        $q->where('sucursal_id', $sucursalId)->where('stock', '<=', DB::raw('equipo_sucursal.stock_minimo'))->where('stock', '>', 0);
-                    });
-                } else {
-                    $query->where('stock', '<=', 5)->where('stock', '>', 0);
-                }
-            }
+        // Filtros de stock unificados (solo aplican a la pestaña local)
+        if ($request->filled('estado_stock')) {
+            $estado = $request->estado_stock;
 
-            if ($request->filled('stock_agotado') && $request->stock_agotado == '1') {
-                if (!$isGlobalAdmin) {
+            if ($estado === 'agotado') {
+                if (!$isGlobalAdmin && $tabActivo === 'local') {
                     $query->whereHas('sucursales', function($q) use ($sucursalId) {
-                        $q->where('sucursal_id', $sucursalId)->where('stock', 0);
+                        $q->where('sucursal_id', $sucursalId)->where('stock', '<=', 0);
                     });
                 } else {
-                    $query->where('stock', 0);
+                    // Aplica al Catálogo Externo o Admin Global
+                    $query->where('stock', '<=', 0);
+                }
+            } elseif ($estado === 'bajo') {
+                if (!$isGlobalAdmin && $tabActivo === 'local') {
+                    $query->whereHas('sucursales', function($q) use ($sucursalId) {
+                        $q->where('sucursal_id', $sucursalId)
+                          ->where('stock', '<=', DB::raw('equipo_sucursal.stock_minimo'))
+                          ->where('stock', '>', 0);
+                    });
+                } else {
+                    // Compara la columna global de stock vs stock_minimo real del producto
+                    $query->whereColumn('stock', '<=', 'stock_minimo')->where('stock', '>', 0);
+                }
+            } elseif ($estado === 'normal') {
+                if (!$isGlobalAdmin && $tabActivo === 'local') {
+                    $query->whereHas('sucursales', function($q) use ($sucursalId) {
+                        $q->where('sucursal_id', $sucursalId)
+                          ->where('stock', '>', DB::raw('equipo_sucursal.stock_minimo'));
+                    });
+                } else {
+                    // Filtra productos cuyo stock global es mayor a su stock mínimo
+                    $query->whereColumn('stock', '>', 'stock_minimo');
                 }
             }
         }
@@ -282,6 +296,35 @@ class EquipoController extends Controller
             'sucursal_id' => 'nullable',
         ]);
 
+        // 🔥 1. INTERCEPTOR DE DUPLICADOS: Buscar si ya existe el producto a nivel global
+        $equipoExistente = Equipo::where('nombre', trim($request->nombre))
+                                 ->where('categoria_id', $request->categoria_id)
+                                 ->first();
+
+        $sucursalId = $request->sucursal_id ?? session('activo_sucursal_id');
+        if (!$sucursalId || $sucursalId === 'global') {
+            $primeraSucursal = \App\Models\Sucursal::where('activa', true)->first();
+            $sucursalId = $primeraSucursal ? $primeraSucursal->id : null;
+        }
+
+        // Si el producto ya existe, solo lo vinculamos a la sucursal actual
+        if ($equipoExistente) {
+            if ($sucursalId) {
+                // Usamos tu método existente para sumar el nuevo stock a la tabla pivote
+                $equipoExistente->actualizarStockEnSucursal($sucursalId, $request->stock, 'sumar');
+                
+                // Actualizamos el stock mínimo para esta sucursal específica
+                DB::table('equipo_sucursal')
+                    ->where('equipo_id', $equipoExistente->id)
+                    ->where('sucursal_id', $sucursalId)
+                    ->update(['stock_minimo' => $request->stock_minimo]);
+            }
+
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('success', 'El producto ya existía en el catálogo de otra sucursal. Se ha vinculado exitosamente a tu almacén bajo el código: ' . $equipoExistente->codigo);
+        }
+
+        // 2. FLUJO NORMAL: Si no existe, se crea un producto totalmente nuevo
         $ops = $request->operaciones;
         $tipo_operacion = (count($ops) == 2) ? 'ambas' : $ops[0];
 
@@ -301,6 +344,16 @@ class EquipoController extends Controller
         $equipo->stock_minimo = $request->stock_minimo;
         $equipo->descripcion = $request->descripcion;
         $equipo->activo = $request->has('activo');
+        $equipo->categoria_id = $request->categoria_id;
+        $equipo->unidad_medida_id = $request->unidad_medida_id;
+        $equipo->tipo_operacion = $tipo_operacion;
+        $equipo->costo = $request->costo ?? 0;
+        $equipo->precio_dia = $request->precio_dia ?? 0;
+        $equipo->precio_venta = $request->precio_venta ?? 0;
+        $equipo->stock = $request->stock;
+        $equipo->stock_minimo = $request->stock_minimo;
+        $equipo->descripcion = $request->descripcion;
+        $equipo->activo = $request->has('activo');
 
         if ($request->hasFile('imagen')) {
             $path = $request->file('imagen')->store('equipos', 'public');
@@ -308,14 +361,6 @@ class EquipoController extends Controller
         }
 
         $equipo->save();
-
-        $sucursalId = $request->sucursal_id ?? session('activo_sucursal_id');
-        
-        // Si no se especificó o está en 'global', asignar a la primera sucursal activa
-        if (!$sucursalId || $sucursalId === 'global') {
-            $primeraSucursal = \App\Models\Sucursal::where('activa', true)->first();
-            $sucursalId = $primeraSucursal ? $primeraSucursal->id : null;
-        }
 
         if ($sucursalId) {
             $equipo->sucursales()->syncWithoutDetaching([
@@ -325,7 +370,6 @@ class EquipoController extends Controller
                 ]
             ]);
             
-            // Sincronizar el acumulado total
             $equipo->sincronizarStockTotal();
         }
 

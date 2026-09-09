@@ -129,9 +129,9 @@
                     </button>
                 @endif
 
-                <a href="{{ route('rentas.cancelar', $renta) }}" class="btn btn-outline-danger btn-sm rounded-3" onclick="return confirm('¿Cancelar?');">
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#modalCancelarRenta">
                     <i class="bi bi-x-octagon me-1"></i> Cancelar
-                </a>
+                </button>
             @endif
 
         </div>
@@ -139,10 +139,17 @@
 </div>
 
 @if($renta->autorizacion_solicitada)
-<div class="alert alert-warning alert-dismissible fade show rounded-3 mb-4 border-warning shadow-sm" role="alert">
-    <i class="bi bi-shield-lock-fill me-2 text-warning fs-5"></i>
-    <strong>Cuenta en Revisión:</strong> Se ha solicitado autorización al gerente para finalizar esta renta con un adeudo. Las acciones de cuenta están bloqueadas temporalmente hasta su respuesta.
-</div>
+    @if(str_starts_with($renta->motivo_autorizacion, '[CANCELACION]'))
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4 shadow-sm" role="alert">
+            <i class="bi bi-shield-lock-fill me-2 fs-5"></i>
+            <strong>Cancelación en Revisión:</strong> Se ha solicitado autorización al gerente para cancelar totalmente este contrato. Acciones bloqueadas.
+        </div>
+    @else
+        <div class="alert alert-warning alert-dismissible fade show rounded-3 mb-4 border-warning shadow-sm" role="alert">
+            <i class="bi bi-shield-lock-fill me-2 text-warning fs-5"></i>
+            <strong>Cuenta en Revisión:</strong> Se ha solicitado autorización al gerente para finalizar esta renta con un adeudo. Acciones bloqueadas.
+        </div>
+    @endif
 @endif
 
 @if($renta->autorizacion_aprobada)
@@ -296,6 +303,7 @@
                             <th>Movimiento</th>
                             <th>Detalle / Ref.</th>
                             <th class="text-end">Monto</th>
+                            <th class="text-center" style="width: 45px;"><i class="bi bi-printer"></i></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -305,6 +313,7 @@
                             <td><span class="badge bg-secondary">Depósito</span></td>
                             <td class="text-secondary small">Garantía inicial</td>
                             <td class="text-end fw-bold text-primary">-${{ number_format($renta->deposito, 2) }}</td>
+                            <td></td>
                         </tr>
                         @endif
 
@@ -323,6 +332,7 @@
                             <td><span class="badge bg-primary">Ampliación</span></td>
                             <td class="text-secondary small">+{{ $renta->dias_ampliados }} días al contrato</td>
                             <td class="text-end fw-bold text-danger">+${{ number_format($montoTotalAmpliacionMov, 2) }}</td>
+                            <td></td>
                         </tr>
                         @endif
 
@@ -342,6 +352,11 @@
                                 {{ $pago->referencia ?? $pago->observaciones ?? 'Abono a cuenta' }}
                             </td>
                             <td class="text-end fw-bold text-success">-${{ number_format($pago->monto, 2) }}</td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-outline-secondary border rounded-3 shadow-sm px-2 py-1" onclick="reimprimirTicket('{{ route('rentas.ticketPago', $pago->id) }}')" title="Reimprimir Ticket">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+                            </td>
                         </tr>
                         @endforeach
 
@@ -351,6 +366,7 @@
                             <td><span class="badge bg-danger">Cargos Extra</span></td>
                             <td class="text-secondary small">Multas, Daños o Faltantes</td>
                             <td class="text-end fw-bold text-danger">+${{ number_format($renta->cargos_extra, 2) }}</td>
+                            <td></td>
                         </tr>
                         @endif
 
@@ -360,12 +376,13 @@
                             <td><span class="badge bg-danger">Retraso</span></td>
                             <td class="text-danger small">{{ $diasRetraso }} día(s) vencido(s)</td>
                             <td class="text-end fw-bold text-danger">+${{ number_format($multaCalculada, 2) }}</td>
+                            <td></td>
                         </tr>
                         @endif
 
                         @if(($renta->deposito ?? 0) <= 0 && ($renta->dias_ampliados ?? 0) <= 0 && $renta->pagos->count() == 0 && (!isset($renta->cargos_extra) || $renta->cargos_extra <= 0) && $multaCalculada <=0)
                         <tr>
-                            <td colspan="4" class="text-center text-secondary py-4">No hay movimientos financieros registrados.</td>
+                            <td colspan="5" class="text-center text-secondary py-4">No hay movimientos financieros registrados.</td>
                         </tr>
                         @endif
                     </tbody>
@@ -657,11 +674,11 @@
     @endif
 </div>
 
-@if($renta->saldo_pendiente > 0 || $renta->estado == 'activa')
+<!-- ======================= INICIO SECCIÓN MODALES ======================= -->
 
+@if($renta->saldo_pendiente > 0 || $renta->estado == 'activa')
 <!-- MODAL: Registro de Pago / Liquidación -->
 <div class="modal fade" id="modalPago" tabindex="-1" aria-hidden="true">
-    <!-- Se cambia modal-xl por modal-lg para hacerlo menos ancho -->
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
             
@@ -683,7 +700,7 @@
             </div>
 
             <!-- EVENTO ONSUBMIT PARA PROTEGER EL CÁLCULO DE EXTENSIONES DEL NAVEGADOR -->
-            <form action="{{ route('rentas.registrarPago', $renta) }}" method="POST" onsubmit="calcularCambioPago();">
+            <form action="{{ route('rentas.registrarPago', $renta) }}" method="POST" onsubmit="return prepararEnvioPago();">
                 @csrf
                 <div class="modal-body p-4">
                     <div class="row g-4">
@@ -705,9 +722,8 @@
                                                 <tr>
                                                     <th class="ps-3 py-2">Equipo</th>
                                                     <th class="text-center py-2">Pendiente</th>
-                                                    <th style="width: 90px;" class="text-center py-2">A Devolver</th>
-                                                    <th style="width: 80px;" class="text-center py-2">Faltantes</th>
-                                                    <th style="width: 135px;" class="text-center pe-3 py-2">Cobro ($)</th>
+                                                    <th style="width: 100px;" class="text-center py-2">A Devolver</th>
+                                                    <th style="width: 90px;" class="text-center pe-3 py-2">Faltantes</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -715,22 +731,16 @@
                                                 @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
                                                 @if($pendiente > 0)
                                                 <tr class="fila-detalle-pago border-bottom" data-detalle-id="{{ $detalle->id }}" data-pendiente="{{ $pendiente }}">
-                                                    <td class="ps-3 fw-semibold text-truncate text-body" style="max-width: 110px;" title="{{ $detalle->equipo->nombre }}">
+                                                    <td class="ps-3 fw-semibold text-truncate text-body" style="max-width: 130px;" title="{{ $detalle->equipo->nombre }}">
                                                         {{ $detalle->equipo->nombre }}
                                                     </td>
                                                     <td class="text-center">
                                                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">{{ $pendiente }}</span>
                                                     </td>
                                                     <td class="text-center">
-                                                        <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center px-1 fw-bold bg-body text-body input-devuelto-pago" min="0" max="{{ $pendiente }}" value="0" oninput="calcularFaltantesPagoModal()">
+                                                        <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center px-1 fw-bold bg-body text-body input-devuelto-pago" min="0" max="{{ $pendiente }}" value="" placeholder="0" oninput="calcularFaltantesPagoModal()">
                                                     </td>
-                                                    <td class="text-center fw-bold text-body-secondary col-faltante-pago">0</td>
-                                                    <td class="pe-3">
-                                                        <div class="input-group input-group-sm">
-                                                            <span class="input-group-text bg-body-tertiary text-body border-end-0 px-1">$</span>
-                                                            <input type="number" name="costo_faltante[{{ $detalle->id }}]" class="form-control form-control-sm text-end bg-body text-body input-costo-faltante-pago fw-semibold px-1" step="0.01" min="0" value="0" placeholder="0.00" oninput="calcularCambioPago()" disabled>
-                                                        </div>
-                                                    </td>
+                                                    <td class="text-center pe-3 fw-bold text-body-secondary col-faltante-pago">0</td>
                                                 </tr>
                                                 @endif
                                                 @endforeach
@@ -1011,7 +1021,7 @@
                         <div class="col-12 mt-2">
                             <div class="alert alert-secondary py-2 px-3 small mb-0">
                                 <div class="d-flex justify-content-between mb-1">
-                                    <span>Monto a cobrar:</span>
+                                    <span>Deuda total a liquidar:</span>
                                     <strong id="montoCobrarFinalText" class="text-primary">${{ number_format(max(0, $saldoPendienteReal), 2) }}</strong>
                                 </div>
                                 <div class="d-flex justify-content-between mb-1">
@@ -1020,7 +1030,7 @@
                                 </div>
                                 <div class="d-flex justify-content-between">
                                     <span>Faltaría por liquidar:</span>
-                                    <strong id="faltanteFinalText" class="text-danger">$0.00</strong>
+                                    <strong id="faltanteFinalText" class="text-danger">${{ number_format(max(0, $saldoPendienteReal), 2) }}</strong>
                                 </div>
                             </div>
                         </div>
@@ -1029,6 +1039,36 @@
                 <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
                     <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-success fw-bold rounded-3 px-4" onclick="return validarCargo()"><i class="bi bi-check-lg me-1"></i> Finalizar Contrato</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Cancelar Renta -->
+<div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-danger text-white py-3 px-4 border-0">
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-x-octagon-fill me-2"></i>Cancelar Renta</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('rentas.cancelar', $renta) }}" method="POST">
+                @csrf
+                <div class="modal-body p-4">
+                    <div class="alert alert-danger py-2 px-3 small mb-3 border-danger shadow-sm bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Atención:</strong> Esta acción anulará el contrato y devolverá los artículos al inventario. Si no eres gerente, se enviará una solicitud.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-body">Motivo de la cancelación <span class="text-danger">*</span></label>
+                        <textarea name="motivo_cancelacion" class="form-control bg-body" rows="3" required placeholder="Explica por qué se está cancelando este contrato..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-body-tertiary py-3 px-4 border-top-0">
+                    <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-danger fw-bold rounded-3 px-4 shadow-sm">
+                        <i class="bi bi-send-fill me-1"></i> {{ (auth()->user()->isAdmin() || auth()->user()->isGerente()) ? 'Cancelar Renta' : 'Enviar Solicitud' }}
+                    </button>
                 </div>
             </form>
         </div>
@@ -1059,19 +1099,17 @@
                             <tbody>
                                 @foreach($renta->detalles as $detalle)
                                 @php $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta; @endphp
+                                @if($pendiente > 0)
                                 <tr>
                                     <td>{{ $detalle->equipo->nombre }}</td>
-                                    <td class="text-center fw-bold {{ $pendiente > 0 ? 'text-danger' : 'text-success' }}">
+                                    <td class="text-center fw-bold text-danger">
                                         {{ $pendiente }}
                                     </td>
                                     <td>
-                                        @if($pendiente > 0)
                                         <input type="number" name="devolver[{{ $detalle->id }}]" class="form-control form-control-sm" min="0" max="{{ $pendiente }}" value="0" onfocus="if(this.value == 0) this.value = '';" onblur="if(this.value == '') this.value = 0;">
-                                        @else
-                                        <span class="badge bg-success w-100">Devuelto</span>
-                                        @endif
                                     </td>
                                 </tr>
+                                @endif
                                 @endforeach
                             </tbody>
                         </table>
@@ -1085,6 +1123,8 @@
         </div>
     </div>
 </div>
+@endif
+<!-- ======================= FIN SECCIÓN MODALES ======================= -->
 
 <!-- MODAL PARA VER E IMPRIMIR EL TICKET DE PAGO -->
 <div class="modal fade" id="modalTicketPago" tabindex="-1" aria-hidden="true">
@@ -1134,7 +1174,6 @@
         </div>
     </div>
 </div>
-@endif
 
 <div id="renta-js-data"
      class="d-none"
@@ -1162,19 +1201,22 @@
     const labelMaximo = document.getElementById('montoMaximoLabel');
 
     function calcularFaltantesPagoModal() {
-        let hayFaltantes = false;
         const filas = document.querySelectorAll('.fila-detalle-pago');
 
         filas.forEach(fila => {
             const pendiente = parseInt(fila.dataset.pendiente) || 0;
             const inputDevuelto = fila.querySelector('.input-devuelto-pago');
             const colFaltante = fila.querySelector('.col-faltante-pago');
-            const inputCosto = fila.querySelector('.input-costo-faltante-pago');
 
             if (!inputDevuelto) return;
 
-            let devuelto = parseInt(inputDevuelto.value);
-            if (isNaN(devuelto) || devuelto < 0) devuelto = 0;
+            let devueltoStr = inputDevuelto.value;
+            let devuelto = parseInt(devueltoStr);
+            
+            if (isNaN(devuelto) || devuelto < 0) {
+                devuelto = 0; 
+            }
+            
             if (devuelto > pendiente) {
                 devuelto = pendiente;
                 inputDevuelto.value = pendiente;
@@ -1184,26 +1226,11 @@
             if (colFaltante) colFaltante.textContent = faltante;
 
             if (faltante > 0) {
-                hayFaltantes = true;
                 if (colFaltante) colFaltante.className = 'text-center fw-bold text-danger col-faltante-pago';
-                if (inputCosto) inputCosto.removeAttribute('disabled');
             } else {
                 if (colFaltante) colFaltante.className = 'text-center fw-bold text-secondary col-faltante-pago';
-                if (inputCosto) {
-                    inputCosto.value = 0;
-                    inputCosto.setAttribute('disabled', 'disabled');
-                }
             }
         });
-
-        const alerta = document.getElementById('alerta-faltantes-equipo-pago');
-        if (alerta) {
-            if (hayFaltantes) {
-                alerta.classList.remove('d-none');
-            } else {
-                alerta.classList.add('d-none');
-            }
-        }
 
         calcularCambioPago();
     }
@@ -1215,20 +1242,13 @@
         const saldoPendienteOriginal = parseFloat(rentaData.saldoPendiente) || 0;
         const multaCalculada = parseFloat(rentaData.multaCalculada) || 0;
 
-        let totalFaltantes = 0;
-        document.querySelectorAll('.input-costo-faltante-pago').forEach(inp => {
-            if (!inp.disabled) {
-                totalFaltantes += parseFloat(inp.value) || 0;
-            }
-        });
-
-        const saldoTotal = saldoPendienteOriginal + multaCalculada + totalFaltantes;
+        const saldoTotal = saldoPendienteOriginal + multaCalculada;
         const montoRecibido = parseFloat(elMontoRecibido.value) || 0;
 
         let montoARegistrar = 0, cambio = 0, faltante = 0;
 
         if (montoRecibido >= saldoTotal) {
-            montoARegistrar = Math.max(0, saldoTotal); // Protege contra registros negativos
+            montoARegistrar = Math.max(0, saldoTotal);
             cambio = montoRecibido - saldoTotal;
         } else {
             montoARegistrar = montoRecibido;
@@ -1244,11 +1264,41 @@
         if (inputRegistrar) inputRegistrar.value = montoARegistrar.toFixed(2);
         if (txtRegistrar) txtRegistrar.textContent = '$' + montoARegistrar.toFixed(2);
         if (txtCambio) txtCambio.textContent = '$' + cambio.toFixed(2);
-        if (txtFaltante) txtFaltante.textContent = '$' + Math.max(0, faltante).toFixed(2); // Ocultar remanentes si es < 0
+        if (txtFaltante) txtFaltante.textContent = '$' + Math.max(0, faltante).toFixed(2); 
 
         if (elNuevoSaldo) {
             elNuevoSaldo.textContent = '$' + Math.max(0, faltante).toFixed(2);
             elNuevoSaldo.className = (faltante <= 0 && montoRecibido > 0) ? 'text-success fw-bold' : 'text-primary fw-bold';
+        }
+    }
+
+    function prepararEnvioPago() {
+        calcularCambioPago();
+        
+        document.querySelectorAll('.input-devuelto-pago').forEach(inp => {
+            if (inp.value === '') {
+                inp.value = '0';
+            }
+        });
+        
+        return true;
+    }
+
+    function reimprimirTicket(url) {
+        // 1. Cargamos el ticket en el iframe
+        let iframe = document.getElementById('iframeTicketPago');
+        if (iframe) {
+            iframe.src = url;
+        }
+        
+        // 2. Mostramos el modal usando Bootstrap de forma segura
+        let modalElement = document.getElementById('modalTicketPago');
+        if (modalElement && typeof bootstrap !== 'undefined') {
+            let modalTicket = bootstrap.Modal.getInstance(modalElement);
+            if(!modalTicket) {
+                modalTicket = new bootstrap.Modal(modalElement);
+            }
+            modalTicket.show();
         }
     }
 
@@ -1304,33 +1354,41 @@
     function recalcularFinalizacion() {
         let multa = parseFloat(inputMulta ? inputMulta.value : 0) || 0;
         let manual = (checkCargoManual && checkCargoManual.checked) ? (parseFloat(inputCargoManual.value) || 0) : 0;
-        let deudaReal = saldoBaseOriginal + multa + manual;
         
-        if (deudaReal < 0) deudaReal = 0; // Prevenir deuda en contra
+        let deudaReal = saldoBaseOriginal + multa + manual;
+        if (deudaReal < 0) deudaReal = 0;
 
-        if (labelMaximo) labelMaximo.textContent = 'Deuda Total: $' + deudaReal.toFixed(2);
+        const formatter = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        });
+
+        if (labelMaximo) labelMaximo.textContent = 'Deuda Total: ' + formatter.format(deudaReal);
 
         const elRecibido = document.getElementById('montoRecibidoFinal');
         let montoRecibido = parseFloat(elRecibido ? elRecibido.value : 0) || 0;
+        
         let montoACobrar = 0, cambio = 0, faltante = 0;
 
         if (montoRecibido >= deudaReal) {
-            montoACobrar = deudaReal;
+            montoACobrar = deudaReal; 
             cambio = montoRecibido - deudaReal;
+            faltante = 0;
         } else {
-            montoACobrar = montoRecibido;
+            montoACobrar = montoRecibido; 
+            cambio = 0;
             faltante = deudaReal - montoRecibido;
         }
 
         if (inputMontoFinalHidden) inputMontoFinalHidden.value = montoACobrar.toFixed(2);
         
-        const txtCobrar = document.getElementById('montoCobrarFinalText');
+        const txtDeudaTotal = document.getElementById('montoCobrarFinalText');
         const txtCambio = document.getElementById('cambioFinalText');
         const txtFaltante = document.getElementById('faltanteFinalText');
 
-        if (txtCobrar) txtCobrar.textContent = '$' + montoACobrar.toFixed(2);
-        if (txtCambio) txtCambio.textContent = '$' + cambio.toFixed(2);
-        if (txtFaltante) txtFaltante.textContent = '$' + faltante.toFixed(2);
+        if (txtDeudaTotal) txtDeudaTotal.textContent = formatter.format(deudaReal);
+        if (txtCambio) txtCambio.textContent = formatter.format(cambio);
+        if (txtFaltante) txtFaltante.textContent = formatter.format(faltante);
     }
 
     function validarCargo() {
@@ -1419,6 +1477,13 @@
                         toggleReferencia();
                         const elRecibido = document.getElementById('inputMontoRecibidoPago');
                         if (elRecibido) elRecibido.value = '';
+                        
+                        // Limpiar campos de "A devolver"
+                        const inputsDevolver = document.querySelectorAll('.input-devuelto-pago');
+                        inputsDevolver.forEach(inp => {
+                            inp.value = '';
+                        });
+                        
                         calcularFaltantesPagoModal();
                     }
                     if (id === 'modalFinalizar') {
@@ -1469,15 +1534,26 @@
     });
 </script>
 
-<!-- AUTO-INICIAR EL TICKET THERMICO SI ESTÁ DISPONIBLE EN LA SESIÓN -->
+<!-- AUTO-INICIAR EL TICKET TÉRMICO SI ESTÁ DISPONIBLE EN LA SESIÓN -->
 @if(session('imprimir_ticket_pago'))
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        let url = "{{ route('rentas.ticketPago', session('imprimir_ticket_pago')) }}";
-        document.getElementById('iframeTicketPago').src = url;
-        let modalTicket = new bootstrap.Modal(document.getElementById('modalTicketPago'));
-        modalTicket.show();
-    });
+    setTimeout(function() {
+        // 1. Asignamos la URL al iframe
+        let urlTicket = "{{ route('rentas.ticketPago', session('imprimir_ticket_pago')) }}";
+        let iframe = document.getElementById('iframeTicketPago');
+        if (iframe) {
+            iframe.src = urlTicket;
+        }
+        
+        // 2. Abrimos el modal de manera segura
+        let modalElement = document.getElementById('modalTicketPago');
+        if (modalElement && typeof bootstrap !== 'undefined') {
+            let modalTicket = new bootstrap.Modal(modalElement);
+            modalTicket.show();
+        } else {
+            console.error("No se pudo cargar Bootstrap o el Modal no existe.");
+        }
+    }, 400); // 400 milisegundos de espera para evitar conflictos de carga
 </script>
 @endif
 @endsection

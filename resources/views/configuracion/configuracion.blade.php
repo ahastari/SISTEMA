@@ -2027,7 +2027,7 @@
                         <input type="email" name="email" class="form-control form-control-sm" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-body">Contraseña Temporal <span class="text-danger">*</span></label>
+                        <label class="form-label small fw-semibold text-body">Contraseña<span class="text-danger">*</span></label>
                         <input type="password" name="password" class="form-control form-control-sm" required minlength="6">
                     </div>
                     <div class="row g-2 mb-3">

@@ -132,12 +132,15 @@
 </ul>
 @endif
 
-<!-- Ocultamos los botones de filtro si estamos en el catálogo externo -->
-@if($tabActivo === 'local' || $isGlobalAdmin)
-<div class="row mb-3">
-    <!-- Tus botones de filtro All, Stock Normal, etc. se mantienen igual -->
+<!-- 🔥 NUEVO BUSCADOR PARA KANBAN -->
+<div class="row g-2 mb-3">
+    <div class="col-12 col-md-6 col-lg-5">
+        <div class="input-group input-group-sm shadow-sm rounded">
+            <span class="input-group-text bg-body text-secondary border-end-0"><i class="bi bi-search"></i></span>
+            <input type="text" id="inputBusquedaKanban" class="form-control bg-body border-start-0" placeholder="Buscar por nombre, código o escáner..." autofocus>
+        </div>
+    </div>
 </div>
-@endif
 
 <div class="row g-3" id="productsGrid">
     @foreach($equipos as $equipo)
@@ -153,11 +156,13 @@
             }
         @endphp
         
-        <div class="col-12 col-sm-6 col-md-4 col-lg-3 product-item {{ $stockClass }}">
+        <!-- 🔥 Atributos data-* agregados para la búsqueda JS -->
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3 product-item {{ $stockClass }}"
+             data-texto-busqueda="{{ strtolower($equipo->nombre . ' ' . $equipo->codigo . ' ' . ($equipo->codigo_barras ?? '')) }}">
+            
+            <!-- (El resto del contenido de tu tarjeta se mantiene igual) -->
             <div class="card product-card shadow-sm h-100 position-relative">
-                
                 <img src="{{ $equipo->imagen ? Storage::url($equipo->imagen) : '' }}" class="product-image {{ !$equipo->imagen ? 'bg-secondary bg-opacity-25' : '' }}" alt="Imagen">
-                
                 <div class="stock-badge {{ $bgClass }}">{{ $stockStatus }}</div>
                 
                 <div class="card-body p-3 d-flex flex-column">
@@ -168,14 +173,30 @@
                     
                     <h6 class="card-title fw-bold text-body text-truncate mb-2">{{ $equipo->nombre }}</h6>
                     
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top mb-3">
+                    <div class="pt-2 border-top mb-3">
                         @if($tabActivo === 'externos')
-                            <small class="text-info fw-bold"><i class="bi bi-globe me-1"></i> Catálogo Externo</small>
+                            <!-- 🔥 VISTA: CATÁLOGO EXTERNO -->
+                            <small class="text-info fw-bold d-block mb-2" style="font-size: 11px;">
+                                <i class="bi bi-globe me-1"></i> Disponible en otras sucursales:
+                            </small>
+                            <div class="d-flex flex-wrap gap-1">
+                                @foreach($equipo->sucursales as $suc)
+                                    <!-- Filtramos para que solo muestre las que NO son tu sucursal y que tengan stock mayor a 0 -->
+                                    @if($suc->id != session('activo_sucursal_id') && $suc->pivot->stock > 0)
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle font-monospace" style="font-size: 10px;">
+                                            <i class="bi bi-building me-1"></i>{{ $suc->nombre }} ({{ $suc->pivot->stock }})
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </div>
                         @else
-                            <small class="text-secondary">En Almacén:</small>
-                            <strong class="{{ $equipo->stock <= 0 ? 'text-danger' : 'text-body' }} small">
-                                {{ $equipo->stock }} {{ $equipo->unidadMedida->abreviatura ?? 'uds' }}
-                            </strong>
+                            <!-- 🔥 VISTA: MI INVENTARIO (Local - Se mantiene sin distracciones) -->
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-secondary">En Almacén:</small>
+                                <strong class="{{ $equipo->stock <= 0 ? 'text-danger' : 'text-body' }} small">
+                                    {{ $equipo->stock }} {{ $equipo->unidadMedida->abreviatura ?? 'uds' }}
+                                </strong>
+                            </div>
                         @endif
                     </div>
                     
@@ -224,16 +245,46 @@
 </div>
 
 <script>
+let filtroEstadoActivo = 'all';
+
+// Evento para el campo de texto (Búsqueda instantánea)
+const inputBusquedaKanban = document.getElementById('inputBusquedaKanban');
+if(inputBusquedaKanban) {
+    inputBusquedaKanban.addEventListener('input', aplicarFiltrosKanban);
+}
+
+// Función para botones (Stock Normal, Bajo, etc.)
 function filterProducts(type, buttonElement) {
-    // Buscar botones solo dentro de su contenedor de filtros
+    // Actualizar apariencia visual de botones
     document.querySelectorAll('#filterButtonGroup .btn').forEach(btn => btn.classList.remove('active'));
     buttonElement.classList.add('active');
     
-    document.querySelectorAll('.product-item').forEach(item => {
-        if(type === 'all') { 
+    // Guardar el estado activo y aplicar filtros
+    filtroEstadoActivo = type;
+    aplicarFiltrosKanban();
+}
+
+// Función maestra que procesa Búsqueda de Texto + Estado de Stock simultáneamente
+function aplicarFiltrosKanban() {
+    const textoBuscado = inputBusquedaKanban ? inputBusquedaKanban.value.toLowerCase().trim() : '';
+    const tarjetas = document.querySelectorAll('.product-item');
+
+    tarjetas.forEach(item => {
+        // 1. Validar filtro de botones de estado
+        let coincideEstado = (filtroEstadoActivo === 'all') || item.classList.contains(filtroEstadoActivo);
+
+        // 2. Validar búsqueda de texto
+        let coincideTexto = true;
+        if (textoBuscado !== '') {
+            const contenido = item.getAttribute('data-texto-busqueda');
+            coincideTexto = contenido.includes(textoBuscado);
+        }
+
+        // Si cumple ambas condiciones, mostrar. Si falla alguna, ocultar.
+        if (coincideEstado && coincideTexto) {
             item.style.display = ''; 
         } else {
-            item.style.display = item.classList.contains(type) ? '' : 'none';
+            item.style.display = 'none';
         }
     });
 }
