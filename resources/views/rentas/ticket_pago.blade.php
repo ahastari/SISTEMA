@@ -71,8 +71,13 @@
             <div class="mb-1">
                 {{ $pago->renta->sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion') ?? 'Dirección no especificada' }}
             </div>
-            @if(isset($pago->renta->sucursal->telefono))
-                <div>Tel: {{ $pago->renta->sucursal->telefono }}</div>
+            @php
+                $sucTel = $pago->renta->sucursal->telefono ?? null;
+                $sucCel = $pago->renta->sucursal->celular ?? null;
+            @endphp
+            @if($sucTel || $sucCel)
+                @if($sucTel)<div>Tel: {{ $sucTel }}</div>@endif
+                @if($sucCel)<div>Cel: {{ $sucCel }}</div>@endif
             @else
                 <div>Tel: {{ \App\Helpers\ContentHelper::getCompanyData('empresa_telefono') ?? '' }}</div>
             @endif

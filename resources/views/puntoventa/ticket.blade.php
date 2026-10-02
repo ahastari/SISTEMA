@@ -56,8 +56,11 @@
         <div class="text-center mb-2">
             <h2 style="margin: 0; font-size: 16px;">{{ $venta->sucursal->nombre ?? 'MI EMPRESA' }}</h2>
             <div class="mb-1">{{ $venta->sucursal->direccion ?? 'Dirección no especificada' }}</div>
-            @if(isset($venta->sucursal->telefono))
+            @if(!empty($venta->sucursal->telefono))
                 <div>Tel: {{ $venta->sucursal->telefono }}</div>
+            @endif
+            @if(!empty($venta->sucursal->celular))
+                <div>Cel: {{ $venta->sucursal->celular }}</div>
             @endif
         </div>
 
@@ -75,31 +78,39 @@
                 <div class="mb-1"><span class="bold">Cliente:</span> Público General</div>
             @endif
             
-            <div><span class="bold">Método de Pago:</span> {{ strtoupper($venta->metodo_pago) }}</div>
+            <div style="margin-top: 5px; font-size: 9pt;">
+                <strong>MÉTODO DE PAGO:</strong> {{ strtoupper($venta->metodo_pago) }}
+                @if($venta->metodo_pago === 'credito')
+                    <br><strong>PLAZO CRÉDITO:</strong> {{ $venta->dias_credito }} Días
+                    <br><strong>VENCIMIENTO:</strong> {{ $venta->created_at->addDays($venta->dias_credito)->format('d/m/Y') }}
+                @endif
+            </div>
         </div>
 
+        <hr style="border-top: 1px dashed #000;">
+
         <!-- DETALLE DE PRODUCTOS -->
-        <table>
-            <thead>
-                <tr>
-                    <th class="text-left">Cant</th>
-                    <th class="text-left">Descripción</th>
-                    <th class="text-right">Importe</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($venta->detalles as $detalle)
-                <tr>
-                    <td class="text-left" style="vertical-align: top;">{{ $detalle->cantidad }}</td>
-                    <td class="text-left">
-                        {{ $detalle->concepto_especial ?? $detalle->equipo->nombre ?? 'Concepto de Venta' }}
-                        <br>
-                        <small>${{ number_format($detalle->precio_unitario, 2) }} c/u</small>
-                    </td>
-                    <td class="text-right" style="vertical-align: top;">${{ number_format($detalle->subtotal, 2) }}</td>
-                </tr>
-                @endforeach
-            </tbody>
+        <table style="width: 100%; font-size: 9pt;">
+            <tr>
+                <td>SUBTOTAL:</td>
+                <td style="text-align: right;">${{ number_format($venta->subtotal, 2) }}</td>
+            </tr>
+            @if($venta->descuento > 0)
+            <tr style="color: #000;">
+                <td><strong>DESCUENTO:</strong></td>
+                <td style="text-align: right;"><strong>-${{ number_format($venta->descuento, 2) }}</strong></td>
+            </tr>
+            @endif
+            @if($venta->iva > 0)
+            <tr>
+                <td>IVA (16%):</td>
+                <td style="text-align: right;">${{ number_format($venta->iva, 2) }}</td>
+            </tr>
+            @endif
+            <!-- <tr style="font-size: 11pt; font-weight: bold;">
+                <td>TOTAL:</td>
+                <td style="text-align: right;">${{ number_format($venta->total, 2) }}</td>
+            </tr> -->
         </table>
 
         <!-- UNIFICACIÓN: TOTALES Y DESGLOSE DE COBRO -->
@@ -159,8 +170,11 @@
             <div class="text-center factura-box">
                 <div class="bold mb-1">*** REQUIERE FACTURA ***</div>
                 <div>Favor de comunicarse con la sucursal o enviar sus datos fiscales para la emisión de su factura.</div>
-                @if(isset($venta->sucursal->telefono))
+                @if(!empty($venta->sucursal->telefono))
                     <div class="bold mt-2">Tel: {{ $venta->sucursal->telefono }}</div>
+                @endif
+                @if(!empty($venta->sucursal->celular))
+                    <div class="bold {{ empty($venta->sucursal->telefono) ? 'mt-2' : '' }}">Cel: {{ $venta->sucursal->celular }}</div>
                 @endif
             </div>
         @endif

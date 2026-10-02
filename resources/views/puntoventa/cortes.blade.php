@@ -24,6 +24,15 @@
     <div class="alert alert-danger border-0 shadow-sm mb-3 rounded-3">{{ session('error') }}</div>
 @endif
 
+<div class="alert alert-warning border-0 shadow-sm rounded-3 py-2 small d-flex align-items-start gap-2 mb-3">
+    <i class="bi bi-info-circle-fill mt-1"></i>
+    <div>
+        <strong>Abonos de crédito:</strong> son cobros de ventas a crédito hechas antes. Suman al <em>Efectivo Esperado</em> (si se pagaron en efectivo) pero
+        <strong>no son ventas nuevas</strong>. La etiqueta <em>"A crédito"</em> en Ventas indica lo que quedó por cobrar y no entró a caja.
+        Lo mismo aplica a los <strong>abonos de renta</strong> (pagos, ampliaciones y liquidaciones de rentas).
+    </div>
+</div>
+
 <div class="card border-0 shadow-sm rounded-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -49,12 +58,44 @@
                         $egresosEfe = $corte->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
                         $efectivoEsperado = $corte->monto_inicial + $corte->total_efectivo + $ingresosEfe - $egresosEfe;
 
+                        // Abonos de crédito: cobros de ventas a crédito ANTERIORES (no son ventas nuevas)
+                        $abonosMov = $corte->movimientos
+                            ->where('tipo', 'ingreso')
+                            ->filter(fn ($m) => \Illuminate\Support\Str::startsWith($m->concepto ?? '', 'Abono crédito'));
+                        $abonosEfe   = $abonosMov->where('metodo', 'efectivo')->sum('monto');
+                        $abonosOtros = $abonosMov->where('metodo', '!=', 'efectivo')->sum('monto');
+                        $abonosMixtosN = $abonosMov->filter(fn ($m) => str_contains($m->concepto ?? '', '(mixto)'))->pluck('concepto')->unique()->count();
+
+                        // Abonos de renta: cobros de rentas (abonos, ampliaciones y liquidaciones)
+                        $rentasMov = $corte->movimientos
+                            ->where('tipo', 'ingreso')
+                            ->filter(fn ($m) => \Illuminate\Support\Str::startsWith($m->concepto ?? '', 'Abono renta'));
+                        $rentasEfe   = $rentasMov->where('metodo', 'efectivo')->sum('monto');
+                        $rentasOtros = $rentasMov->where('metodo', '!=', 'efectivo')->sum('monto');
+                        $rentasDetalle = $rentasMov->map(fn ($m) => [
+                            'concepto' => $m->concepto,
+                            'metodo'   => $m->metodo,
+                            'monto'    => (float) $m->monto,
+                            'hora'     => optional($m->created_at)->format('d/m/Y H:i'),
+                        ])->values();
+                        $otrosIngresosEfe = max(0, $ingresosEfe - $abonosEfe - $rentasEfe);
+                        $abonosDetalle = $abonosMov->map(fn ($m) => [
+                            'concepto' => $m->concepto,
+                            'metodo'   => $m->metodo,
+                            'monto'    => (float) $m->monto,
+                            'hora'     => optional($m->created_at)->format('d/m/Y H:i'),
+                        ])->values();
+                        $ventasCredito = 0;
+
                         // Obtener montos de Flete y Mano de Obra sumando desde las ventas del corte
                         $montoFlete = 0;
                         $montoManoObra = 0;
 
                         if($corte->ventas) {
                             foreach($corte->ventas as $v) {
+                                if(($v->metodo_pago ?? '') === 'credito' && ($v->estado ?? '') === 'completada') {
+                                    $ventasCredito += $v->total;
+                                }
                                 foreach($v->detalles as $d) {
                                     if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
                                         $montoFlete += $d->subtotal;
@@ -97,6 +138,11 @@
                                         <i class="bi bi-tools me-1"></i>M. Obra: ${{ number_format($montoManoObra, 2) }}
                                     </span>
                                 @endif
+                                @if($ventasCredito > 0)
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Parte de las ventas del turno que quedó a crédito: NO entró dinero a caja, queda por cobrar">
+                                        <i class="bi bi-credit-card-2-front me-1"></i>A crédito: ${{ number_format($ventasCredito, 2) }}
+                                    </span>
+                                @endif
                                 <!-- <span class="text-secondary" style="font-size: 10px;" title="Ventas hechas únicamente en efectivo">
                                     (Efe: ${{ number_format($corte->total_efectivo, 2) }})
                                 </span> -->
@@ -104,14 +150,67 @@
                         </td>
                         
                         <td class="text-center">
-                            @if($ingresosEfe > 0 || $egresosEfe > 0)
+                            @if($ingresosEfe > 0 || $egresosEfe > 0 || $abonosOtros > 0 || $rentasOtros > 0)
                                 <div class="d-inline-block text-start" style="font-size: 11px;">
-                                    <span class="text-success d-block" title="Ingresos adicionales de efectivo">
-                                        <i class="bi bi-arrow-up-circle-fill"></i> +${{ number_format($ingresosEfe, 2) }}
-                                    </span>
-                                    <span class="text-danger d-block mt-1" title="Egresos adicionales de efectivo">
-                                        <i class="bi bi-arrow-down-circle-fill"></i> -${{ number_format($egresosEfe, 2) }}
-                                    </span>
+                                    @if($abonosEfe > 0 || $abonosOtros > 0)
+                                        <div class="mb-1">
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Cobros de ventas a crédito anteriores. NO son ventas nuevas.">
+                                                <i class="bi bi-credit-card-2-front me-1"></i>Abonos crédito
+                                            </span>
+                                            @if($abonosEfe > 0)
+                                                <span class="text-success d-block" title="Abonos de crédito recibidos en efectivo (suman al efectivo esperado)">
+                                                    <i class="bi bi-arrow-up-circle-fill"></i> +${{ number_format($abonosEfe, 2) }} <span class="text-secondary">efectivo</span>
+                                                </span>
+                                            @endif
+                                            @if($abonosOtros > 0)
+                                                <span class="text-secondary d-block" title="Abonos por transferencia/tarjeta: no afectan el efectivo de caja">
+                                                    <i class="bi bi-bank"></i> ${{ number_format($abonosOtros, 2) }} transf./tarj.
+                                                </span>
+                                            @endif
+                                            @if($abonosMixtosN > 0)
+                                                <span class="text-secondary d-block" title="Abonos pagados con 2 métodos; cada parte ya está sumada en su método">
+                                                    <i class="bi bi-diagram-3"></i> {{ $abonosMixtosN }} en pago mixto
+                                                </span>
+                                            @endif
+                                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 10px;"
+                                                    data-corte="#{{ $corte->id }} · {{ $corte->user->name }}"
+                                                    data-abonos="{{ json_encode($abonosDetalle) }}" onclick="verAbonosCorte(this)">
+                                                <i class="bi bi-list-ul"></i> ver detalle
+                                            </button>
+                                        </div>
+                                    @endif
+                                    @if($rentasEfe > 0 || $rentasOtros > 0)
+                                        <div class="mb-1">
+                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="Cobros de rentas (abonos, ampliaciones y liquidaciones). NO son ventas nuevas.">
+                                                <i class="bi bi-building me-1"></i>Abonos renta
+                                            </span>
+                                            @if($rentasEfe > 0)
+                                                <span class="text-success d-block" title="Pagos de renta recibidos en efectivo (suman al efectivo esperado)">
+                                                    <i class="bi bi-arrow-up-circle-fill"></i> +${{ number_format($rentasEfe, 2) }} <span class="text-secondary">efectivo</span>
+                                                </span>
+                                            @endif
+                                            @if($rentasOtros > 0)
+                                                <span class="text-secondary d-block" title="Pagos de renta por transferencia/tarjeta: no afectan el efectivo de caja">
+                                                    <i class="bi bi-bank"></i> ${{ number_format($rentasOtros, 2) }} transf./tarj.
+                                                </span>
+                                            @endif
+                                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 10px;"
+                                                    data-corte="#{{ $corte->id }} · {{ $corte->user->name }}"
+                                                    data-abonos="{{ json_encode($rentasDetalle) }}" onclick="verAbonosCorte(this)">
+                                                <i class="bi bi-list-ul"></i> ver detalle
+                                            </button>
+                                        </div>
+                                    @endif
+                                    @if($otrosIngresosEfe > 0)
+                                        <span class="text-success d-block" title="Otros ingresos de efectivo registrados en caja">
+                                            <i class="bi bi-arrow-up-circle-fill"></i> +${{ number_format($otrosIngresosEfe, 2) }} <span class="text-secondary">otros ingresos</span>
+                                        </span>
+                                    @endif
+                                    @if($egresosEfe > 0)
+                                        <span class="text-danger d-block mt-1" title="Egresos adicionales de efectivo">
+                                            <i class="bi bi-arrow-down-circle-fill"></i> -${{ number_format($egresosEfe, 2) }}
+                                        </span>
+                                    @endif
                                 </div>
                             @else
                                 <small class="text-secondary small" style="font-size: 11px;">Sin movimientos</small>
@@ -120,6 +219,11 @@
                         
                         <td class="text-end fw-bold bg-body-tertiary text-body font-monospace border-start border-end">
                             ${{ number_format($efectivoEsperado, 2) }}
+                            @if(($abonosEfe + $rentasEfe) > 0)
+                                <div class="fw-normal text-secondary font-monospace" style="font-size: 10px;" title="Dentro del efectivo esperado hay dinero de abonos de crédito y/o pagos de renta, no solo de ventas del turno">
+                                    incl. ${{ number_format($abonosEfe + $rentasEfe, 2) }} de abonos
+                                </div>
+                            @endif
                         </td>
                         
                         <td class="text-end fw-bold text-body font-monospace">
@@ -174,8 +278,46 @@
     {{ $cortes->links() }}
 </div>
 
+{{-- Detalle de los abonos de crédito recibidos en un corte --}}
+<div class="modal fade" id="modalAbonosCorte" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-dark text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-credit-card-2-front me-2"></i>Abonos recibidos · corte <span id="abonosCorteTitulo"></span></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" style="font-size: 13px;">
+                        <thead class="bg-body-tertiary"><tr><th>Fecha</th><th>Concepto</th><th>Método</th><th class="text-end">Monto</th></tr></thead>
+                        <tbody id="abonosCorteCuerpo"></tbody>
+                        <tfoot class="bg-body-tertiary"><tr><td colspan="3" class="text-end fw-bold">Total</td><td class="text-end fw-bold" id="abonosCorteTotal"></td></tr></tfoot>
+                    </table>
+                </div>
+                <div class="form-text mt-2">Solo los abonos en <strong>efectivo</strong> suman al efectivo esperado del corte.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- SCRIPT DE AUTO-RECARGA DINÁMICA -->
 <script>
+function verAbonosCorte(btn) {
+    const abonos = JSON.parse(btn.dataset.abonos || '[]');
+    const money = n => '$' + (parseFloat(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    document.getElementById('abonosCorteTitulo').textContent = btn.dataset.corte;
+    document.getElementById('abonosCorteCuerpo').innerHTML = abonos.map(a => `
+        <tr>
+            <td>${esc(a.hora)}</td>
+            <td>${esc(a.concepto)}</td>
+            <td class="text-capitalize">${esc(a.metodo)}</td>
+            <td class="text-end fw-bold text-success">${money(a.monto)}</td>
+        </tr>`).join('');
+    document.getElementById('abonosCorteTotal').textContent = money(abonos.reduce((t, a) => t + a.monto, 0));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAbonosCorte')).show();
+}
+
 function recargarTablaCortes() {
     fetch(window.location.href, {
         headers: {

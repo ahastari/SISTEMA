@@ -130,7 +130,16 @@
         }
         .data-table tr:nth-child(even) { background: #f8fafc; }
         .nowrap { white-space: nowrap; }
+        .data-table tr { page-break-inside: avoid; }
+        .data-table tfoot td { font-weight: bold; background: #f1f5f9; border-top: 1px solid #94a3b8; }
+        .badge-estado { font-size: 6pt; padding: 1px 4px; border-radius: 2px; font-weight: bold; }
         .font-mono { font-family: 'Courier New', Courier, monospace; font-weight: bold; }
+
+        .bar-bg { width: 100%; background-color: #f1f5f9; height: 7px; border-radius: 2px; }
+        .bar-green { height: 7px; background-color: #059669; border-radius: 2px; }
+        .bar-cyan { height: 7px; background-color: #0891b2; border-radius: 2px; }
+        .bar-red { height: 7px; background-color: #dc2626; border-radius: 2px; }
+        .bar-amber { height: 7px; background-color: #d97706; border-radius: 2px; }
 
         /* FOOTER */
         .footer { 
@@ -171,6 +180,9 @@
             }
         }
         $utilidadPDF = $totalVentaPDF - $costoProduccionPDF;
+
+        $rd = $rep['desc'] ?? null;   // descuentos (ventas + rentas)
+        $rc = $rep['cred'] ?? null;   // créditos, abonos y cartera
     @endphp
 
     <!-- ENCABEZADO PRINCIPAL CON LOGO Y DATOS DE SUCURSAL -->
@@ -243,6 +255,43 @@
         </tr>
     </table>
 
+
+    @if($rd && $rc)
+    <!-- KPIS: DESCUENTOS Y CRÉDITOS -->
+    <table class="kpi-table">
+        <tr>
+            <td style="width: 25%; padding-right: 3px;">
+                <div class="kpi-card" style="border-left: 3px solid #059669;">
+                    <div class="kpi-title">Descuentos Otorgados</div>
+                    <div class="kpi-amount" style="color: #059669;">${{ number_format($rd['total'], 2) }}</div>
+                    <div style="font-size: 6pt; color: #64748b;">{{ $rd['ventas_n'] }} ventas · {{ $rd['rentas_n'] }} rentas</div>
+                </div>
+            </td>
+            <td style="width: 25%; padding: 0 2px;">
+                <div class="kpi-card" style="border-left: 3px solid #d97706;">
+                    <div class="kpi-title">Créditos Otorgados</div>
+                    <div class="kpi-amount" style="color: #d97706;">${{ number_format($rc['otorgado_monto'], 2) }}</div>
+                    <div style="font-size: 6pt; color: #64748b;">{{ $rc['otorgados_n'] }} ventas a crédito</div>
+                </div>
+            </td>
+            <td style="width: 25%; padding: 0 2px;">
+                <div class="kpi-card" style="border-left: 3px solid #0284c7;">
+                    <div class="kpi-title">Abonos Recibidos</div>
+                    <div class="kpi-amount" style="color: #0284c7;">${{ number_format($rc['abonos_monto'], 2) }}</div>
+                    <div style="font-size: 6pt; color: #64748b;">{{ $rc['abonos_n'] }} abonos en el período</div>
+                </div>
+            </td>
+            <td style="width: 25%; padding-left: 3px;">
+                <div class="kpi-card" style="border-left: 3px solid #dc2626;">
+                    <div class="kpi-title">Cartera por Cobrar</div>
+                    <div class="kpi-amount" style="color: #dc2626;">${{ number_format($rc['cartera']['por_cobrar'], 2) }}</div>
+                    <div style="font-size: 6pt; color: #64748b;">Vencido: ${{ number_format($rc['cartera']['vencido'], 2) }} ({{ $rc['cartera']['n_vencidos'] }})</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    @endif
+
     <!-- ANALÍTICAS DE DOS COLUMNAS -->
     <table>
         <tr>
@@ -254,7 +303,7 @@
                         @forelse($pagosList as $metodo => $monto)
                         @php $pct = $totalVentaPDF > 0 ? ($monto / $totalVentaPDF) * 100 : 0; @endphp
                         <tr>
-                            <td style="padding: 2px 0; font-size: 7.5pt; font-weight: bold; width: 32%;" class="nowrap">{{ ucfirst($metodo) }}</td>
+                            <td style="padding: 2px 0; font-size: 7.5pt; font-weight: bold; width: 32%;" class="nowrap">{{ $metodo === 'credito' ? 'Crédito' : ucfirst($metodo) }}</td>
                             <td style="padding: 2px 0; width: 43%;">
                                 <div class="bar-bg">
                                     <div class="bar-fill-blue" style="width: {{ max($pct, 2) }}%;"></div>
@@ -310,6 +359,214 @@
             </td>
         </tr>
     </table>
+
+    @if(!empty($rep['graf']))
+    @php
+        $g = $rep['graf'];
+        $topI = array_slice($g['por_ingreso'], 0, 8);
+        $topC = array_slice($g['clientes_all'], 0, 8);
+        $maxI = max(1, collect($topI)->max('importe') ?? 1);
+        $maxC = max(1, collect($topC)->max('compras') ?? 1);
+        $maxA = max(1, max($g['aging_all']) ?: 1);
+        $horasMax = max(1, max($g['horas']['totales'] ?: [1]));
+        $diasMax = max(1, max($g['dias']['totales'] ?: [1]));
+    @endphp
+    <!-- ANÁLISIS: ARTÍCULOS, CLIENTES, HORARIOS Y CARTERA -->
+    <div class="section-header">Artículos por Ingreso y Clientes Frecuentes</div>
+    <table>
+        <tr>
+            <td style="width: 50%; vertical-align: top; padding-right: 5px;">
+                <table class="data-table">
+                    <thead><tr><th style="width: 40%;">Artículo (por ingreso)</th><th style="width: 28%;">&nbsp;</th><th style="text-align: right; width: 32%;">Importe</th></tr></thead>
+                    <tbody>
+                        @forelse($topI as $e)
+                            <tr>
+                                <td class="nowrap">{{ \Illuminate\Support\Str::limit($e['nombre'], 22) }}</td>
+                                <td><div class="bar-bg"><div class="bar-green" style="width: {{ round($e['importe'] / $maxI * 100) }}%;"></div></div></td>
+                                <td style="text-align: right;" class="font-mono nowrap">${{ number_format($e['importe'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3" style="text-align: center; color: #94a3b8;">Sin datos.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </td>
+            <td style="width: 50%; vertical-align: top; padding-left: 5px;">
+                <table class="data-table">
+                    <thead><tr><th style="width: 36%;">Cliente frecuente</th><th style="width: 22%;">&nbsp;</th><th style="text-align: center; width: 14%;">Compras</th><th style="text-align: right; width: 28%;">Total</th></tr></thead>
+                    <tbody>
+                        @forelse($topC as $c)
+                            <tr>
+                                <td class="nowrap">{{ \Illuminate\Support\Str::limit($c['cliente'], 20) }}</td>
+                                <td><div class="bar-bg"><div class="bar-cyan" style="width: {{ round($c['compras'] / $maxC * 100) }}%;"></div></div></td>
+                                <td style="text-align: center;" class="font-mono">{{ $c['compras'] }}</td>
+                                <td style="text-align: right;" class="font-mono nowrap">${{ number_format($c['total'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" style="text-align: center; color: #94a3b8;">Sin datos.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 50%; vertical-align: top; padding-right: 5px; padding-top: 6px;">
+                <table class="data-table">
+                    <thead><tr><th style="width: 22%;">Día</th><th style="width: 46%;">&nbsp;</th><th style="text-align: right; width: 32%;">Vendido</th></tr></thead>
+                    <tbody>
+                        @foreach($g['dias']['labels'] as $i => $dia)
+                            <tr>
+                                <td>{{ $dia }} <span style="color: #94a3b8;">({{ $g['dias']['n'][$i] }})</span></td>
+                                <td><div class="bar-bg"><div class="bar-amber" style="width: {{ round($g['dias']['totales'][$i] / $diasMax * 100) }}%;"></div></div></td>
+                                <td style="text-align: right;" class="font-mono nowrap">${{ number_format($g['dias']['totales'][$i], 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </td>
+            <td style="width: 50%; vertical-align: top; padding-left: 5px; padding-top: 6px;">
+                <table class="data-table">
+                    <thead><tr><th style="width: 40%;">Antigüedad de créditos</th><th style="width: 28%;">&nbsp;</th><th style="text-align: right; width: 32%;">Saldo</th></tr></thead>
+                    <tbody>
+                        @foreach($g['aging_all'] as $nombre => $monto)
+                            <tr>
+                                <td class="nowrap">{{ $nombre }}</td>
+                                <td><div class="bar-bg"><div class="bar-red" style="width: {{ round($monto / $maxA * 100) }}%;"></div></div></td>
+                                <td style="text-align: right;" class="font-mono nowrap">${{ number_format($monto, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </table>
+    @endif
+
+    @if($rd && $rc)
+    <!-- DESCUENTOS OTORGADOS -->
+    <div class="section-header">Descuentos Otorgados (Ventas y Rentas) — {{ number_format($rd['pct_ventas'], 1) }}% del subtotal bruto vendido</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 9%;">Tipo</th>
+                <th style="width: 12%;">Folio</th>
+                <th style="width: 17%;">Fecha</th>
+                <th style="width: 26%;">Cliente</th>
+                <th style="width: 12%; text-align: right;">Descuento</th>
+                <th style="width: 7%; text-align: right;">%</th>
+                <th style="width: 17%;">Autorizó</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($rd['rows'] as $r)
+                <tr>
+                    <td>{{ $r['tipo'] }}</td>
+                    <td class="font-mono nowrap" style="color: #0284c7;">{{ $r['folio'] }}</td>
+                    <td class="nowrap" style="color: #64748b;">{{ $r['fecha']->format('d/m/Y H:i') }}</td>
+                    <td class="nowrap">{{ \Illuminate\Support\Str::limit($r['cliente'], 24) }}</td>
+                    <td style="text-align: right;" class="font-mono nowrap">-${{ number_format($r['descuento'], 2) }}</td>
+                    <td style="text-align: right;" class="nowrap">{{ number_format($r['pct'], 1) }}%</td>
+                    <td class="nowrap">{{ \Illuminate\Support\Str::limit($r['autorizo'], 18) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 8px;">Sin descuentos en el período seleccionado.</td></tr>
+            @endforelse
+        </tbody>
+        @if(count($rd['rows']))
+        <tfoot>
+            <tr>
+                <td colspan="4" style="text-align: right;">TOTAL (Ventas ${{ number_format($rd['ventas_monto'], 2) }} + Rentas ${{ number_format($rd['rentas_monto'], 2) }})</td>
+                <td style="text-align: right;" class="font-mono nowrap">-${{ number_format($rd['total'], 2) }}</td>
+                <td colspan="2"></td>
+            </tr>
+        </tfoot>
+        @endif
+    </table>
+
+    <!-- CRÉDITOS OTORGADOS -->
+    <div class="section-header">Créditos Otorgados en el Período</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 11%;">Folio</th>
+                <th style="width: 24%;">Cliente</th>
+                <th style="width: 11%;">Fecha</th>
+                <th style="width: 7%; text-align: center;">Plazo</th>
+                <th style="width: 12%; text-align: right;">Monto</th>
+                <th style="width: 12%; text-align: right;">Abonado</th>
+                <th style="width: 12%; text-align: right;">Saldo</th>
+                <th style="width: 11%;">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($rc['rows'] as $r)
+                @php
+                    $colorEstado = ['Liquidado' => '#059669', 'Vencido' => '#dc2626', 'Con abonos' => '#0284c7', 'Pendiente' => '#64748b'][$r['estado']] ?? '#64748b';
+                @endphp
+                <tr>
+                    <td class="font-mono nowrap" style="color: #0284c7;">{{ $r['folio'] }}</td>
+                    <td class="nowrap">{{ \Illuminate\Support\Str::limit($r['cliente'], 22) }}</td>
+                    <td class="nowrap" style="color: #64748b;">{{ $r['fecha']->format('d/m/Y') }}</td>
+                    <td style="text-align: center;" class="nowrap">{{ $r['dias'] }} d</td>
+                    <td style="text-align: right;" class="font-mono nowrap">${{ number_format($r['total'], 2) }}</td>
+                    <td style="text-align: right;" class="font-mono nowrap">${{ number_format($r['abonado'], 2) }}</td>
+                    <td style="text-align: right;" class="font-mono nowrap">${{ number_format($r['saldo'], 2) }}</td>
+                    <td class="nowrap"><span class="badge-estado" style="color: {{ $colorEstado }}; background: #f1f5f9;">{{ strtoupper($r['estado']) }}</span></td>
+                </tr>
+            @empty
+                <tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 8px;">No se otorgaron créditos en el período.</td></tr>
+            @endforelse
+        </tbody>
+        @if(count($rc['rows']))
+        <tfoot>
+            <tr>
+                <td colspan="4" style="text-align: right;">TOTAL</td>
+                <td style="text-align: right;" class="font-mono nowrap">${{ number_format(array_sum(array_column($rc['rows'], 'total')), 2) }}</td>
+                <td style="text-align: right;" class="font-mono nowrap">${{ number_format(array_sum(array_column($rc['rows'], 'abonado')), 2) }}</td>
+                <td style="text-align: right;" class="font-mono nowrap">${{ number_format(array_sum(array_column($rc['rows'], 'saldo')), 2) }}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+        @endif
+    </table>
+
+    <!-- ABONOS RECIBIDOS -->
+    <div class="section-header">Abonos de Crédito Recibidos (Efectivo ${{ number_format($rc['abonos_efectivo'], 2) }} · Transferencia ${{ number_format($rc['abonos_transferencia'], 2) }} · Tarjeta ${{ number_format($rc['abonos_tarjeta'], 2) }}@if($rc['abonos_mixto_n'] > 0) · Incluye ${{ number_format($rc['abonos_mixto'], 2) }} en {{ $rc['abonos_mixto_n'] }} abono(s) mixtos @endif)</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 17%;">Fecha</th>
+                <th style="width: 12%;">Crédito</th>
+                <th style="width: 28%;">Cliente</th>
+                <th style="width: 13%;">Método</th>
+                <th style="width: 18%;">Recibió</th>
+                <th style="width: 12%; text-align: right;">Monto</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($rc['abonos'] as $a)
+                <tr>
+                    <td class="nowrap" style="color: #64748b;">{{ $a['fecha']->format('d/m/Y H:i') }}</td>
+                    <td class="font-mono nowrap" style="color: #0284c7;">{{ $a['folio'] }}</td>
+                    <td class="nowrap">{{ \Illuminate\Support\Str::limit($a['cliente'], 26) }}</td>
+                    <td>{{ ucfirst($a['metodo']) }}@if($a['detalle'])<br><span style="font-size: 8px; color: #64748b;">{{ $a['detalle'] }}</span>@endif</td>
+                    <td class="nowrap">{{ \Illuminate\Support\Str::limit($a['recibio'], 18) }}</td>
+                    <td style="text-align: right;" class="font-mono nowrap">${{ number_format($a['monto'], 2) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 8px;">No hubo abonos en el período.</td></tr>
+            @endforelse
+        </tbody>
+        @if(count($rc['abonos']))
+        <tfoot>
+            <tr>
+                <td colspan="5" style="text-align: right;">TOTAL ABONADO</td>
+                <td style="text-align: right;" class="font-mono nowrap">${{ number_format($rc['abonos_monto'], 2) }}</td>
+            </tr>
+        </tfoot>
+        @endif
+    </table>
+    @endif
 
     <!-- BITÁCORA DETALLADA DE VENTAS -->
     <div class="section-header">Bitácora Detallada de Ventas</div>

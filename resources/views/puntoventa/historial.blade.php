@@ -31,6 +31,18 @@
         <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ session('error') }}
     </div>
 @endif
+@foreach(['warning' => 'alert-warning', 'info' => 'alert-info'] as $clave => $clase)
+    @if(session($clave))
+        <div class="alert {{ $clase }} border-0 shadow-sm mb-3 rounded-3">
+            <i class="bi bi-info-circle-fill me-2"></i> {{ session($clave) }}
+        </div>
+    @endif
+@endforeach
+@if($errors->any())
+    <div class="alert alert-danger border-0 shadow-sm mb-3 rounded-3">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ $errors->first() }}
+    </div>
+@endif
 
 <div class="card border-0 shadow-sm rounded-3" style="background: var(--bs-body-bg); border: 1px solid var(--bs-border-color) !important;">
     <div class="card-body p-0">
@@ -66,11 +78,20 @@
                                     <i class="bi bi-cash text-success me-1"></i>
                                 @elseif($venta->metodo_pago == 'transferencia')
                                     <i class="bi bi-arrow-right-short text-info me-1"></i>
+                                @elseif($venta->metodo_pago == 'credito')
+                                    <i class="bi bi-calendar-event text-warning me-1"></i> Crédito ({{ $venta->dias_credito }} días)
                                 @else
                                     <i class="bi bi-credit-card text-primary me-1"></i>
                                 @endif
-                                {{ $venta->metodo_pago }}
+                                {{ $venta->metodo_pago != 'credito' ? $venta->metodo_pago : '' }}
                             </span>
+                            @if($venta->descuento > 0)
+                                <div class="mt-1">
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="Descuento asignado">
+                                        <i class="bi bi-tag-fill me-1"></i> -${{ number_format($venta->descuento, 2) }} Desc.
+                                    </span>
+                                </div>
+                            @endif
                         </td>
                         <td class="text-end text-secondary">${{ number_format($venta->subtotal, 2) }}</td>
                         <td class="text-end text-secondary">${{ number_format($venta->iva, 2) }}</td>
@@ -102,7 +123,7 @@
                                 <form action="{{ route('puntoventa.cancelar', $venta->id) }}" method="POST" class="m-0 d-inline" id="form-cancelar-{{ $venta->id }}">
                                     @csrf
                                     <input type="hidden" name="motivo_cancelacion" id="motivo-{{ $venta->id }}">
-                                    <button type="button" class="btn btn-sm btn-outline-danger border p-1 px-2" title="Cancelar Venta" onclick="solicitarCancelacion({{ $venta->id }}, '{{ $venta->folio }}')">
+                                    <button type="button" class="btn btn-sm btn-outline-danger border p-1 px-2" title="Cancelar Venta" onclick="solicitarCancelacion({{ $venta->id }}, '{{ $venta->folio }}', {{ in_array($venta->id, $ventasConAbonos ?? []) ? 'true' : 'false' }})">
                                         <i class="bi bi-arrow-counterclockwise"></i>
                                     </button>
                                 </form>
@@ -148,6 +169,29 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalCreditoNoCancelable" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background: var(--bs-body-bg);">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold text-warning-emphasis">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>No se puede cancelar esta venta
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">La venta <strong id="folioCreditoNoCancelable" class="font-monospace"></strong> es a crédito y <strong>ya tiene abonos registrados</strong>, por lo que no se puede cancelar.</p>
+                <p class="text-secondary small mb-0">Primero deben resolverse los abonos con el gerente; puedes revisarlos en la cartera de créditos.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
+                <a href="{{ route('puntoventa.creditos') }}" class="btn btn-sm btn-warning fw-bold">
+                    <i class="bi bi-credit-card-2-front me-1"></i> Ir a Créditos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function reimprimirTicket(ventaId) {
     const iframe = document.getElementById('iframeReimpresion');
@@ -169,7 +213,12 @@ function ejecutarImpresionIframe() {
     }
 }
 
-function solicitarCancelacion(id, folio) {
+function solicitarCancelacion(id, folio, tieneAbonos) {
+    if (tieneAbonos) {
+        document.getElementById('folioCreditoNoCancelable').textContent = folio;
+        new bootstrap.Modal(document.getElementById('modalCreditoNoCancelable')).show();
+        return;
+    }
     let motivo = prompt('Por favor, ingresa el motivo de la cancelación para la venta ' + folio + ':');
     if (motivo !== null && motivo.trim() !== '') {
         document.getElementById('motivo-' + id).value = motivo;
@@ -179,4 +228,6 @@ function solicitarCancelacion(id, folio) {
     }
 }
 </script>
+@include('puntoventa._avisos_cancelacion')
+@include('puntoventa._avisos_credito')
 @endsection

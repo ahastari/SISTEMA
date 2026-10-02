@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Renta;
 use App\Models\MovimientoSucursal;
 use App\Models\Equipo;
+use App\Models\SolicitudDescuento;
+use App\Models\Sucursal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,25 +18,30 @@ class AutorizacionController extends Controller
         $sucursalId = session('activo_sucursal_id');
         $user = auth()->user();
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
+        $sucursalesNombres = Sucursal::pluck('nombre', 'id');
 
         // 1. CONSULTAS DE PENDIENTES
         $queryRentasPendientes = \App\Models\Renta::with(['cliente', 'solicitadoPor', 'detalles'])->where('autorizacion_solicitada', true)->where('estado', 'activa');
         $queryMovimientosPendientes = \App\Models\MovimientoSucursal::with(['equipo', 'sucursalOrigen', 'sucursalDestino', 'usuario'])->where('tipo', 'transferencia')->where('estado', 'pendiente');
         $queryVentasPendientes = \App\Models\Venta::with(['cliente', 'solicitadoPor'])->where('autorizacion_solicitada', true)->where('estado', 'completada');
+        $queryDescuentosPendientes = SolicitudDescuento::with('user')->where('estado', 'pendiente');
 
         // 2. CONSULTAS DE HISTORIAL (YA RESUELTAS)
         $queryHistorialRentas = \App\Models\Renta::with(['cliente', 'solicitadoPor', 'autorizadoPor'])->whereNotNull('autorizado_por_id');
         $queryHistorialMovimientos = \App\Models\MovimientoSucursal::with(['equipo', 'sucursalOrigen', 'sucursalDestino', 'usuario', 'confirmadoPor'])->where('tipo', 'transferencia')->whereNotNull('confirmado_por');
         $queryHistorialVentas = \App\Models\Venta::with(['cliente', 'solicitadoPor', 'autorizadoPor'])->whereNotNull('autorizado_por_id');
+        $queryHistorialDescuentos = SolicitudDescuento::with(['user', 'autorizador'])->whereIn('estado', ['aprobada', 'usada', 'rechazada']);
 
         if (!$isGlobalAdmin) {
             $queryRentasPendientes->where('sucursal_id', $sucursalId);
             $queryMovimientosPendientes->where('sucursal_origen_id', $sucursalId);
             $queryVentasPendientes->where('sucursal_id', $sucursalId);
+            $queryDescuentosPendientes->where('sucursal_id', $sucursalId);
 
             $queryHistorialRentas->where('sucursal_id', $sucursalId);
             $queryHistorialMovimientos->where('sucursal_origen_id', $sucursalId);
             $queryHistorialVentas->where('sucursal_id', $sucursalId);
+            $queryHistorialDescuentos->where('sucursal_id', $sucursalId);
         }
 
         $autorizacionesRentasAll = $queryRentasPendientes->latest()->get();
@@ -71,6 +78,7 @@ class AutorizacionController extends Controller
 
         $movimientosPendientes = $queryMovimientosPendientes->latest()->get();
         $autorizacionesVentas = $queryVentasPendientes->latest()->get();
+        $descuentosPendientes = $queryDescuentosPendientes->latest()->get();
 
         // 3. MAPEAR HISTORIALES A UN FORMATO COMÚN
         $historialRentas = $queryHistorialRentas->get()->map(function($renta) {
@@ -115,8 +123,24 @@ class AutorizacionController extends Controller
             ];
         });
 
+        $historialDescuentos = $queryHistorialDescuentos->get()->map(function($desc) use ($sucursalesNombres) {
+            return (object)[
+                'tipo' => 'descuento',
+                'id' => $desc->id,
+                'venta_id' => $desc->venta_id,
+                'identificador' => (($desc->tipo ?? 'descuento') === 'credito' ? 'Crédito $' : 'Desc. $') . number_format($desc->monto, 2) . (($desc->tipo ?? 'descuento') === 'credito' && $desc->dias_credito ? ' · ' . $desc->dias_credito . ' días' : ''),
+                'entidad' => $desc->cliente_nombre ?: 'Público General',
+                'sucursal' => $sucursalesNombres[$desc->sucursal_id] ?? null,
+                'fecha' => $desc->resuelta_at ?? $desc->updated_at,
+                'solicitado_por' => $desc->user->name ?? 'Desconocido',
+                'autorizado_por' => $desc->autorizador->name ?? 'Desconocido',
+                // 'aprobada' y 'usada' (aprobada y ya aplicada en una venta) cuentan como aprobadas
+                'estado' => $desc->estado === 'rechazada' ? 'rechazada' : 'aprobada',
+            ];
+        });
+
         // 4. COMBINAR Y ORDENAR
-        $historialCompleto = $historialRentas->concat($historialMovimientos)->concat($historialVentas)->sortByDesc('fecha')->values();
+        $historialCompleto = $historialRentas->concat($historialMovimientos)->concat($historialVentas)->concat($historialDescuentos)->sortByDesc('fecha')->values();
 
         // 5. PAGINACIÓN MANUAL ESTÁNDAR
         $page = request()->get('page', 1);
@@ -129,7 +153,7 @@ class AutorizacionController extends Controller
             ['path' => request()->url(), 'query' => request()->query()]
         );
 
-        return view('autorizaciones.index', compact('autorizacionesRentas', 'rentasCancelacion', 'movimientosPendientes', 'autorizacionesVentas', 'historial'));
+        return view('autorizaciones.index', compact('autorizacionesRentas', 'rentasCancelacion', 'movimientosPendientes', 'autorizacionesVentas', 'descuentosPendientes', 'historial', 'sucursalesNombres'));
     }
 
     // --- NUEVOS MÉTODOS PARA VENTAS ---
@@ -190,6 +214,45 @@ class AutorizacionController extends Controller
             'observaciones' => ($venta->observaciones ? $venta->observaciones . "\n" : '') . "[CANCELACIÓN DENEGADA POR GERENTE]"
         ]);
         return back()->with('success', 'Solicitud de cancelación rechazada.');
+    }
+
+    // --- SOLICITUDES DE DESCUENTO DEL PUNTO DE VENTA ---
+    public function aprobarDescuento(SolicitudDescuento $solicitud)
+    {
+        return $this->resolverDescuento($solicitud, true);
+    }
+
+    public function rechazarDescuento(SolicitudDescuento $solicitud)
+    {
+        return $this->resolverDescuento($solicitud, false);
+    }
+
+    private function resolverDescuento(SolicitudDescuento $solicitud, bool $aprobar)
+    {
+        abort_unless(auth()->user()->isAdmin() || auth()->user()->isGerente(), 403);
+
+        // Solo se puede resolver una solicitud de la sucursal activa (el admin en modo global puede todas)
+        $sucursalActiva = session('activo_sucursal_id');
+        $esAdminGlobal = auth()->user()->isAdmin() && $sucursalActiva === 'global';
+        if (!$esAdminGlobal && $solicitud->sucursal_id && (int) $solicitud->sucursal_id !== (int) $sucursalActiva) {
+            abort(403, 'Esta solicitud pertenece a otra sucursal.');
+        }
+
+        if ($solicitud->estado !== 'pendiente') {
+            return back()->with('error', 'Esta solicitud de descuento ya fue resuelta o cancelada por el cajero.');
+        }
+
+        $solicitud->update([
+            'estado'            => $aprobar ? 'aprobada' : 'rechazada',
+            'autorizado_por_id' => auth()->id(),
+            'resuelta_at'       => now(),
+        ]);
+
+        $esCredito = ($solicitud->tipo ?? 'descuento') === 'credito';
+
+        return back()->with('success', $aprobar
+            ? ($esCredito ? 'Crédito de $' : 'Descuento de $') . number_format($solicitud->monto, 2) . ' aprobado. El cajero ya puede registrar la venta.'
+            : 'Solicitud de ' . ($esCredito ? 'crédito' : 'descuento') . ' rechazada.');
     }
 
     public function aprobarCancelacionRenta(\App\Models\Renta $renta)
@@ -293,7 +356,7 @@ class AutorizacionController extends Controller
     }
 
     /**
-     * CONTADOR DE NOTIFICACIONES EN TIEMPO REAL (Rentas + Transferencias)
+     * CONTADOR DE NOTIFICACIONES EN TIEMPO REAL (Rentas + Transferencias + Ventas + Descuentos)
      */
     public function notificaciones()
     {
@@ -305,14 +368,16 @@ class AutorizacionController extends Controller
         $qRentas = \App\Models\Renta::where('autorizacion_solicitada', true)->where('estado', 'activa');
         $qMovimientos = \App\Models\MovimientoSucursal::where('tipo', 'transferencia')->where('estado', 'pendiente');
         $qVentas = \App\Models\Venta::where('autorizacion_solicitada', true)->where('estado', 'completada'); // <- Agregado
+        $qDescuentos = SolicitudDescuento::where('estado', 'pendiente');
 
         if (!$isGlobalAdmin) {
             $qRentas->where('sucursal_id', $sucursalId);
             $qMovimientos->where('sucursal_origen_id', $sucursalId);
             $qVentas->where('sucursal_id', $sucursalId);
+            $qDescuentos->where('sucursal_id', $sucursalId);
         }
 
-        $totalPendientes = $qRentas->count() + $qMovimientos->count() + $qVentas->count();
+        $totalPendientes = $qRentas->count() + $qMovimientos->count() + $qVentas->count() + $qDescuentos->count();
         return response()->json(['count' => $totalPendientes]);
     }
 }

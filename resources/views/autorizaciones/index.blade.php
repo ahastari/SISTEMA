@@ -58,6 +58,7 @@
     .auth-card.type-renta { border-left: 4px solid #ffc107; }
     .auth-card.type-movimiento { border-left: 4px solid #0dcaf0; }
     .auth-card.type-venta { border-left: 4px solid #dc3545; }
+    .auth-card.type-descuento { border-left: 4px solid #198754; }
 
     .auth-header {
         padding: 12px 16px;
@@ -145,7 +146,8 @@
     $totalRentasCanc = $rentasCancelacion->count();
     $totalMovs = $movimientosPendientes->count();
     $totalVentas = $autorizacionesVentas->count();
-    $totalPendientes = $totalRentas + $totalRentasCanc + $totalMovs + $totalVentas;
+    $totalDescuentos = $descuentosPendientes->count();
+    $totalPendientes = $totalRentas + $totalRentasCanc + $totalMovs + $totalVentas + $totalDescuentos;
 @endphp
 
 <!-- PESTAÑAS DE NAVEGACIÓN -->
@@ -205,6 +207,12 @@
                     @if($totalRentasCanc > 0)
                     <a href="#seccion-rentas-canc" class="stat-pill border-danger text-danger-emphasis">
                         <i class="bi bi-x-octagon me-2"></i> {{ $totalRentasCanc }} Cancelaciones Renta
+                    </a>
+                    @endif
+
+                    @if($totalDescuentos > 0)
+                    <a href="#seccion-descuentos" class="stat-pill border-success text-success-emphasis">
+                        <i class="bi bi-percent me-2"></i> {{ $totalDescuentos }} Descuentos / Créditos
                     </a>
                     @endif
                 </div>
@@ -440,6 +448,7 @@
                     </div>
                 </div>
                 @endif
+                @include('autorizaciones._descuentos')
             @endif
 
         </div>
@@ -470,6 +479,8 @@
                                     <span class="badge bg-warning text-dark mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-file-text me-1"></i>{{ $item->identificador }}</span>
                                 @elseif($item->tipo === 'venta')
                                     <span class="badge bg-danger text-white mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-receipt me-1"></i>{{ $item->identificador }}</span>
+                                @elseif($item->tipo === 'descuento')
+                                    <span class="badge bg-success text-white mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-percent me-1"></i>{{ $item->identificador }}</span>
                                 @else
                                     <span class="badge bg-info-subtle text-info-emphasis mb-1 rounded-pill px-2 py-1 fw-bold border border-info-subtle font-monospace"><i class="bi bi-arrow-left-right me-1"></i>{{ $item->identificador }}</span>
                                 @endif
@@ -481,10 +492,16 @@
                                     <i class="bi bi-person me-1 text-warning"></i>
                                 @elseif($item->tipo === 'venta')
                                     <i class="bi bi-person me-1 text-danger"></i>
+                                {{-- NUEVO (cambio 1): ícono para descuentos --}}
+                                @elseif($item->tipo === 'descuento')
+                                    <i class="bi bi-percent me-1 text-success"></i>
                                 @else
                                     <i class="bi bi-buildings me-1 text-info"></i>
                                 @endif
                                 {{ $item->entidad }}
+                                @if(!empty($item->sucursal))
+                                    <small class="d-block text-secondary fw-normal" style="font-size: 11px;"><i class="bi bi-shop me-1"></i>{{ $item->sucursal }}</small>
+                                @endif
                             </td>
                             <td class="text-body py-3">
                                 <span class="d-flex align-items-center gap-2">
@@ -518,6 +535,15 @@
                                     <a href="{{ route('puntoventa.historial') }}?fecha={{ \Carbon\Carbon::parse($item->fecha)->format('Y-m-d') }}" class="btn btn-sm btn-light border rounded-3 px-3 shadow-sm text-secondary hover-primary" title="Ver en Historial">
                                         <i class="bi bi-eye"></i>
                                     </a>
+                                {{-- NUEVO (cambio 2): botón "Ver" para descuentos --}}
+                                @elseif($item->tipo === 'descuento')
+                                    @if($item->venta_id)
+                                        <a href="{{ route('puntoventa.historial') }}?fecha={{ \Carbon\Carbon::parse($item->fecha)->format('Y-m-d') }}" class="btn btn-sm btn-light border rounded-3 px-3 shadow-sm text-secondary hover-primary" title="Ver en Historial">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    @else
+                                        <span class="text-secondary">—</span>
+                                    @endif
                                 @else
                                     <a href="{{ route('movimientos.show', $item->id) }}" class="btn btn-sm btn-light border rounded-3 px-3 shadow-sm text-secondary hover-primary" title="Ver Detalle">
                                         <i class="bi bi-eye"></i>

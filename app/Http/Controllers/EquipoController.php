@@ -339,16 +339,7 @@ class EquipoController extends Controller
         $equipo->tipo_operacion = $tipo_operacion;
         $equipo->costo = $request->costo ?? 0;
         $equipo->precio_dia = $request->precio_dia ?? 0;
-        $equipo->precio_venta = $request->precio_venta ?? 0;
-        $equipo->stock = $request->stock;
-        $equipo->stock_minimo = $request->stock_minimo;
-        $equipo->descripcion = $request->descripcion;
-        $equipo->activo = $request->has('activo');
-        $equipo->categoria_id = $request->categoria_id;
-        $equipo->unidad_medida_id = $request->unidad_medida_id;
-        $equipo->tipo_operacion = $tipo_operacion;
-        $equipo->costo = $request->costo ?? 0;
-        $equipo->precio_dia = $request->precio_dia ?? 0;
+        $equipo->tipo_tarifa = Equipo::tarifaParaUnidad($request->unidad_medida_id);
         $equipo->precio_venta = $request->precio_venta ?? 0;
         $equipo->stock = $request->stock;
         $equipo->stock_minimo = $request->stock_minimo;
@@ -453,6 +444,7 @@ class EquipoController extends Controller
         $equipo->tipo_operacion = $tipo_operacion;
         $equipo->costo = $request->costo ?? 0;
         $equipo->precio_dia = $request->precio_dia ?? 0;
+        $equipo->tipo_tarifa = Equipo::tarifaParaUnidad($request->unidad_medida_id);
         $equipo->precio_venta = $request->precio_venta ?? 0;
         $equipo->descripcion = $request->descripcion;
         $equipo->activo = $request->has('activo');

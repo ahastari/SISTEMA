@@ -496,6 +496,9 @@
                                             @if($suc->telefono)
                                                 <span><i class="bi bi-telephone text-success me-1"></i>{{ $suc->telefono }}</span>
                                             @endif
+                                            @if($suc->celular)
+                                                <span><i class="bi bi-phone text-success me-1"></i>{{ $suc->celular }}</span>
+                                            @endif
                                         </p>
                                     </div>
                                 </div>
@@ -508,6 +511,16 @@
                                     </button>
                                 </div>
                             </div>
+                            <form action="{{ route('configuracion.sucursal.credito', $suc->id) }}" method="POST" class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 mb-3 border rounded-3 bg-body-tertiary" style="margin-top: -4px;">
+                                @csrf @method('PUT')
+                                <label class="small fw-semibold text-body mb-0 text-nowrap"><i class="bi bi-credit-card-2-front text-warning me-1"></i>Límite de crédito sin autorización</label>
+                                <div class="input-group input-group-sm" style="max-width: 190px;">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="credito_limite_autorizacion" step="0.01" min="0" class="form-control bg-body text-body" placeholder="Sin límite" value="{{ $suc->credito_limite_autorizacion }}">
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-outline-primary fw-bold rounded-3">Guardar</button>
+                                <div class="form-text w-100 mt-0" style="font-size: 11px;">Créditos de esta sucursal con total mayor a este monto requieren autorización del gerente. Vacío = sin límite · 0 = todo crédito requiere autorización.</div>
+                            </form>
                         </div>
 
                         {{-- MODAL EDITAR SUCURSAL --}}
@@ -526,14 +539,19 @@
                                                 <input type="text" name="nombre" class="form-control form-control-sm" value="{{ $suc->nombre }}" required>
                                             </div>
                                             <div class="row g-2 mb-3">
-                                                <div class="col-6">
+                                                <div class="col-12">
                                                     <label class="form-label small fw-semibold text-body">RFC de Facturación</label>
                                                     <input type="text" name="rfc" class="form-control form-control-sm validar-rfc text-uppercase" value="{{ $suc->rfc }}" maxlength="13">
                                                     <div class="invalid-feedback">Formato de RFC inválido.</div>
                                                 </div>
                                                 <div class="col-6">
-                                                    <label class="form-label small fw-semibold text-body">Teléfono Atención</label>
+                                                    <label class="form-label small fw-semibold text-body">Teléfono fijo</label>
                                                     <input type="text" name="telefono" class="form-control form-control-sm validar-telefono" value="{{ $suc->telefono }}" maxlength="10">
+                                                    <div class="invalid-feedback">10 dígitos requeridos.</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-body">Celular</label>
+                                                    <input type="text" name="celular" class="form-control form-control-sm validar-telefono" value="{{ $suc->celular }}" maxlength="10" placeholder="10 dígitos">
                                                     <div class="invalid-feedback">10 dígitos requeridos.</div>
                                                 </div>
                                             </div>
@@ -1978,14 +1996,19 @@
                         <input type="text" name="nombre" class="form-control form-control-sm" required placeholder="Ej: Sucursal Centro">
                     </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-6">
+                        <div class="col-12">
                             <label class="form-label small fw-semibold text-body">RFC Sucursal</label>
                             <input type="text" name="rfc" class="form-control form-control-sm validar-rfc text-uppercase" placeholder="Opcional" maxlength="13">
                             <div class="invalid-feedback">Formato inválido.</div>
                         </div>
                         <div class="col-6">
-                            <label class="form-label small fw-semibold text-body">Teléfono</label>
+                            <label class="form-label small fw-semibold text-body">Teléfono fijo</label>
                             <input type="text" name="telefono" class="form-control form-control-sm validar-telefono" placeholder="10 dígitos" maxlength="10">
+                            <div class="invalid-feedback">10 dígitos requeridos.</div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-body">Celular</label>
+                            <input type="text" name="celular" class="form-control form-control-sm validar-telefono" placeholder="10 dígitos" maxlength="10">
                             <div class="invalid-feedback">10 dígitos requeridos.</div>
                         </div>
                     </div>

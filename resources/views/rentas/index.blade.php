@@ -143,6 +143,40 @@
         color: #ffffff;
         font-weight: 700;
     }
+
+    /* Tarjeta: Rentas en espera */
+    .espera-card {
+        background: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-left: 4px solid #ffc107;
+        border-radius: 16px;
+        overflow: hidden;
+    }
+    .espera-head {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+    .espera-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px 18px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--bs-border-color);
+        transition: background 0.2s ease;
+    }
+    .espera-row:last-child { border-bottom: 0; }
+    .espera-row:hover { background: var(--bs-tertiary-bg); }
+    .espera-row .col-fixed { min-width: 120px; }
+    .espera-label {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+        color: var(--bs-secondary-color);
+        display: block;
+    }
+    .espera-scroll { max-height: 440px; overflow-y: auto; }
 </style>
 
 <!-- Header de la sección -->
@@ -231,6 +265,160 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Tarjeta: Rentas en Espera (seguimiento) -->
+@php
+    $esperaPend = $rentasEspera->where('autorizada', false)->values();
+    $esperaAut  = $rentasEspera->where('autorizada', true)->values();
+    $esperaGrupos = [
+        'pend' => ['lista' => $esperaPend, 'vacio' => 'No hay rentas esperando autorización del gerente.'],
+        'aut'  => ['lista' => $esperaAut,  'vacio' => 'No hay rentas autorizadas pendientes de liquidar.'],
+    ];
+    $tabEsperaInicial = 'borr'; // los borradores viven en el navegador; el JS cambia de pestaña si no hay ninguno
+@endphp
+<div class="espera-card shadow-sm mb-4">
+    <div class="espera-head d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="metric-icon-avatar bg-warning-subtle text-warning-emphasis"><i class="bi bi-hourglass-split"></i></div>
+            <div>
+                <h5 class="fw-bold mb-0 text-body">Rentas en Espera</h5>
+            </div>
+        </div>
+        <ul class="nav nav-pills gap-2" id="esperaTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-sm fw-bold rounded-pill px-3 py-1 active" data-bs-toggle="pill" data-bs-target="#esperaBorr" type="button" role="tab">
+                    <i class="bi bi-pause-circle me-1"></i> En espera
+                    <span class="badge rounded-pill bg-warning text-dark ms-1" id="cntEsperaBorr">0</span>
+                </button>
+            </li>
+            <!-- <li class="nav-item" role="presentation">
+                <button class="nav-link btn-sm fw-bold rounded-pill px-3 py-1 " data-bs-toggle="pill" data-bs-target="#esperaPend" data-count="{{ $esperaPend->count() }}" type="button" role="tab">
+                    <i class="bi bi-shield-lock me-1"></i> En revisión
+                    <span class="badge rounded-pill bg-warning text-dark ms-1">{{ $esperaPend->count() }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-sm fw-bold rounded-pill px-3 py-1 " data-bs-toggle="pill" data-bs-target="#esperaAut" data-count="{{ $esperaAut->count() }}" type="button" role="tab">
+                    <i class="bi bi-check-circle me-1"></i> Autorizadas por liquidar
+                    <span class="badge rounded-pill bg-success ms-1">{{ $esperaAut->count() }}</span>
+                </button>
+            </li> -->
+        </ul>
+    </div>
+
+    <div class="tab-content">
+        <!-- Borradores "Poner en espera" de Nueva Renta (guardados en este navegador) -->
+        <div class="tab-pane fade show active" id="esperaBorr" role="tabpanel">
+            <div id="listaBorradores" class="espera-scroll"></div>
+            <div id="pieBorradores" class="px-3 py-2 bg-body-tertiary border-top d-flex justify-content-between small d-none">
+                <span class="text-body-secondary" id="pieBorradoresN"></span>
+                <span class="fw-bold text-body">Total en espera: <span class="text-primary" id="pieBorradoresTotal"></span></span>
+            </div>
+        </div>
+
+        @foreach($esperaGrupos as $clave => $grupo)
+            @php $lista = $grupo['lista']; @endphp
+            <div class="tab-pane fade {{ $tabEsperaInicial === $clave ? 'show active' : '' }}" id="{{ $clave === 'pend' ? 'esperaPend' : 'esperaAut' }}" role="tabpanel">
+                @if($lista->isEmpty())
+                    <div class="text-center text-body-secondary py-4 small">
+                        <i class="bi bi-check2-all fs-4 d-block mb-1 text-success"></i>{{ $grupo['vacio'] }}
+                    </div>
+                @else
+                    <div class="espera-scroll">
+                        @foreach($lista as $r)
+                            @php
+                                $urgencia = $r['horas'] >= 24 ? 'danger' : ($r['horas'] >= 4 ? 'warning' : 'secondary');
+                                $wa = strlen($r['tel_digitos']) === 10 ? '52' . $r['tel_digitos'] : (strlen($r['tel_digitos']) >= 11 ? $r['tel_digitos'] : null);
+                            @endphp
+                            <div class="espera-row">
+                                <!-- Folio y cliente -->
+                                <div class="col-fixed" style="min-width: 190px;">
+                                    <span class="folio-badge"><i class="bi bi-file-text me-1"></i>{{ $r['folio'] }}</span>
+                                    <div class="fw-bold text-body mt-1 text-truncate" style="max-width: 210px;">{{ $r['cliente'] }}</div>
+                                    <small class="text-body-secondary"><i class="bi bi-telephone me-1"></i>{{ $r['telefono'] ?: 'S/N' }}</small>
+                                </div>
+
+                                <!-- Tipo de solicitud y motivo -->
+                                <div style="min-width: 190px; flex: 1;">
+                                    <span class="espera-label">Situación</span>
+                                    @if($r['autorizada'])
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">{{ $r['tipo'] }}</span>
+                                    @elseif($r['es_cancel'])
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ $r['tipo'] }}</span>
+                                    @else
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">{{ $r['tipo'] }}</span>
+                                    @endif
+                                    @if(count($r['docs_faltan']))
+                                        <span class="badge bg-body-tertiary text-body-secondary border" title="Documentos firmados pendientes de subir">
+                                            <i class="bi bi-exclamation-triangle me-1"></i>Falta {{ implode(' y ', $r['docs_faltan']) }}
+                                        </span>
+                                    @endif
+                                    <small class="d-block text-body-secondary mt-1 text-truncate" style="max-width: 280px;" title="{{ $r['motivo'] }}">
+                                        {{ $r['motivo'] ?: 'Sin motivo registrado' }}
+                                    </small>
+                                </div>
+
+                                <!-- Solicitante y tiempo -->
+                                <div class="col-fixed">
+                                    <span class="espera-label">Solicitó</span>
+                                    <span class="small fw-semibold text-body">{{ $r['solicitante'] }}</span>
+                                    <small class="d-block text-{{ $urgencia === 'secondary' ? 'body-secondary' : $urgencia }}" title="{{ $r['actualizada'] ? $r['actualizada']->format('d/m/Y H:i') : '' }}">
+                                        <i class="bi bi-clock me-1"></i>{{ $r['actualizada'] ? $r['actualizada']->diffForHumans() : '—' }}
+                                    </small>
+                                </div>
+
+                                <!-- Vencimiento -->
+                                <div class="col-fixed">
+                                    <span class="espera-label">Fin de renta</span>
+                                    <span class="small fw-semibold text-body">{{ $r['fecha_fin'] ? $r['fecha_fin']->format('d/m/Y') : '—' }}</span>
+                                    @if($r['dias_retraso'] > 0)
+                                        <small class="d-block text-danger fw-bold">{{ $r['dias_retraso'] }} día(s) de retraso</small>
+                                    @endif
+                                </div>
+
+                                <!-- Saldo -->
+                                <div class="col-fixed text-md-end">
+                                    <span class="espera-label">Saldo</span>
+                                    @if($r['saldo'] > 0)
+                                        <span class="fw-bold text-danger">${{ number_format($r['saldo'], 2) }}</span>
+                                    @else
+                                        <span class="fw-bold text-success">Liquidada</span>
+                                    @endif
+                                    <small class="d-block text-body-secondary">Contrato ${{ number_format($r['total'], 2) }}</small>
+                                </div>
+
+                                <!-- Acciones de seguimiento -->
+                                <div class="d-flex flex-wrap gap-1 ms-auto">
+                                    <a href="{{ $r['url'] }}" class="btn btn-sm btn-primary rounded-3 fw-bold">
+                                        <i class="bi bi-eye me-1"></i> {{ $r['autorizada'] ? 'Liquidar' : 'Ver' }}
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" title="Ver contrato"
+                                            onclick="verDocumento('{{ $r['contrato_url'] }}', 'Contrato de Renta - Folio {{ $r['folio'] }}')">
+                                        <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                    </button>
+                                    @if($r['tel_digitos'])
+                                        <a href="tel:{{ $r['tel_digitos'] }}" class="btn btn-sm btn-outline-secondary rounded-3" title="Llamar al cliente">
+                                            <i class="bi bi-telephone"></i>
+                                        </a>
+                                    @endif
+                                    @if($wa)
+                                        <a href="https://wa.me/{{ $wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success rounded-3" title="WhatsApp">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="px-3 py-2 bg-body-tertiary border-top d-flex justify-content-between small">
+                        <span class="text-body-secondary">{{ $lista->count() }} renta(s)</span>
+                        <span class="fw-bold text-body">Saldo en espera: <span class="text-danger">${{ number_format($lista->sum('saldo'), 2) }}</span></span>
+                    </div>
+                @endif
+            </div>
+        @endforeach
     </div>
 </div>
 
@@ -545,5 +733,150 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('iframeDocumento').src = '';
     });
 });
+</script>
+
+<script>
+// ===== Rentas en espera (borradores de "Nueva Renta"): se guardan en este navegador por usuario y sucursal =====
+(function () {
+    const KEY = 'rentas_espera_u{{ auth()->id() }}_s{{ session('activo_sucursal_id') }}';
+    const PUEDE_AUTORIZAR = @json($puedeAutorizarDescuento);
+    const URL_ESTADOS = '{{ route("puntoventa.descuento.estados") }}';
+    const URL_CREAR = '{{ route("rentas.create") }}';
+
+    const $ = id => document.getElementById(id);
+    const money = n => '$' + (parseFloat(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fechaCorta = s => { const p = String(s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : '—'; };
+    function hace(ts) {
+        const m = Math.floor((Date.now() - ts) / 60000);
+        if (m < 1) return 'hace un momento';
+        if (m < 60) return 'hace ' + m + ' min';
+        const h = Math.floor(m / 60);
+        return h < 24 ? 'hace ' + h + ' h' : 'hace ' + Math.floor(h / 24) + ' d';
+    }
+
+    function leer() { try { return JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch (e) { return []; } }
+    function guardar(lista) { try { localStorage.setItem(KEY, JSON.stringify(lista)); return true; } catch (e) { return false; } }
+
+    // Mismo criterio que en Nueva Renta
+    function estado(b) {
+        const d = parseFloat(b.descuento) || 0;
+        const base = { badge: 'bg-secondary-subtle text-secondary border', icono: 'bi-pause-circle', texto: 'En espera', clase: '' };
+        if (d <= 0 || PUEDE_AUTORIZAR) return base;
+        const s = b.sol;
+        if (!s || Math.abs(s.monto - d) >= 0.01) return { badge: 'bg-secondary-subtle text-secondary border', icono: 'bi-shield-exclamation', texto: 'Descuento sin solicitar', clase: '' };
+        if (s.estado === 'pendiente') return { badge: 'bg-warning-subtle text-warning-emphasis border border-warning-subtle', icono: 'spin', texto: 'Esperando al gerente', clase: '' };
+        if (s.estado === 'aprobada')  return { badge: 'bg-success-subtle text-success border border-success-subtle', icono: 'bi-check-circle-fill', texto: 'Descuento autorizado', clase: 'text-success' };
+        return { badge: 'bg-danger-subtle text-danger border border-danger-subtle', icono: 'bi-x-circle-fill', texto: 'Descuento rechazado', clase: 'text-danger' };
+    }
+
+    function render() {
+        const lista = leer();
+        const cont = $('listaBorradores');
+        if (!cont) return;
+        $('cntEsperaBorr').textContent = lista.length;
+
+        if (!lista.length) {
+            cont.innerHTML = '<div class="text-center text-body-secondary py-4 small"><i class="bi bi-check2-all fs-4 d-block mb-1 text-success"></i>'
+                + 'Se crean con <strong>Poner en espera</strong> en Nueva Renta.</div>';
+            $('pieBorradores').classList.add('d-none');
+            return;
+        }
+
+        cont.innerHTML = lista.map(b => {
+            const e = estado(b);
+            const eq = b.equipos || [];
+            const n = eq.length;
+            const nombres = eq.map(x => x.cantidad + ' × ' + x.nombre).join(', ');
+            const desc = parseFloat(b.descuento) || 0;
+            const dep = parseFloat(b.deposito) || 0;
+            const icono = e.icono === 'spin'
+                ? '<span class="spinner-border spinner-border-sm me-1" style="width:10px;height:10px;"></span>'
+                : '<i class="bi ' + e.icono + ' me-1"></i>';
+            return `<div class="espera-row">
+                <div class="col-fixed" style="min-width: 200px;">
+                    <span class="espera-label">Cliente</span>
+                    <div class="fw-bold text-body text-truncate" style="max-width: 230px;">${esc(b.cliente_nombre)}</div>
+                    <small class="text-body-secondary"><i class="bi bi-clock me-1"></i>${hace(b.ts)}</small>
+                </div>
+                <div style="min-width: 190px; flex: 1;">
+                    <span class="espera-label">Productos</span>
+                    <span class="small fw-semibold text-body">${n} producto${n === 1 ? '' : 's'}</span>
+                    <small class="d-block text-body-secondary text-truncate" style="max-width: 300px;" title="${esc(nombres)}">${esc(nombres) || '—'}</small>
+                </div>
+                <div class="col-fixed">
+                    <span class="espera-label">Período</span>
+                    <span class="small fw-semibold text-body">${fechaCorta(b.fecha_inicio)} – ${fechaCorta(b.fecha_fin)}</span>
+                </div>
+                <div class="col-fixed text-md-end">
+                    <span class="espera-label">Total</span>
+                    <span class="fw-bold text-body">${money(b.total)}</span>
+                    ${desc > 0 ? `<small class="d-block ${e.clase || 'text-body-secondary'}">Desc. ${money(desc)}</small>` : ''}
+                    ${dep > 0 ? `<small class="d-block text-body-secondary">Depósito ${money(dep)}</small>` : ''}
+                </div>
+                <div class="col-fixed">
+                    <span class="badge ${e.badge}">${icono}${e.texto}</span>
+                </div>
+                <div class="d-flex gap-1 ms-auto">
+                    <a href="${URL_CREAR}?retomar=${encodeURIComponent(b.id)}" class="btn btn-sm btn-primary rounded-3 fw-bold"><i class="bi bi-play-fill me-1"></i> Retomar</a>
+                    <button type="button" class="btn btn-sm btn-outline-danger rounded-3" title="Eliminar" onclick="eliminarRentaEnEspera('${esc(b.id)}')"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>`;
+        }).join('');
+
+        $('pieBorradoresN').textContent = lista.length + ' renta(s) en espera';
+        $('pieBorradoresTotal').textContent = money(lista.reduce((a, b) => a + (parseFloat(b.total) || 0), 0));
+        $('pieBorradores').classList.remove('d-none');
+    }
+
+    window.eliminarRentaEnEspera = function (id) {
+        if (!confirm('¿Eliminar esta renta en espera? Si tenía un descuento autorizado, se perderá.')) return;
+        guardar(leer().filter(x => x.id !== id));
+        render();
+    };
+
+    // Seguimiento: revisa si el gerente ya autorizó/rechazó los descuentos pendientes
+    function revisarSolicitudes() {
+        if (PUEDE_AUTORIZAR) return;
+        const ids = [...new Set(leer().filter(b => b.sol && b.sol.estado === 'pendiente').map(b => b.sol.id))];
+        if (!ids.length) return;
+        fetch(URL_ESTADOS + '?ids=' + ids.join(','), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data) return;
+                const lista = leer();            // se relee para no pisar cambios hechos en otra pestaña
+                let cambio = false;
+                lista.forEach(b => {
+                    if (!b.sol || b.sol.estado !== 'pendiente') return;
+                    const info = data[b.sol.id];
+                    if (!info || info.estado === 'pendiente') return;
+                    if (info.estado === 'aprobada' || info.estado === 'rechazada') {
+                        b.sol.estado = info.estado;
+                        b.sol.autorizador = info.autorizador || null;
+                    } else {
+                        b.sol = null;            // cancelada / usada
+                    }
+                    cambio = true;
+                });
+                if (cambio && guardar(lista)) render();
+            })
+            .catch(() => {});
+    }
+
+    function pestanaInicial() {
+        if (leer().length > 0) return;
+        const t = [...document.querySelectorAll('#esperaTabs button')].find(b => b.dataset.bsTarget !== '#esperaBorr' && Number(b.dataset.count || 0) > 0);
+        if (t) new bootstrap.Tab(t).show();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        render();
+        pestanaInicial();
+        revisarSolicitudes();
+        setInterval(revisarSolicitudes, 8000);
+        setInterval(render, 60000);                                   // refresca el "hace X min"
+        window.addEventListener('storage', e => { if (e.key === KEY) render(); });   // cambios desde Nueva Renta en otra pestaña
+    });
+})();
 </script>
 @endsection

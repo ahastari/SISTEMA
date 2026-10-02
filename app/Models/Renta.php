@@ -38,6 +38,9 @@ class Renta extends Model
         'solicitado_por_id',
         'autorizado_por_id',
         'facturar',
+        'descuento',
+        'motivo_descuento',
+        'descuento_autorizado_por_id',
     ];
 
     protected $casts = [

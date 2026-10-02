@@ -269,7 +269,7 @@
                             <th>Pendientes</th>
                             <th>Equipo</th>
                             <th>Código</th>
-                            <th>Precio/día</th>
+                            <th>Tarifa</th>
                             <th>Subtotal</th>
                         </tr>
                     </thead>
@@ -281,7 +281,7 @@
                             <td class="text-danger fw-bold text-center">{{ $detalle->cantidad - $detalle->cantidad_devuelta }}</td>
                             <td>{{ $detalle->equipo->nombre }}</td>
                             <td><code>{{ $detalle->equipo->codigo }}</code></td>
-                            <td>${{ number_format($detalle->precio_dia, 2) }}</td>
+                            <td>${{ number_format($detalle->precio_dia, 2) }} <small class="text-secondary">/ {{ $detalle->etiqueta_tarifa }}</small></td>
                             <td class="fw-semibold">${{ number_format($detalle->subtotal, 2) }}</td>
                         </tr>
                         @endforeach
@@ -320,8 +320,7 @@
                         @if(($renta->dias_ampliados ?? 0) > 0)
                         @php
                             $costoDiarioPendienteMov = $renta->detalles->sum(function($d) {
-                                $pendiente = $d->cantidad - $d->cantidad_devuelta;
-                                return $pendiente > 0 ? ($pendiente * $d->precio_dia) : 0;
+                                return $d->costoDiarioPendiente();
                             });
                             $subtotalAmpliacionMov = $costoDiarioPendienteMov * $renta->dias_ampliados;
                             $ivaAmpliacionMov = $renta->facturar ? ($subtotalAmpliacionMov * 0.16) : 0;
@@ -430,6 +429,18 @@
                         <td class="text-secondary fw-bold">Subtotal General:</td>
                         <td class="text-end fw-bold text-secondary">${{ number_format($renta->subtotal, 2) }}</td>
                     </tr>
+
+                    @if(($renta->descuento ?? 0) > 0)
+                    <tr class="border-bottom">
+                        <td class="text-success fw-bold">
+                            Descuento:
+                            @if($renta->motivo_descuento)
+                                <div class="fw-normal text-secondary" style="font-size: 11px;">{{ $renta->motivo_descuento }}</div>
+                            @endif
+                        </td>
+                        <td class="text-end fw-bold text-success">-${{ number_format($renta->descuento, 2) }}</td>
+                    </tr>
+                    @endif
 
                     <tr class="border-bottom">
                         <td class="text-secondary fw-bold">IVA (16%):</td>
@@ -703,6 +714,17 @@
             <form action="{{ route('rentas.registrarPago', $renta) }}" method="POST" onsubmit="return prepararEnvioPago();">
                 @csrf
                 <div class="modal-body p-4">
+                    @unless($cajaAbierta)
+                        <div class="alert alert-danger py-2 px-3 small mb-3 d-flex align-items-start gap-2">
+                            <i class="bi bi-lock-fill mt-1"></i>
+                            <div>
+                                <strong>Caja cerrada.</strong> No puedes registrar cobros hasta abrir tu caja en el Punto de Venta.
+                                Solo podrás procesar movimientos con monto $0.
+                                <a href="{{ route('puntoventa.index') }}" class="alert-link ms-1">Abrir caja <i class="bi bi-arrow-right"></i></a>
+                            </div>
+                        </div>
+                    @endunless
+
                     <div class="row g-4">
                         
                         <!-- ================= COLUMNA IZQUIERDA ================= -->
@@ -856,6 +878,17 @@
             <form action="{{ route('rentas.ampliarDias', $renta) }}" method="POST">
                 @csrf
                 <div class="modal-body p-4">
+                    @unless($cajaAbierta)
+                        <div class="alert alert-danger py-2 px-3 small mb-3 d-flex align-items-start gap-2">
+                            <i class="bi bi-lock-fill mt-1"></i>
+                            <div>
+                                <strong>Caja cerrada.</strong> No puedes registrar cobros hasta abrir tu caja en el Punto de Venta.
+                                Solo podrás procesar movimientos con monto $0.
+                                <a href="{{ route('puntoventa.index') }}" class="alert-link ms-1">Abrir caja <i class="bi bi-arrow-right"></i></a>
+                            </div>
+                        </div>
+                    @endunless
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -885,7 +918,7 @@
                                                 <td class="ps-2 align-middle">{{ $detalle->equipo->nombre }}</td>
                                                 <td class="text-center align-middle">{{ $pendiente }}</td>
                                                 <td class="text-center pe-2">
-                                                    <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center input-devolver-ampliar" data-precio="{{ $detalle->precio_dia }}" min="0" max="{{ $pendiente }}" value="0" oninput="calcularAmpliacion()">
+                                                    <input type="number" name="devolver_final[{{ $detalle->id }}]" class="form-control form-control-sm text-center input-devolver-ampliar" data-precio="{{ $detalle->esPorM2() ? 0 : $detalle->precio_dia }}" min="0" max="{{ $pendiente }}" value="0" oninput="calcularAmpliacion()">
                                                 </td>
                                             </tr>
                                             @endif
@@ -944,6 +977,17 @@
             <form action="{{ route('rentas.finalizarConPago', $renta) }}" method="POST">
                 @csrf
                 <div class="modal-body p-4">
+                    @unless($cajaAbierta)
+                        <div class="alert alert-danger py-2 px-3 small mb-3 d-flex align-items-start gap-2">
+                            <i class="bi bi-lock-fill mt-1"></i>
+                            <div>
+                                <strong>Caja cerrada.</strong> No puedes registrar cobros hasta abrir tu caja en el Punto de Venta.
+                                Solo podrás procesar movimientos con monto $0.
+                                <a href="{{ route('puntoventa.index') }}" class="alert-link ms-1">Abrir caja <i class="bi bi-arrow-right"></i></a>
+                            </div>
+                        </div>
+                    @endunless
+
                     <div class="alert alert-info py-2 px-3 small mb-3">
                         <strong class="d-block mb-1"><i class="bi bi-calculator me-1"></i> Resumen de la Cuenta:</strong>
                         Total original: ${{ number_format($renta->total, 2) }} | 
@@ -1185,6 +1229,61 @@
      data-es-gerente="{{ (auth()->user()->isAdmin() || auth()->user()->isGerente()) ? '1' : '0' }}"
      data-autorizacion-aprobada="{{ $renta->autorizacion_aprobada ? '1' : '0' }}">
 </div>
+
+{{-- Aviso y bloqueo cuando no hay caja abierta: impide registrar cobros de la renta --}}
+@unless($cajaAbierta)
+<div class="modal fade" id="modalCajaCerrada" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg" style="background: var(--bs-body-bg);">
+            <div class="modal-header bg-danger text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-lock-fill me-2"></i>Caja cerrada</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="bi bi-cash-stack text-danger" style="font-size: 2.5rem;"></i>
+                <h6 class="fw-bold text-body mt-2 mb-1">No puedes registrar cobros</h6>
+                <p class="small text-secondary mb-0">Necesitas tener tu caja abierta. Ábrela en el Punto de Venta y vuelve a esta pantalla.</p>
+            </div>
+            <div class="modal-footer py-2 bg-body d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-grow-1" onclick="window.location.reload()" title="Si ya abriste tu caja, recarga la pantalla">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Ya la abrí
+                </button>
+                <a href="{{ route('puntoventa.index') }}" class="btn btn-sm btn-primary fw-bold flex-grow-1">
+                    <i class="bi bi-cart-check-fill me-1"></i>Ir al POS
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Barrera en el navegador: con caja cerrada, cualquier envío con monto cobrado > 0 se detiene
+// (el servidor también lo rechaza). Se permiten los movimientos con monto $0 (p. ej. solo devolver equipo).
+document.addEventListener('DOMContentLoaded', function () {
+    const reglas = [
+        { form: '#modalPago form',      monto: () => document.getElementById('inputMontoRecibidoPago') },
+        { form: '#modalAmpliar form',   monto: () => document.querySelector('#modalAmpliar input[name="abono"]') },
+        { form: '#modalFinalizar form', monto: () => document.getElementById('montoRecibidoFinal') },
+    ];
+    reglas.forEach(function (r) {
+        const f = document.querySelector(r.form);
+        if (!f) return;
+        f.addEventListener('submit', function (e) {
+            const campo = r.monto();
+            if ((parseFloat(campo ? campo.value : 0) || 0) <= 0) return;   // sin cobro: se permite
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const origen = f.closest('.modal');
+            const aviso = document.getElementById('modalCajaCerrada');
+            origen.addEventListener('hidden.bs.modal', function () {
+                bootstrap.Modal.getOrCreateInstance(aviso).show();
+            }, { once: true });
+            bootstrap.Modal.getOrCreateInstance(origen).hide();
+        });
+    });
+});
+</script>
+@endunless
 
 <script>
     const rentaData = document.getElementById('renta-js-data') ? document.getElementById('renta-js-data').dataset : {};

@@ -20,6 +20,7 @@ class Equipo extends Model
         'unidad_medida_id', 
         'tipo_operacion',
         'precio_dia', 
+        'tipo_tarifa',
         'precio_venta', 
         'stock', 
         'stock_minimo', 
@@ -27,6 +28,34 @@ class Equipo extends Model
         'descripcion', 
         'activo'
     ];
+
+    /**
+     * 🔥 DETERMINA EL TIPO DE TARIFA DE RENTA SEGÚN LA UNIDAD DE MEDIDA
+     * m2 / m² / mt2 / "Metro cuadrado" => 'm2'; cualquier otra => 'dia'
+     */
+    public static function tarifaParaUnidad($unidadId): string
+    {
+        $u = UnidadMedida::find($unidadId);
+        if (!$u) {
+            return 'dia';
+        }
+
+        $abr = str_replace(['²', ' ', '.'], ['2', '', ''], mb_strtolower((string) $u->abreviatura));
+        $nom = mb_strtolower((string) $u->nombre);
+
+        $esM2 = in_array($abr, ['m2', 'mt2', 'mts2'])
+            || preg_match('/metros?\s+cuadrados?/u', $nom);
+
+        return $esM2 ? 'm2' : 'dia';
+    }
+
+    /**
+     * Etiqueta corta de la tarifa: "m²" o "día"
+     */
+    public function getEtiquetaTarifaAttribute(): string
+    {
+        return $this->tipo_tarifa === 'm2' ? 'm²' : 'día';
+    }
 
     public function categoria()
     {

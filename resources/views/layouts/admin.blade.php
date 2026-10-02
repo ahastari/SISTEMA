@@ -247,6 +247,13 @@
             </li>
 
             <li class="nav-item mb-1">
+                <a href="{{ route('puntoventa.creditos') }}" class="nav-link {{ request()->routeIs('puntoventa.creditos*') ? 'active' : 'text-white' }}" title="Créditos">
+                    <i class="bi bi-credit-card-2-front me-2"></i>
+                    <span class="sidebar-text">Créditos</span>
+                </a>
+            </li>
+
+            <li class="nav-item mb-1">
                 <a href="{{ route('clientes.index') }}" class="nav-link {{ request()->routeIs('clientes.*') ? 'active' : 'text-white' }}" title="Clientes">
                     <i class="bi bi-people me-2"></i>
                     <span class="sidebar-text">Clientes</span>

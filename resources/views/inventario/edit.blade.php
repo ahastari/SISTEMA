@@ -97,11 +97,12 @@
                             </div>
                         </div>
                         <div class="col-12 col-md-6 mb-2" id="container_precio_renta" style="{{ $isRenta ? '' : 'display: none;' }}">
-                            <label class="form-label small fw-semibold text-body">Tarifa de Renta (Por Día) <span class="text-danger">*</span></label>
+                            <label class="form-label small fw-semibold text-body"><span id="label_tarifa_renta">Tarifa de Renta (Por Día)</span> <span class="text-danger">*</span></label>
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-body-tertiary text-secondary">$</span>
                                 <input type="number" name="precio_dia" step="0.01" class="form-control form-control-sm bg-body text-body select-on-focus @error('precio_dia') is-invalid @enderror" 
                                        value="{{ old('precio_dia', $equipo->precio_dia) }}" placeholder="0.00" min="0">
+                                <span class="input-group-text bg-body-tertiary text-secondary" id="sufijo_tarifa">/ día</span>
                             </div>
                         </div>
 
@@ -311,6 +312,27 @@ document.addEventListener('DOMContentLoaded', function() {
     if (opRenta) opRenta.addEventListener('change', actualizarPrecios);
     if (opVenta) opVenta.addEventListener('change', actualizarPrecios);
 
+    // Tarifa de renta por día o por m² según la unidad de medida
+    const selUnidad = document.querySelector('select[name="unidad_medida_id"]');
+    const lblTarifa = document.getElementById('label_tarifa_renta');
+    const sufTarifa = document.getElementById('sufijo_tarifa');
+
+    function esUnidadM2() {
+        if (!selUnidad || selUnidad.selectedIndex < 0) return false;
+        const txt = selUnidad.options[selUnidad.selectedIndex].text.toLowerCase().trim();
+        const m = txt.match(/\(([^)]*)\)\s*$/);
+        const abr = m ? m[1].replace(/[\s.]/g, '').replace('²', '2') : '';
+        return ['m2', 'mt2', 'mts2'].includes(abr) || /metros?\s+cuadrados?/.test(txt);
+    }
+
+    function actualizarTarifa() {
+        const m2 = esUnidadM2();
+        if (lblTarifa) lblTarifa.textContent = m2 ? 'Tarifa de Renta (Por m²)' : 'Tarifa de Renta (Por Día)';
+        if (sufTarifa) sufTarifa.textContent = m2 ? '/ m²' : '/ día';
+    }
+    if (selUnidad) selUnidad.addEventListener('change', actualizarTarifa);
+    actualizarTarifa();
+
     // ==========================================
     // DROPZONE Y PREVISUALIZACIÓN DE FOTOGRAFÍA
     // ==========================================
@@ -417,6 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (select) {
                         const option = new Option(formatText(data), data.categoria?.id || data.unidad?.id, true, true);
                         select.add(option);
+                        select.dispatchEvent(new Event('change'));
                     }
                     const modal = bootstrap.Modal.getInstance(modalEl);
                     if (modal) modal.hide();

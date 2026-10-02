@@ -38,7 +38,12 @@
     $sucursal = $renta->sucursal ?? null;
     $sucRfc = $sucursal->rfc ?? \App\Helpers\ContentHelper::getCompanyData('empresa_rfc', 'VIMG530129544');
     $sucDireccion = $sucursal->direccion ?? \App\Helpers\ContentHelper::getCompanyData('empresa_direccion', 'AV. DEL CIPRES 314 COL. MASIE, DURANGO, DGO, C.P. 34217');
-    $sucTelefono = $sucursal->telefono ?? \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TEL. 455-36-71 CEL. 618-159-70-19');
+    // Teléfono y celular de la sucursal; si no tiene ninguno, se usa el de la empresa
+    $sucTel = $sucursal->telefono ?? null;
+    $sucCel = $sucursal->celular ?? null;
+    $sucTelefono = ($sucTel || $sucCel)
+        ? implode(' / ', array_filter([$sucTel ? 'TEL. ' . $sucTel : null, $sucCel ? 'CEL. ' . $sucCel : null]))
+        : \App\Helpers\ContentHelper::getCompanyData('empresa_telefono', 'TEL. 455-36-71 CEL. 618-159-70-19');
     $depositoVal = (float)($renta->deposito_garantia ?? ($renta->deposito ?? 0));
     $montoTotalVal = (float)($renta->total ?? 0);
     $fFinVal = isset($renta->fecha_fin) ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y') : date('d/m/Y');

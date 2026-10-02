@@ -15,6 +15,7 @@ use App\Http\Controllers\SucursalController;
 use App\Http\Controllers\UsuarioConfigController;
 use App\Http\Controllers\MovimientoSucursalController;
 use App\Http\Controllers\AutorizacionController;
+use App\Http\Controllers\CreditoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -143,7 +144,19 @@ Route::middleware('auth')->group(function () {
     Route::get('/puntoventa/buscar-productos', [PuntoVentaController::class, 'buscarProductos'])->name('puntoventa.buscar');
     Route::post('/puntoventa/venta', [PuntoVentaController::class, 'store'])->name('puntoventa.store');
     Route::get('/puntoventa/ticket/{venta}', [PuntoVentaController::class, 'ticket'])->name('puntoventa.ticket');
+    Route::post('/puntoventa/descuento/solicitar', [PuntoVentaController::class, 'solicitarDescuento'])->name('puntoventa.descuento.solicitar');
+    Route::get('/puntoventa/descuento/estados', [PuntoVentaController::class, 'estadosDescuentos'])->name('puntoventa.descuento.estados');
+    Route::get('/puntoventa/descuento/{solicitud}/estado', [PuntoVentaController::class, 'estadoDescuento'])->name('puntoventa.descuento.estado');
+    Route::get('/puntoventa/cancelaciones/estado', [PuntoVentaController::class, 'estadoCancelaciones'])->name('puntoventa.cancelaciones.estado');
+    Route::put('/configuracion/sucursal/{sucursal}/credito', [ConfiguracionController::class, 'updateCreditoSucursal'])->name('configuracion.sucursal.credito');
+    Route::get('/puntoventa/creditos/estado', [PuntoVentaController::class, 'estadoCreditos'])->name('puntoventa.creditos.estado');
     
+        // Cartera de créditos y abonos
+    Route::get('/puntoventa/creditos', [CreditoController::class, 'index'])->name('puntoventa.creditos');
+    Route::post('/puntoventa/creditos/{venta}/abonos', [CreditoController::class, 'abonar'])->name('puntoventa.creditos.abonar');
+    Route::get('/puntoventa/creditos/abonos/{abono}/ticket', [CreditoController::class, 'ticket'])->name('puntoventa.creditos.ticket');
+    Route::get('/puntoventa/creditos/{venta}', [CreditoController::class, 'show']) ->whereNumber('venta')->name('puntoventa.creditos.show');
+
     // Cortes de caja
     Route::get('/puntoventa/cortes', [PuntoVentaController::class, 'cortes'])->name('puntoventa.cortes');
     Route::post('/puntoventa/abrir-caja', [PuntoVentaController::class, 'abrirCaja'])->name('puntoventa.abrirCaja');
@@ -152,7 +165,10 @@ Route::middleware('auth')->group(function () {
     // Reportes
     Route::get('/puntoventa/reportes', [PuntoVentaController::class, 'reportes'])->name('puntoventa.reportes');
     Route::post('/puntoventa/generar-reporte', [PuntoVentaController::class, 'generarReporte'])->name('puntoventa.generarReporte');
-
+    Route::post('/puntoventa/exportar-excel', [PuntoVentaController::class, 'exportarExcel'])->name('puntoventa.exportarExcel');
+    Route::post('/puntoventa/reportes/rentas/pdf',   [PuntoVentaController::class, 'generarReporteRentas'])->name('puntoventa.reporteRentas');
+    Route::post('/puntoventa/reportes/rentas/excel', [PuntoVentaController::class, 'exportarExcelRentas'])->name('puntoventa.exportarExcelRentas');
+ 
     // Movimientos de caja y estado
     Route::post('/puntoventa/movimiento', [PuntoVentaController::class, 'movimiento'])->name('puntoventa.movimiento');
     Route::get('/puntoventa/estado-caja', [PuntoVentaController::class, 'getEstadoCaja'])->name('puntoventa.estadoCaja');
@@ -217,6 +233,9 @@ Route::middleware(['auth', 'permission:ver_autorizaciones'])->group(function () 
         ->name('autorizaciones.aprobarCancelacionRenta');
     Route::post('/autorizaciones/renta/{renta}/rechazar-cancelacion', [AutorizacionController::class, 'rechazarCancelacionRenta'])
         ->name('autorizaciones.rechazarCancelacionRenta');
+    Route::post('/autorizaciones/descuento/{solicitud}/aprobar', [AutorizacionController::class, 'aprobarDescuento'])->name('autorizaciones.aprobarDescuento');
+    Route::post('/autorizaciones/descuento/{solicitud}/rechazar', [AutorizacionController::class, 'rechazarDescuento'])->name('autorizaciones.rechazarDescuento');
+
 });
 
 /*

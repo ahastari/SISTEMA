@@ -257,7 +257,7 @@ class ConfiguracionController extends Controller
             'empresa_rfc' => ['nullable', 'string', 'regex:/^([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])$/i'],
             'empresa_telefono' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'],
             'empresa_logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-            'folio_global_rentas' => 'nullable|integer|min:4000' // <-- NUEVA VALIDACIÓN
+            'folio_global_rentas' => 'nullable|integer|min:4000', // <-- NUEVA VALIDACIÓN
         ]);
 
         $campos = $request->only(['empresa_nombre', 'empresa_dueno', 'empresa_direccion', 'empresa_rfc', 'empresa_telefono', 'folio_global_rentas']);
@@ -279,5 +279,32 @@ class ConfiguracionController extends Controller
         }
 
         return redirect()->back()->with(['success' => 'Información corporativa actualizada correctamente.', 'tab' => 'empresa']);
+    }
+
+    /**
+     * Límite de crédito sin autorización POR SUCURSAL.
+     * Vacío = sin límite · 0 = todo crédito requiere autorización.
+     */
+    public function updateCreditoSucursal(Request $request, Sucursal $sucursal)
+    {
+        $user = auth()->user();
+        abort_unless(
+            $user->isAdmin() || ($user->isGerente() && (int) $user->sucursal_id === (int) $sucursal->id),
+            403,
+            'No tienes permiso para modificar esta sucursal.'
+        );
+
+        $request->validate([
+            'credito_limite_autorizacion' => 'nullable|numeric|min:0|max:9999999999',
+        ]);
+
+        $valor = $request->input('credito_limite_autorizacion');
+        $sucursal->credito_limite_autorizacion = ($valor === null || $valor === '') ? null : round((float) $valor, 2);
+        $sucursal->save();
+
+        return redirect()->back()->with([
+            'success' => 'Límite de crédito de "' . $sucursal->nombre . '" actualizado.',
+            'tab' => 'sucursales',
+        ]);
     }
 }

@@ -139,7 +139,7 @@
                         <div class="border rounded-3 p-3 text-center" style="background: rgba(13, 110, 253, 0.08); border-color: rgba(13, 110, 253, 0.25) !important;">
                             <span class="d-block text-primary fw-bold small mb-1"><i class="bi bi-clock-history me-1"></i> Tarifa de Renta</span>
                             <span class="fs-4 fw-bold text-body">${{ number_format($equipo->precio_dia, 2) }}</span>
-                            <small class="text-secondary d-block" style="font-size: 11px;">/ por día</small>
+                            <small class="text-secondary d-block" style="font-size: 11px;">/ por {{ $equipo->tipo_tarifa === 'm2' ? 'm²' : 'día' }}</small>
                         </div>
                     </div>
                     @endif

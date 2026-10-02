@@ -7,12 +7,15 @@ use App\Models\DetalleRenta;
 use App\Models\Cliente;
 use App\Models\Equipo;
 use App\Models\Pago;
+use App\Models\CorteCaja;
+use App\Models\MovimientoCaja;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\PlantillaDocumento;
 use App\Models\Configuracion;
+use App\Models\SolicitudDescuento;
 
 class RentaController extends Controller
 {
@@ -63,7 +66,7 @@ class RentaController extends Controller
                     foreach ($renta->detalles as $detalle) {
                         $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
                         if ($pendiente > 0) {
-                            $costoDiarioRenta += ($detalle->precio_dia * $pendiente);
+                            $costoDiarioRenta += $detalle->costoDiarioPendiente();
                         }
                     }
                     $renta->total_real += ($diasRetraso * $costoDiarioRenta);
@@ -73,7 +76,73 @@ class RentaController extends Controller
             }
         }
 
-        return view('rentas.index', compact('rentas', 'isGlobalAdmin', 'totalFacturado', 'totalPagado', 'totalPendiente'));
+        // 3. RENTAS EN ESPERA: en revisión del gerente (cancelación / finalizar con adeudo)
+        //    o ya autorizadas y pendientes de liquidar. Las más antiguas primero.
+        $esperaQuery = Renta::with(['cliente', 'detalles'])
+            ->where('estado', 'activa')
+            ->where(function ($q) {
+                $q->where('autorizacion_solicitada', true)->orWhere('autorizacion_aprobada', true);
+            })
+            ->orderBy('updated_at');
+
+        if (!$isGlobalAdmin) {
+            $esperaQuery->where('sucursal_id', $sucursalId);
+        }
+
+        $esperaModelos = $esperaQuery->get();
+        $solicitantes = \App\Models\User::whereIn('id', $esperaModelos->pluck('solicitado_por_id')->filter()->unique())
+            ->pluck('name', 'id');
+        $hoyEspera = now()->startOfDay();
+
+        $rentasEspera = $esperaModelos->map(function ($r) use ($solicitantes, $hoyEspera) {
+            // Retraso estimado (solo equipo pendiente), igual que en el detalle de la renta
+            $fin = $r->fecha_fin ? $r->fecha_fin->copy()->startOfDay() : null;
+            $diasRetraso = ($fin && $fin->lt($hoyEspera)) ? (int) $fin->diffInDays($hoyEspera) : 0;
+            $costoDia = 0;
+            if ($diasRetraso > 0) {
+                foreach ($r->detalles as $d) {
+                    $pend = $d->cantidad - $d->cantidad_devuelta;
+                    $costoDia += $d->costoDiarioPendiente();
+                }
+            }
+            $saldo = max(0, round((float) $r->saldo_pendiente + ($diasRetraso * $costoDia), 2));
+
+            $autorizada = (bool) $r->autorizacion_aprobada;
+            $motivo = trim((string) $r->motivo_autorizacion);
+            $esCancelacion = strpos($motivo, '[CANCELACION]') === 0;
+            $tel = preg_replace('/\D+/', '', (string) ($r->cliente->telefono ?? ''));
+
+            $docs = [];
+            if (empty($r->contrato_firmado_path)) $docs[] = 'Contrato';
+            if (empty($r->pagare_firmado_path))   $docs[] = 'Pagaré';
+
+            return [
+                'id'          => $r->id,
+                'folio'       => $r->folio,
+                'cliente'     => $r->cliente->nombre_completo ?? 'Cliente general',
+                'telefono'    => $r->cliente->telefono ?? '',
+                'tel_digitos' => $tel,
+                'autorizada'  => $autorizada,
+                'tipo'        => $autorizada ? 'Autorizada: falta liquidar' : ($esCancelacion ? 'Cancelación' : 'Finalizar con adeudo'),
+                'es_cancel'   => !$autorizada && $esCancelacion,
+                'motivo'      => trim(str_replace('[CANCELACION]', '', $motivo)),
+                'solicitante' => $solicitantes->get($r->solicitado_por_id, '—'),
+                'saldo'       => $saldo,
+                'total'       => (float) $r->total,
+                'fecha_fin'   => $r->fecha_fin,
+                'dias_retraso'=> $diasRetraso,
+                'actualizada' => $r->updated_at,
+                'horas'       => $r->updated_at ? (int) $r->updated_at->diffInHours(now()) : 0,
+                'docs_faltan' => $docs,
+                'url'         => route('rentas.show', $r),
+                'contrato_url'=> route('rentas.contrato', $r),
+            ];
+        })->values();
+
+        // Gerente/admin aplican descuentos directo; el cajero necesita autorización (afecta el estado de los borradores en espera)
+        $puedeAutorizarDescuento = auth()->user()->isAdmin() || auth()->user()->isGerente();
+
+        return view('rentas.index', compact('rentas', 'isGlobalAdmin', 'totalFacturado', 'totalPagado', 'totalPendiente', 'rentasEspera', 'puedeAutorizarDescuento'));
     }
 
     public function create()
@@ -104,7 +173,10 @@ class RentaController extends Controller
 
         $folio = Renta::generarFolio($sucursalId !== 'global' ? $sucursalId : null);
 
-        return view('rentas.create', compact('clientes', 'equipos', 'folio'));
+        // Gerente/admin aplican el descuento directo; el cajero debe pedir autorización
+        $puedeAutorizarDescuento = auth()->user()->isAdmin() || auth()->user()->isGerente();
+
+        return view('rentas.create', compact('clientes', 'equipos', 'folio', 'puedeAutorizarDescuento'));
     }
 
     public function store(Request $request)
@@ -116,6 +188,8 @@ class RentaController extends Controller
             'deposito' => 'nullable|numeric|min:0',
             'flete' => 'nullable|numeric|min:0',
             'mano_obra' => 'nullable|numeric|min:0',
+            'descuento' => 'nullable|numeric|min:0',
+            'solicitud_descuento_id' => 'nullable|integer',
             'observaciones' => 'nullable|string',
             'requiere_factura' => 'required|in:0,1',
             'equipos' => 'required|array|min:1',
@@ -153,7 +227,11 @@ class RentaController extends Controller
                     $equipo->save();
                 }
 
-                $subtotalEquipo = $equipo->precio_dia * $item['cantidad'] * $diasTotales;
+                // Por m²: se cobra una sola vez (precio × cantidad), sin multiplicar por los días
+                $tipoTarifa = $equipo->tipo_tarifa ?? 'dia';
+                $subtotalEquipo = $tipoTarifa === 'm2'
+                    ? $equipo->precio_dia * $item['cantidad']
+                    : $equipo->precio_dia * $item['cantidad'] * $diasTotales;
 
                 // 🔥 Sumamos el costo de los equipos a la variable correcta
                 $subtotalEquipos += $subtotalEquipo;
@@ -162,6 +240,7 @@ class RentaController extends Controller
                     'equipo_id' => $equipo->id,
                     'cantidad' => $item['cantidad'],
                     'precio_dia' => $equipo->precio_dia,
+                    'tipo_tarifa' => $tipoTarifa,
                     'dias' => $diasTotales,
                     'subtotal' => $subtotalEquipo
                 ];
@@ -174,9 +253,61 @@ class RentaController extends Controller
             // Sumamos el costo de los equipos + flete + mano de obra para el subtotal real
             $subtotal = $subtotalEquipos + $flete + $manoObra;
 
+            // --- DESCUENTO DE RENTA (requiere autorización si lo captura un cajero) ---
+            $descuento = round((float) ($request->descuento ?? 0), 2);
+            if ($descuento > $subtotal) {
+                throw new \Exception('El descuento no puede ser mayor al subtotal de la renta.');
+            }
+
+            $descuentoAutorizadoPorId = null;
+            $solicitudDescuento = null;
+            $motivoDescuento = null;
+
+            if ($descuento > 0) {
+                if (auth()->user()->isAdmin() || auth()->user()->isGerente()) {
+                    $descuentoAutorizadoPorId = auth()->id();
+                    $motivoDescuento = 'Aplicado directamente por ' . auth()->user()->name;
+                } else {
+                    // El cajero necesita una solicitud APROBADA de origen "renta", sin usar, con el mismo monto y cliente.
+                    // Se valida paso a paso para decirle exactamente qué falla (antes todo daba el mismo mensaje).
+                    $solicitudDescuento = SolicitudDescuento::where('id', $request->input('solicitud_descuento_id'))
+                        ->where('user_id', auth()->id())
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$solicitudDescuento) {
+                        throw new \Exception('El descuento requiere autorización de un gerente o administrador (no se recibió una solicitud válida). Solicítala de nuevo.');
+                    }
+                    if ($solicitudDescuento->tipo !== 'descuento' || $solicitudDescuento->origen !== 'renta') {
+                        throw new \Exception('La autorización #' . $solicitudDescuento->id . ' no corresponde a un descuento de renta. Solicita una nueva.');
+                    }
+                    if ($solicitudDescuento->estado !== 'aprobada') {
+                        $motivoEstado = [
+                            'pendiente'  => 'todavía no ha sido resuelta por el gerente',
+                            'rechazada'  => 'fue rechazada',
+                            'cancelada'  => 'fue cancelada (se reemplazó por otra solicitud)',
+                            'usada'      => 'ya fue utilizada en otra renta',
+                        ][$solicitudDescuento->estado] ?? ('está en estado "' . $solicitudDescuento->estado . '"');
+                        throw new \Exception('La autorización #' . $solicitudDescuento->id . ' ' . $motivoEstado . '. Solicita una nueva.');
+                    }
+                    if (abs($solicitudDescuento->monto - $descuento) >= 0.01) {
+                        throw new \Exception('La autorización #' . $solicitudDescuento->id . ' es por $' . number_format($solicitudDescuento->monto, 2)
+                            . ' y el descuento capturado es de $' . number_format($descuento, 2) . '. Deben coincidir: corrige el monto o solicita otra autorización.');
+                    }
+                    if ((int) ($solicitudDescuento->cliente_id ?? 0) !== (int) $request->cliente_id) {
+                        throw new \Exception('Este descuento fue autorizado para otro cliente (' . ($solicitudDescuento->cliente_nombre ?: 'Público General') . '). Solicita una nueva autorización.');
+                    }
+
+                    $descuentoAutorizadoPorId = $solicitudDescuento->autorizado_por_id;
+                    $motivoDescuento = $solicitudDescuento->motivo;
+                }
+            }
+
+            $subtotalConDescuento = max(0, $subtotal - $descuento);
+
             $requiereFactura = $request->requiere_factura == '1';
-            $iva = $requiereFactura ? ($subtotal * 0.16) : 0;
-            $total = $subtotal + $iva;
+            $iva = $requiereFactura ? round($subtotalConDescuento * 0.16, 2) : 0;
+            $total = $subtotalConDescuento + $iva;
             $deposito = $request->deposito ?? 0;
 
             $folioGenerado = Renta::generarFolio($sucursalIdGuardar);
@@ -192,6 +323,9 @@ class RentaController extends Controller
                 'subtotal' => $subtotal,
                 'flete' => $flete,
                 'mano_obra' => $manoObra,
+                'descuento' => $descuento,
+                'motivo_descuento' => $motivoDescuento,
+                'descuento_autorizado_por_id' => $descuentoAutorizadoPorId,
                 'iva' => $iva,
                 'total' => $total,
                 'deposito' => $deposito,
@@ -222,6 +356,11 @@ class RentaController extends Controller
             foreach ($detalles as $detalle) {
                 $detalle['renta_id'] = $renta->id;
                 DetalleRenta::create($detalle);
+            }
+
+            // La autorización queda consumida y ligada a esta renta
+            if ($solicitudDescuento) {
+                $solicitudDescuento->forceFill(['estado' => 'usada', 'renta_id' => $renta->id])->save();
             }
 
             DB::commit();
@@ -257,7 +396,7 @@ class RentaController extends Controller
                     // Multa SOLO por artículos pendientes
                     $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
                     if ($pendiente > 0) {
-                        $costoDiarioRenta += ($detalle->precio_dia * $pendiente);
+                        $costoDiarioRenta += $detalle->costoDiarioPendiente();
                     }
                 }
 
@@ -270,7 +409,10 @@ class RentaController extends Controller
 
         $puedeEditarMulta = auth()->user()->isAdmin() || auth()->user()->isGerente();
 
-        return view('rentas.show', compact('renta', 'diasRestantes', 'diasRetraso', 'multaCalculada', 'motivoMulta', 'puedeEditarMulta'));
+        // Sin caja abierta no se pueden registrar cobros (abonos, ampliaciones con abono ni liquidaciones)
+        $cajaAbierta = CorteCaja::where('estado', 'abierto')->where('user_id', auth()->id())->exists();
+
+        return view('rentas.show', compact('renta', 'diasRestantes', 'diasRetraso', 'multaCalculada', 'motivoMulta', 'puedeEditarMulta', 'cajaAbierta'));
     }
 
     public function edit(Renta $renta)
@@ -1046,6 +1188,34 @@ class RentaController extends Controller
         return back()->with('error', 'Documento no encontrado');
     }
 
+    /**
+     * Refleja en el corte de caja abierto del usuario el cobro de una renta
+     * (igual que los abonos de crédito): queda como INGRESO con concepto "Abono renta <folio>".
+     * TODO cobro (efectivo, transferencia o tarjeta) requiere caja abierta: sin caja no se registra el pago.
+     */
+    private function registrarIngresoCaja(Renta $renta, float $monto, string $metodo, string $detalle = ''): void
+    {
+        if ($monto <= 0) {
+            return;
+        }
+
+        $corte = CorteCaja::where('estado', 'abierto')->where('user_id', auth()->id())->first();
+
+        // Sin caja abierta no se permite ningún cobro. Al lanzar la excepción dentro de la transacción,
+        // se revierte todo (pago, devoluciones y cargos de esa operación).
+        if (!$corte) {
+            throw new \Exception('No hay caja abierta. Abre tu caja en el Punto de Venta para poder registrar cobros de rentas. (Las operaciones sin cobro, con monto $0, sí se pueden procesar.)');
+        }
+
+        MovimientoCaja::create([
+            'corte_caja_id' => $corte->id,
+            'tipo'          => 'ingreso',
+            'concepto'      => 'Abono renta ' . $renta->folio . ($detalle !== '' ? ' (' . $detalle . ')' : ''),
+            'monto'         => round($monto, 2),
+            'metodo'        => $metodo,
+        ]);
+    }
+
     public function registrarPago(Request $request, Renta $renta)
     {
         $request->validate([
@@ -1159,6 +1329,9 @@ class RentaController extends Controller
                         'observaciones' => $obsPago
                     ]);
                     $nuevoPagoId = $pago->id;
+
+                    // Se refleja en el corte de caja del día
+                    $this->registrarIngresoCaja($renta, (float) $request->monto, (string) $request->metodo_pago, $renta->estado === 'finalizada' ? 'liquidación' : '');
                 }
             });
 
@@ -1211,6 +1384,9 @@ class RentaController extends Controller
                         'observaciones' => 'Abono en intento de finalización'
                     ]);
                     $nuevoPagoId = $pago->id;
+
+                    // Se refleja en el corte de caja del día
+                    $this->registrarIngresoCaja($renta, $montoPago, (string) ($request->metodo_pago_final ?? 'efectivo'), 'liquidación');
                 }
 
                 $saldoFinal = $renta->fresh()->saldo_pendiente;
@@ -1318,7 +1494,7 @@ class RentaController extends Controller
                     $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
                     
                     if ($pendiente > 0) {
-                        $costoDetalleExtra = ($detalle->precio_dia * $pendiente * $diasExtra);
+                        $costoDetalleExtra = $detalle->costoDiarioPendiente() * $diasExtra; // 0 si es por m²
                         $subtotalAmpliacion += $costoDetalleExtra;
 
                         $detalle->subtotal += $costoDetalleExtra;
@@ -1327,7 +1503,8 @@ class RentaController extends Controller
                     }
                 }
 
-                if ($subtotalAmpliacion <= 0 && empty($articulosDevueltos)) {
+                $hayPendientes = $renta->detalles->contains(fn ($d) => ($d->cantidad - $d->cantidad_devuelta) > 0);
+                if (!$hayPendientes && empty($articulosDevueltos)) {
                     throw new \Exception("No hay equipos pendientes para ampliar, ni se devolvió equipo.");
                 }
 
@@ -1367,6 +1544,9 @@ class RentaController extends Controller
                         'observaciones' => $obsPago
                     ]);
                     $nuevoPagoId = $pago->id;
+
+                    // Se refleja en el corte de caja del día
+                    $this->registrarIngresoCaja($renta, (float) $request->abono, (string) ($request->metodo_pago ?? 'efectivo'), 'ampliación');
                 }
             });
 
