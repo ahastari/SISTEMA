@@ -15,12 +15,14 @@ class SucursalController extends Controller
             'nombre' => 'required|string|max:255',
             'direccion' => 'required|string|max:255',
             'rfc' => [
-                'nullable', 
-                'string', 
-                'regex:/^([A-ZÑ&]{3,4})\d{6}([A-Z0-9]{3})$/i' 
+                'nullable',
+                'string',
+                'regex:/^([A-ZÑ&]{3,4})\d{6}([A-Z0-9]{3})$/i'
             ],
             'telefono' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'],
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            // Folio propio de la sucursal (vacío = continúa desde su último folio)
+            'siguiente_folio_rentas' => 'nullable|integer|min:1',
             'activa' => $isUpdate ? 'required|boolean' : 'nullable'
         ];
     }
@@ -39,7 +41,7 @@ class SucursalController extends Controller
         if ($request->hasFile('logo')) {
             $sucursal->logo = $request->file('logo')->store('sucursales', 'public');
         }
-        
+
         $sucursal->save();
 
         return redirect()->back()->with(['success' => 'Nueva sucursal dada de alta correctamente.', 'tab' => 'sucursales']);
@@ -64,7 +66,7 @@ class SucursalController extends Controller
             }
             $sucursal->logo = $request->file('logo')->store('sucursales', 'public');
         }
-        
+
         $sucursal->save();
 
         Cache::forget("sucursal_data_{$sucursal->id}");

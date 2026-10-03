@@ -561,9 +561,12 @@
 
                             if($corteActivo->ventas) {
                                 foreach($corteActivo->ventas as $v) {
-                                    if(($v->metodo_pago ?? '') === 'credito' && ($v->estado ?? '') === 'completada') {
+                                    if ($v->estado !== 'completada') continue;
+
+                                    if (($v->metodo_pago ?? '') === 'credito') {
                                         $ventasCreditoModal += $v->total;
                                     }
+                                    
                                     foreach($v->detalles as $d) {
                                         if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
                                             $montoFleteModal += $d->subtotal;

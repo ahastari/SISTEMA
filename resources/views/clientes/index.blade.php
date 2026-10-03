@@ -63,36 +63,53 @@
     </div>
 @endif
 
-<!-- Barra de Filtro y Búsqueda -->
+<!-- Pestañas de Navegación -->
+<ul class="nav nav-tabs mb-4" style="border-bottom-color: var(--bs-border-color);">
+    <li class="nav-item">
+        <a class="nav-link {{ $filtro == 'activos' ? 'active fw-bold' : 'text-body-secondary' }}" href="{{ route('clientes.index', ['filtro' => 'activos']) }}">
+            <i class="bi bi-person-check-fill me-1"></i> Activos
+        </a>
+    </li>
+    
+    @if($puedeVerInactivos)
+    <li class="nav-item">
+        <a class="nav-link {{ $filtro == 'inactivos' ? 'active fw-bold' : 'text-body-secondary' }}" href="{{ route('clientes.index', ['filtro' => 'inactivos']) }}">
+            <i class="bi bi-clock-history me-1"></i> Inactivos
+        </a>
+    </li>
+    @endif
+    
+    <!-- Pestaña visible para TODOS -->
+    <li class="nav-item">
+        <a class="nav-link {{ $filtro == 'bloqueados' ? 'active fw-bold text-danger bg-danger-subtle border-danger-subtle border-bottom-0' : 'text-danger opacity-75' }}" href="{{ route('clientes.index', ['filtro' => 'bloqueados']) }}">
+            <i class="bi bi-shield-fill-x me-1"></i> Lista Negra (Bloqueados)
+        </a>
+    </li>
+</ul>
+
+<!-- Barra de Búsqueda -->
 <div class="filter-card p-3 mb-4">
     <form method="GET" action="{{ route('clientes.index') }}">
+        <!-- Mantener la pestaña actual en la búsqueda -->
+        <input type="hidden" name="filtro" value="{{ $filtro }}">
+        
         <div class="row g-2 align-items-center">
-            <div class="col-12 col-md-6 col-lg-5">
+            <div class="col-12 col-md-8 col-lg-8">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-body-tertiary text-body-secondary border-end-0 rounded-start-3">
                         <i class="bi bi-search"></i>
                     </span>
                     <input type="text" name="search" class="form-control bg-body text-body border-start-0 rounded-end-3" 
-                           placeholder="Buscar por nombre, teléfono, RFC o empresa..." value="{{ request('search') }}">
+                           placeholder="Buscar por nombre, teléfono, RFC o empresa en esta pestaña..." value="{{ request('search') }}">
                 </div>
             </div>
 
-            @if($puedeVerInactivos)
-            <div class="col-12 col-md-3 col-lg-3">
-                <select name="estado_cliente" class="form-select form-select-sm bg-body text-body rounded-3">
-                    <option value="">Estado: Todos</option>
-                    <option value="activos" {{ request('estado_cliente') == 'activos' ? 'selected' : '' }}>Activos</option>
-                    <option value="inactivos" {{ request('estado_cliente') == 'inactivos' ? 'selected' : '' }}>Deshabilitados (+2 años)</option>
-                </select>
-            </div>
-            @endif
-
-            <div class="col-12 col-md-3 col-lg-4 d-flex gap-2">
+            <div class="col-12 col-md-4 col-lg-4 d-flex gap-2">
                 <button class="btn btn-sm btn-primary rounded-3 px-3 w-100 fw-semibold" type="submit">
                     <i class="bi bi-search me-1"></i> Buscar
                 </button>
-                @if(request('search') || request('estado_cliente'))
-                    <a href="{{ route('clientes.index') }}" class="btn btn-sm btn-outline-secondary rounded-3 px-3">Limpiar</a>
+                @if(request('search'))
+                    <a href="{{ route('clientes.index', ['filtro' => $filtro]) }}" class="btn btn-sm btn-outline-secondary rounded-3 px-3">Limpiar</a>
                 @endif
             </div>
         </div>
@@ -149,12 +166,21 @@
                         @endif
                     </td>
                     <td class="py-2.5">
-                        @if($cliente->activo)
+                        @if($cliente->bloqueado)
+                            <span class="badge bg-danger text-white rounded-pill px-2.5 py-1 mb-1">
+                                <i class="bi bi-slash-circle me-1"></i> Bloqueado Global
+                            </span>
+                            <br>
+                            <div class="text-body-secondary fst-italic mt-1" style="font-size: 10px; line-height: 1.2;">
+                                <strong>Motivo:</strong> {{ Str::limit($cliente->motivo_bloqueo ?? 'Sin especificar', 35) }}<br>
+                                <strong>Bloqueó:</strong> {{ $cliente->sucursal->nombre ?? 'Otra sucursal' }}
+                            </div>
+                        @elseif($cliente->activo)
                             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
                                 <i class="bi bi-check-circle-fill me-1"></i> Activo
                             </span>
                         @else
-                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2.5 py-1" title="Deshabilitado por inactividad superior a 2 años">
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2.5 py-1" title="Deshabilitado por inactividad">
                                 <i class="bi bi-clock-history me-1"></i> Inactivo (+2 años)
                             </span>
                         @endif
@@ -189,6 +215,26 @@
                                     </button>
                                 </form>
                             @endif
+
+                            <!-- ACCIONES DE BLOQUEO / DESBLOQUEO -->
+                            @if($cliente->bloqueado)
+                                @if($puedeVerInactivos)
+                                    <form action="{{ route('clientes.desbloquear', $cliente) }}" method="POST" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-3 px-2" title="Desbloquear" onclick="return confirm('¿Desbloquear a este cliente en todas las sucursales?')">
+                                            <i class="bi bi-unlock"></i>
+                                        </button>
+                                    </form>
+                                @else
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3 px-2 disabled" title="Solo el gerente puede desbloquear" disabled>
+                                        <i class="bi bi-lock-fill"></i>
+                                    </button>
+                                @endif
+                            @else
+                                <button type="button" class="btn btn-sm btn-outline-danger rounded-3 px-2" title="Bloquear Globalmente" onclick="abrirModalBloqueo('{{ route('clientes.bloquear', $cliente) }}')">
+                                    <i class="bi bi-slash-circle"></i>
+                                </button>
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -210,4 +256,40 @@
     </div>
     @endif
 </div>
+
+<!-- Modal para Bloquear Cliente -->
+<div class="modal fade" id="modalBloquearCliente" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <form id="formBloquearCliente" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-header bg-danger text-white">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-slash-circle me-2"></i>Bloquear Cliente Globalmente</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-body-secondary mb-3">Este cliente quedará bloqueado en <strong>todas las sucursales</strong>. No se le podrá vender ni rentar.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-body small">Motivo del bloqueo <span class="text-danger">*</span></label>
+                        <textarea name="motivo_bloqueo" class="form-control" rows="3" required placeholder="Ej: Falsificó documentos, dejó deuda de $5000, robo de equipo, etc."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger btn-sm fw-bold">Aplicar Bloqueo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function abrirModalBloqueo(url) {
+        document.getElementById('formBloquearCliente').action = url;
+        var modal = new bootstrap.Modal(document.getElementById('modalBloquearCliente'));
+        modal.show();
+    }
+</script>
+
 @endsection

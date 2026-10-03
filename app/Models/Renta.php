@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Renta extends Model
 {
@@ -102,29 +103,73 @@ class Renta extends Model
         return $this->hasMany(Abono::class);
     }
 
-    public static function generarFolio($sucursalId = null)
+    /**
+     * Valor comercial (precio de venta x cantidad) de todos los equipos rentados.
+     * Es el monto que amparan el pagaré y el contrato.
+     * Usa el precio congelado al crear la renta y, si no existe, el actual del equipo.
+     */
+    public function getValorVentaAttribute(): float
     {
-        $folioNumber = 4000;
+        $this->loadMissing('detalles.equipo');
 
-        if ($sucursalId && $sucursalId !== 'global') {
-            $sucursal = Sucursal::find($sucursalId);
-            if ($sucursal && $sucursal->siguiente_folio_rentas >= 4000) {
-                $folioNumber = $sucursal->siguiente_folio_rentas;
-            } else {
-                $count = self::where('sucursal_id', $sucursalId)->count();
-                $folioNumber = 4000 + $count;
-            }
-        } else {
-            $folioGlobal = Configuracion::where('key', 'folio_global_rentas')->value('value');
-            if ($folioGlobal && $folioGlobal >= 4000) {
-                $folioNumber = $folioGlobal;
-            } else {
-                $count = self::count();
-                $folioNumber = 4000 + $count;
-            }
+        return round($this->detalles->sum(function ($detalle) {
+            return $detalle->precio_venta_efectivo * (int) $detalle->cantidad;
+        }), 2);
+    }
+
+    /**
+     * Nombres de los equipos de la renta sin precio de venta capturado.
+     */
+    public function equiposSinPrecioVenta()
+    {
+        $this->loadMissing('detalles.equipo');
+
+        return $this->detalles
+            ->filter(fn ($d) => $d->precio_venta_efectivo <= 0)
+            ->map(fn ($d) => $d->equipo->nombre ?? ('Equipo #' . $d->equipo_id))
+            ->values();
+    }
+
+    /**
+     * Genera el siguiente folio de una sucursal.
+     * Cada sucursal tiene su propia numeración, independiente de las demás.
+     *
+     * @param int|string $sucursalId
+     * @param bool $bloquear  true = bloquea la fila de la sucursal (usar SOLO dentro de una transacción)
+     */
+    public static function generarFolio($sucursalId, bool $bloquear = false)
+    {
+        $query = Sucursal::query();
+        if ($bloquear) {
+            $query->lockForUpdate();
+        }
+        $sucursal = $query->findOrFail($sucursalId);
+
+        $folioNumber = $sucursal->siguiente_folio_rentas;
+
+        if (!$folioNumber) {
+            $max = self::where('sucursal_id', $sucursalId)
+                ->max(DB::raw('CAST(folio AS UNSIGNED)'));
+            $folioNumber = $max ? ((int) $max + 1) : 4000;
         }
 
-        return str_pad($folioNumber, 5, '0', STR_PAD_LEFT); 
+        while (self::where('sucursal_id', $sucursalId)
+            ->where('folio', str_pad($folioNumber, 5, '0', STR_PAD_LEFT))
+            ->exists()) {
+            $folioNumber++;
+        }
+
+        return str_pad($folioNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Deja listo el siguiente folio de la sucursal.
+     */
+    public static function avanzarFolio($sucursalId, int $folioUsado): void
+    {
+        Sucursal::whereKey($sucursalId)->update([
+            'siguiente_folio_rentas' => $folioUsado + 1,
+        ]);
     }
 
     public static function calcularDias($fechaInicio, $fechaFin)
@@ -138,14 +183,14 @@ class Renta extends Model
     public function getSaldoPendienteAttribute()
     {
         if ($this->estado === 'cancelada') {
-            return 0; 
+            return 0;
         }
 
-        $totalPagado = $this->pagos()->sum('monto');
-        
+        $totalPagado = $this->pagos()->where('tipo', '!=', 'deposito')->sum('monto');
+
         $saldo = $this->total - ($this->deposito ?? 0) - $totalPagado;
-        
-        return $saldo; 
+
+        return $saldo;
     }
 
     public function ampliarDias($diasExtra, $motivo = null, $conIva = false)
@@ -155,10 +200,9 @@ class Renta extends Model
         $this->dias_totales += $diasExtra;
         $this->dias_ampliados += $diasExtra;
         $this->fecha_ampliacion = now();
-        
+
         $subtotalAmpliacion = 0;
         foreach ($this->detalles as $detalle) {
-            // CORRECCIÓN: Solo tomar en cuenta los que NO se han retornado
             $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
             if ($pendiente > 0) {
                 $costoExtra = $detalle->precio_dia * $pendiente * $diasExtra;
@@ -171,18 +215,18 @@ class Renta extends Model
         }
 
         $ivaExtra = $conIva ? ($subtotalAmpliacion * 0.16) : 0;
-        
+
         $this->subtotal += $subtotalAmpliacion;
         $this->iva += $ivaExtra;
         $this->total += ($subtotalAmpliacion + $ivaExtra);
-        
+
         if ($motivo) {
-            $this->observaciones = ($this->observaciones ? $this->observaciones . "\n" : '') 
+            $this->observaciones = ($this->observaciones ? $this->observaciones . "\n" : '')
                 . "Ampliación de {$diasExtra} días. Motivo: {$motivo}";
         }
-        
+
         $this->save();
-        
+
         return $this;
     }
 
@@ -204,14 +248,14 @@ class Renta extends Model
         if ($this->estado !== 'activa') {
             return 0;
         }
-        
+
         $hoy = now()->startOfDay();
         $fechaFin = $this->fecha_fin->startOfDay();
-        
+
         if ($hoy > $fechaFin) {
             return 0;
         }
-        
+
         return (int) $hoy->diffInDays($fechaFin) + 1;
     }
 
@@ -220,14 +264,14 @@ class Renta extends Model
         if ($this->estado !== 'activa') {
             return 0;
         }
-        
+
         $hoy = now()->startOfDay();
         $fechaFin = $this->fecha_fin->startOfDay();
-        
+
         if ($hoy <= $fechaFin) {
             return 0;
         }
-        
+
         return (int) $fechaFin->diffInDays($hoy);
     }
 }

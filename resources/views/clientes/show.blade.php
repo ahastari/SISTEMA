@@ -8,7 +8,7 @@
         color: var(--bs-heading-color);
     }
     .stats-card {
-        background: var(--bs-body-bg);
+        background: var(--bs-body-bg); 
         border: 1px solid var(--bs-border-color);
         border-radius: 16px;
         padding: 16px 20px;
@@ -44,6 +44,20 @@
         </h2>
         <p class="text-body-secondary small mb-0">Información de contacto, expediente digital y resumen de obras y rentas.</p>
     </div>
+    @if($cliente->bloqueado)
+    <div class="alert alert-danger shadow border-danger d-flex align-items-center mb-4">
+        <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+        <div>
+            <h5 class="mb-1 fw-bold text-danger">CLIENTE BLOQUEADO A NIVEL GLOBAL</h5>
+            <p class="mb-2 small">Este cliente se encuentra en la lista negra por historial negativo. Está prohibido realizarle rentas, ventas o cotizaciones en cualquier sucursal.</p>
+            <hr class="my-2 border-danger opacity-25">
+            <div class="small">
+                <strong>Motivo del bloqueo:</strong> 
+                <span class="fst-italic text-dark">{{ $cliente->motivo_bloqueo ?? 'No se especificó un motivo.' }}</span>
+            </div>
+        </div>
+    </div>
+    @endif
     <div class="d-flex gap-2">
         <a href="{{ route('clientes.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
             <i class="bi bi-arrow-left me-1"></i> Regresar
@@ -211,9 +225,7 @@
                             <th class="py-2">Dirección</th>
                             <th class="py-2">Ciudad</th>
                             <th class="py-2">Contacto</th>
-                            <th class="py-2">Estado</th>
                             <th class="py-2">Rentas</th>
-                            <th class="text-center pe-3 py-2">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -224,19 +236,7 @@
                             <td class="py-2">{{ $obra->ciudad ?? 'N/A' }}</td>
                             <td class="py-2">{{ $obra->contacto_obra ?? 'N/A' }}</td>
                             <td class="py-2">
-                                @if($obra->activa)
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Activa</span>
-                                @else
-                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Inactiva</span>
-                                @endif
-                            </td>
-                            <td class="py-2">
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">{{ $obra->rentas->count() }}</span>
-                            </td>
-                            <td class="text-center pe-3 py-2">
-                                <a href="{{ route('obras.show', $obra) }}" class="btn btn-sm btn-outline-primary rounded-3 px-2">
-                                    <i class="bi bi-eye me-1"></i> Ver
-                                </a>
                             </td>
                         </tr>
                         @endforeach

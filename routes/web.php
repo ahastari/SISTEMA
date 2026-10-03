@@ -30,116 +30,67 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 | DASHBOARD PRINCIPAL
 |--------------------------------------------------------------------------
+| Protegido por el middleware RestringirCajero para evitar que el cajero entre
 */
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', \App\Http\Middleware\RestringirCajero::class])
     ->name('dashboard');
 
 /*
 |--------------------------------------------------------------------------
-| RUTAS DE PERFIL DE USUARIO
+| RUTAS GENERALES (PROTEGIDAS POR RESTRICCIÓN DE CAJERO)
 |--------------------------------------------------------------------------
+| Todo el acceso del cajero a estos módulos será filtrado por la lista blanca
+| definida en tu archivo RestringirCajero.php
 */
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', \App\Http\Middleware\RestringirCajero::class])->group(function () {
+
+    // PERFIL DE USUARIO
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
 
-/*
-|--------------------------------------------------------------------------
-| MÓDULO DE CLIENTES
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
+    // MÓDULO DE CLIENTES
     Route::resource('clientes', ClienteController::class);
+    Route::patch('/clientes/{cliente}/reactivar', [ClienteController::class, 'reactivar'])->name('clientes.reactivar');
+    Route::patch('/clientes/{cliente}/bloquear', [ClienteController::class, 'bloquear'])->name('clientes.bloquear');
+    Route::patch('/clientes/{cliente}/desbloquear', [ClienteController::class, 'desbloquear'])->name('clientes.desbloquear');
 
-    Route::patch('/clientes/{cliente}/reactivar', [ClienteController::class, 'reactivar'])
-        ->name('clientes.reactivar');
-});
-
-/*
-|--------------------------------------------------------------------------
-| MÓDULO DE INVENTARIO (EQUIPOS)
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
-    // Exportación e importación Excel
+    // MÓDULO DE INVENTARIO (EQUIPOS)
     Route::get('/inventario/exportar', [EquipoController::class, 'exportExcel'])->name('inventario.exportar');
     Route::post('/inventario/importar', [EquipoController::class, 'importExcel'])->name('inventario.importar');
-
-    // Vista Kanban
     Route::get('/inventario/kanban', [EquipoController::class, 'kanban'])->name('inventario.kanban');
-    
-    // CRUD completo de inventario
     Route::resource('inventario', EquipoController::class)->parameters(['inventario' => 'equipo']);
-});
 
-/*
-|--------------------------------------------------------------------------
-| MÓDULO DE OBRAS
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
-    Route::resource('obras', ObraController::class);
-    Route::get('/get-obras/{clienteId}', [ObraController::class, 'getObrasByCliente'])->name('get.obras');
-});
+    // OBRAS: ya no existe el módulo. La obra se registra desde el modal de una renta
+    // y pertenece únicamente a esa renta.
+    Route::post('/obras', [ObraController::class, 'store'])->name('obras.store');
+    Route::delete('/obras/{obra}', [ObraController::class, 'destroy'])->name('obras.destroy');
 
-/*
-|--------------------------------------------------------------------------
-| MÓDULO DE RENTAS
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
-
+    // MÓDULO DE RENTAS
     Route::post('/rentas/actualizar-multa', [RentaController::class, 'actualizarMulta'])->name('rentas.actualizarMulta');
-    
     Route::resource('rentas', RentaController::class);
-    
-    // Acciones personalizadas de rentas
     Route::get('/rentas/{renta}/finalizar', [RentaController::class, 'finalizar'])->name('rentas.finalizar');
     Route::get('/rentas/{renta}/contrato', [RentaController::class, 'contrato'])->name('rentas.contrato');
     Route::get('/rentas/{renta}/pagare', [RentaController::class, 'pagare'])->name('rentas.pagare');
     Route::post('/rentas/{renta}/cancelar', [RentaController::class, 'cancelar'])->name('rentas.cancelar');
-    
-    // Subida de documentos
     Route::post('/rentas/{renta}/upload-contrato', [RentaController::class, 'uploadContrato'])->name('rentas.uploadContrato');
     Route::post('/rentas/{renta}/upload-pagare', [RentaController::class, 'uploadPagare'])->name('rentas.uploadPagare');
     Route::get('/rentas/pagos/{pago}/ticket', [RentaController::class, 'ticketPago'])->name('rentas.ticketPago');
     Route::delete('/rentas/{renta}/delete-documento/{tipo}', [RentaController::class, 'deleteDocumento'])->name('rentas.deleteDocumento');
-
-    // Gestión de pagos y ampliaciones
     Route::post('/rentas/{renta}/ampliar-dias', [RentaController::class, 'ampliarDias'])->name('rentas.ampliarDias');
     Route::post('/rentas/{renta}/registrar-pago', [RentaController::class, 'registrarPago'])->name('rentas.registrarPago');
     Route::post('/rentas/{renta}/finalizar-con-pago', [RentaController::class, 'finalizarConPago'])->name('rentas.finalizarConPago');
     Route::get('/rentas/{renta}/estado', [RentaController::class, 'getEstadoRenta'])->name('rentas.estado');
-
-    // Gestion de entregas parciales
     Route::post('/rentas/{renta}/devolucion-parcial', [RentaController::class, 'devolucionParcial'])->name('rentas.devolucionParcial');
-});
 
-/*
-|--------------------------------------------------------------------------
-| API DE CATEGORÍAS Y UNIDADES DE MEDIDA
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
-    // Categorías
+    // API DE CATEGORÍAS Y UNIDADES DE MEDIDA
     Route::post('/categorias', [CategoriaController::class, 'store'])->name('categorias.store');
     Route::get('/categorias/list', [CategoriaController::class, 'list'])->name('categorias.list');
-    
-    // Unidades de Medida
     Route::post('/unidades', [UnidadMedidaController::class, 'store'])->name('unidades.store');
     Route::get('/unidades/list', [UnidadMedidaController::class, 'list'])->name('unidades.list');
-});
 
-/*
-|--------------------------------------------------------------------------
-| MÓDULO DE PUNTO DE VENTA
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
-    // Operaciones principales de PDV
+    // MÓDULO DE PUNTO DE VENTA
     Route::get('/puntoventa', [PuntoVentaController::class, 'index'])->name('puntoventa.index');
     Route::get('/puntoventa/buscar-productos', [PuntoVentaController::class, 'buscarProductos'])->name('puntoventa.buscar');
     Route::post('/puntoventa/venta', [PuntoVentaController::class, 'store'])->name('puntoventa.store');
@@ -150,32 +101,41 @@ Route::middleware('auth')->group(function () {
     Route::get('/puntoventa/cancelaciones/estado', [PuntoVentaController::class, 'estadoCancelaciones'])->name('puntoventa.cancelaciones.estado');
     Route::put('/configuracion/sucursal/{sucursal}/credito', [ConfiguracionController::class, 'updateCreditoSucursal'])->name('configuracion.sucursal.credito');
     Route::get('/puntoventa/creditos/estado', [PuntoVentaController::class, 'estadoCreditos'])->name('puntoventa.creditos.estado');
-    
-        // Cartera de créditos y abonos
+
+    // Cartera de créditos y abonos
     Route::get('/puntoventa/creditos', [CreditoController::class, 'index'])->name('puntoventa.creditos');
     Route::post('/puntoventa/creditos/{venta}/abonos', [CreditoController::class, 'abonar'])->name('puntoventa.creditos.abonar');
     Route::get('/puntoventa/creditos/abonos/{abono}/ticket', [CreditoController::class, 'ticket'])->name('puntoventa.creditos.ticket');
-    Route::get('/puntoventa/creditos/{venta}', [CreditoController::class, 'show']) ->whereNumber('venta')->name('puntoventa.creditos.show');
+    Route::get('/puntoventa/creditos/{venta}', [CreditoController::class, 'show'])->whereNumber('venta')->name('puntoventa.creditos.show');
 
     // Cortes de caja
     Route::get('/puntoventa/cortes', [PuntoVentaController::class, 'cortes'])->name('puntoventa.cortes');
     Route::post('/puntoventa/abrir-caja', [PuntoVentaController::class, 'abrirCaja'])->name('puntoventa.abrirCaja');
     Route::post('/puntoventa/cerrar-caja', [PuntoVentaController::class, 'cerrarCaja'])->name('puntoventa.cerrarCaja');
-    
-    // Reportes
     Route::get('/puntoventa/reportes', [PuntoVentaController::class, 'reportes'])->name('puntoventa.reportes');
     Route::post('/puntoventa/generar-reporte', [PuntoVentaController::class, 'generarReporte'])->name('puntoventa.generarReporte');
     Route::post('/puntoventa/exportar-excel', [PuntoVentaController::class, 'exportarExcel'])->name('puntoventa.exportarExcel');
     Route::post('/puntoventa/reportes/rentas/pdf',   [PuntoVentaController::class, 'generarReporteRentas'])->name('puntoventa.reporteRentas');
     Route::post('/puntoventa/reportes/rentas/excel', [PuntoVentaController::class, 'exportarExcelRentas'])->name('puntoventa.exportarExcelRentas');
- 
+
     // Movimientos de caja y estado
     Route::post('/puntoventa/movimiento', [PuntoVentaController::class, 'movimiento'])->name('puntoventa.movimiento');
     Route::get('/puntoventa/estado-caja', [PuntoVentaController::class, 'getEstadoCaja'])->name('puntoventa.estadoCaja');
-
-    // Historial y cancelación
     Route::get('/puntoventa/historial', [PuntoVentaController::class, 'historial'])->name('puntoventa.historial');
     Route::post('/puntoventa/cancelar/{id}', [PuntoVentaController::class, 'cancelar'])->name('puntoventa.cancelar');
+
+    // MÓDULO DE MOVIMIENTOS ENTRE SUCURSALES
+    Route::post('/movimientos/{movimiento}/aprobar', [MovimientoSucursalController::class, 'aprobar'])->name('movimientos.aprobar');
+    Route::post('/movimientos/{movimiento}/rechazar', [MovimientoSucursalController::class, 'rechazar'])->name('movimientos.rechazar');
+    Route::post('/movimientos/{movimiento}/confirmar-recepcion', [MovimientoSucursalController::class, 'confirmarRecepcion'])->name('movimientos.confirmarRecepcion');
+    Route::resource('movimientos', MovimientoSucursalController::class);
+    Route::get('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'cancelar'])->name('movimientos.cancelar');
+    Route::post('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'procesarCancelacion'])->name('movimientos.procesarCancelacion');
+    Route::get('/api/movimientos/stock', [MovimientoSucursalController::class, 'getStock'])->name('movimientos.stock');
+    Route::get('/api/movimientos/sucursales-disponibles', [MovimientoSucursalController::class, 'getSucursalesDisponibles'])->name('movimientos.sucursalesDisponibles');
+
+    // SELECCIONAR SUCURSAL EN EL MODAL
+    Route::post('/seleccionar-sucursal', [UsuarioConfigController::class, 'cambiarSucursalActiva'])->name('sucursal.seleccionar');
 });
 
 /*
@@ -183,16 +143,11 @@ Route::middleware('auth')->group(function () {
 | MÓDULO DE CONFIGURACIÓN (MULTISUCURSAL)
 |--------------------------------------------------------------------------
 */
-Route::prefix('configuracion')->middleware(['auth', 'permission:ver_configuracion'])->group(function () {
-    
-    Route::get('/', [ConfiguracionController::class, 'index'])
-        ->name('configuracion.index');
-    
-    Route::put('/plantilla/{id}', [ConfiguracionController::class, 'updatePlantilla'])
-        ->name('configuracion.plantilla.update');
+Route::prefix('configuracion')->middleware(['auth', 'permission:ver_configuracion', \App\Http\Middleware\RestringirCajero::class])->group(function () {
 
-    Route::put('/sucursal/{id}', [SucursalController::class, 'update'])
-        ->name('configuracion.sucursal.update');
+    Route::get('/', [ConfiguracionController::class, 'index'])->name('configuracion.index');
+    Route::put('/plantilla/{id}', [ConfiguracionController::class, 'updatePlantilla'])->name('configuracion.plantilla.update');
+    Route::put('/sucursal/{id}', [SucursalController::class, 'update'])->name('configuracion.sucursal.update');
 
     // ==========================================
     // RUTAS EXCLUSIVAS PARA ADMINISTRADOR GLOBAL
@@ -200,7 +155,7 @@ Route::prefix('configuracion')->middleware(['auth', 'permission:ver_configuracio
     Route::middleware(['permission:admin'])->group(function () {
         Route::post('/empresa', [ConfiguracionController::class, 'updateEmpresa'])->name('configuracion.empresa.update');
         Route::post('/sucursal', [SucursalController::class, 'store'])->name('configuracion.sucursal.store');
-        
+
         // --- Gestión Completa de Usuarios ---
         Route::post('/usuarios', [UsuarioConfigController::class, 'store'])->name('configuracion.usuarios.store');
         Route::put('/usuarios/{id}', [UsuarioConfigController::class, 'update'])->name('configuracion.usuarios.update');
@@ -216,60 +171,17 @@ Route::prefix('configuracion')->middleware(['auth', 'permission:ver_configuracio
 | PANEL DE AUTORIZACIONES (GERENTE)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'permission:ver_autorizaciones'])->group(function () {
-    Route::get('/autorizaciones', [AutorizacionController::class, 'index'])
-        ->name('autorizaciones.index');
-    Route::post('/autorizaciones/{renta}/aprobar', [AutorizacionController::class, 'aprobar'])
-        ->name('autorizaciones.aprobar');
-    Route::post('/autorizaciones/{renta}/rechazar', [AutorizacionController::class, 'rechazar'])
-        ->name('autorizaciones.rechazar');
-    Route::get('/autorizaciones/notificaciones', [AutorizacionController::class, 'notificaciones'])
-        ->name('autorizaciones.notificaciones');
-    Route::post('/autorizaciones/venta/{venta}/aprobar', [AutorizacionController::class, 'aprobarVenta'])
-        ->name('autorizaciones.aprobarVenta');
-    Route::post('/autorizaciones/venta/{venta}/rechazar', [AutorizacionController::class, 'rechazarVenta'])
-        ->name('autorizaciones.rechazarVenta');
-    Route::post('/autorizaciones/renta/{renta}/aprobar-cancelacion', [AutorizacionController::class, 'aprobarCancelacionRenta'])
-        ->name('autorizaciones.aprobarCancelacionRenta');
-    Route::post('/autorizaciones/renta/{renta}/rechazar-cancelacion', [AutorizacionController::class, 'rechazarCancelacionRenta'])
-        ->name('autorizaciones.rechazarCancelacionRenta');
+Route::middleware(['auth', 'permission:ver_autorizaciones', \App\Http\Middleware\RestringirCajero::class])->group(function () {
+    Route::get('/autorizaciones', [AutorizacionController::class, 'index'])->name('autorizaciones.index');
+    Route::post('/autorizaciones/{renta}/aprobar', [AutorizacionController::class, 'aprobar'])->name('autorizaciones.aprobar');
+    Route::post('/autorizaciones/{renta}/rechazar', [AutorizacionController::class, 'rechazar'])->name('autorizaciones.rechazar');
+    Route::get('/autorizaciones/notificaciones', [AutorizacionController::class, 'notificaciones'])->name('autorizaciones.notificaciones');
+    Route::post('/autorizaciones/venta/{venta}/aprobar', [AutorizacionController::class, 'aprobarVenta'])->name('autorizaciones.aprobarVenta');
+    Route::post('/autorizaciones/venta/{venta}/rechazar', [AutorizacionController::class, 'rechazarVenta'])->name('autorizaciones.rechazarVenta');
+    Route::post('/autorizaciones/renta/{renta}/aprobar-cancelacion', [AutorizacionController::class, 'aprobarCancelacionRenta'])->name('autorizaciones.aprobarCancelacionRenta');
+    Route::post('/autorizaciones/renta/{renta}/rechazar-cancelacion', [AutorizacionController::class, 'rechazarCancelacionRenta'])->name('autorizaciones.rechazarCancelacionRenta');
     Route::post('/autorizaciones/descuento/{solicitud}/aprobar', [AutorizacionController::class, 'aprobarDescuento'])->name('autorizaciones.aprobarDescuento');
     Route::post('/autorizaciones/descuento/{solicitud}/rechazar', [AutorizacionController::class, 'rechazarDescuento'])->name('autorizaciones.rechazarDescuento');
-
 });
 
-/*
-|--------------------------------------------------------------------------
-| MÓDULO DE MOVIMIENTOS ENTRE SUCURSALES
-|--------------------------------------------------------------------------
-*/
-Route::middleware('auth')->group(function () {
-    // Rutas para aprobación y flujo de recepción de transferencias
-    Route::post('/movimientos/{movimiento}/aprobar', [MovimientoSucursalController::class, 'aprobar'])
-        ->name('movimientos.aprobar');
-    Route::post('/movimientos/{movimiento}/rechazar', [MovimientoSucursalController::class, 'rechazar'])
-        ->name('movimientos.rechazar');
-    Route::post('/movimientos/{movimiento}/confirmar-recepcion', [MovimientoSucursalController::class, 'confirmarRecepcion'])
-        ->name('movimientos.confirmarRecepcion');
-
-    Route::resource('movimientos', MovimientoSucursalController::class);
-    
-    // Cancelación de movimientos
-    Route::get('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'cancelar'])
-        ->name('movimientos.cancelar');
-    Route::post('/movimientos/{movimiento}/cancelar', [MovimientoSucursalController::class, 'procesarCancelacion'])
-        ->name('movimientos.procesarCancelacion');
-    
-    // APIs para consulta de stock
-    Route::get('/api/movimientos/stock', [MovimientoSucursalController::class, 'getStock'])
-        ->name('movimientos.stock');
-    Route::get('/api/movimientos/sucursales-disponibles', [MovimientoSucursalController::class, 'getSucursalesDisponibles'])
-        ->name('movimientos.sucursalesDisponibles');
-});
-
-/*
-|--------------------------------------------------------------------------
-| INCLUSIÓN DE RUTAS DE AUTENTICACIÓN (Breeze/Fortify)
-|--------------------------------------------------------------------------
-*/
 require __DIR__.'/auth.php';

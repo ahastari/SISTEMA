@@ -12,6 +12,28 @@ use Illuminate\Support\Facades\Log;
 class MovimientoSucursalController extends Controller
 {
     /**
+     * 🔒 CANDADO DE SEGURIDAD (NUEVO)
+     * Centraliza los permisos: Admin autoriza todo, Gerente solo lo de su sucursal
+     */
+    private function validarPermisoSucursal($sucursal_id_operacion)
+    {
+        $user = auth()->user();
+
+        // 1. El Admin siempre tiene permiso (sin importar su sesión actual)
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // 2. Si es Gerente, el ID de su sesión DEBE coincidir con el ID de la operación
+        if ($user->isGerente() && session('activo_sucursal_id') == $sucursal_id_operacion) {
+            return true;
+        }
+
+        // 3. Cajeros o intentos de acceso a otras sucursales son bloqueados
+        abort(403, 'Acceso Denegado: No tienes permisos para operar sobre los movimientos de esta sucursal.');
+    }
+
+    /**
      * Listado de movimientos filtrados por sucursal
      */
     public function index(Request $request)
@@ -142,13 +164,14 @@ class MovimientoSucursalController extends Controller
                     return back()->with('error', 'Este envío no ha sido autorizado por el gerente de la sucursal de origen.');
                 }
 
-                if ($movimientoOriginal->sucursal_destino_id != $sucursalActualId) {
+                // Aquí se mantiene la verificación de sesión porque el stock se suma físicamente a la sucursal actual de la sesión
+                if ($movimientoOriginal->sucursal_destino_id != $sucursalActualId && !auth()->user()->isAdmin()) {
                     return back()->with('error', 'Este envío no está dirigido a tu sucursal.');
                 }
 
+                $sucursalAsignacion = auth()->user()->isAdmin() ? $movimientoOriginal->sucursal_destino_id : $sucursalActualId;
                 $equipo = Equipo::findOrFail($movimientoOriginal->equipo_id);
-
-                $equipo->actualizarStockEnSucursal($sucursalActualId, $movimientoOriginal->cantidad, 'sumar');
+                $equipo->actualizarStockEnSucursal($sucursalAsignacion, $movimientoOriginal->cantidad, 'sumar');
 
                 $movimientoOriginal->update([
                     'estado' => 'completado',
@@ -180,6 +203,9 @@ class MovimientoSucursalController extends Controller
 
             $equipo = Equipo::findOrFail($request->equipo_id);
             $cantidad = $request->cantidad;
+            
+            // Si el Admin crea un envío desde la vista global, requeriríamos saber la sucursal de origen, 
+            // pero asumimos que el admin seleccionó la sucursal activa previamente en su sesión.
             $sucursalOrigenId = $sucursalActualId;
 
             $stockDisponible = $equipo->getStockEnSucursal($sucursalOrigenId);
@@ -236,14 +262,8 @@ class MovimientoSucursalController extends Controller
      */
     public function aprobar(MovimientoSucursal $movimiento)
     {
-        if (auth()->user()->isCajero()) {
-            return back()->with('error', 'No tienes permisos para aprobar transferencias.');
-        }
-
-        $sucursalActualId = session('activo_sucursal_id');
-        if ($sucursalActualId !== 'global' && $movimiento->sucursal_origen_id != $sucursalActualId) {
-            return back()->with('error', 'Solo el gerente de la sucursal de origen puede aprobar esta transferencia.');
-        }
+        // 🔒 Validamos que el Admin apruebe todo, o el Gerente apruebe solo la salida de su sucursal
+        $this->validarPermisoSucursal($movimiento->sucursal_origen_id);
 
         if ($movimiento->estado !== 'pendiente') {
             return back()->with('error', 'Solo se pueden aprobar movimientos pendientes.');
@@ -274,14 +294,8 @@ class MovimientoSucursalController extends Controller
      */
     public function rechazar(MovimientoSucursal $movimiento)
     {
-        if (auth()->user()->isCajero()) {
-            return back()->with('error', 'No tienes permisos para rechazar transferencias.');
-        }
-
-        $sucursalActualId = session('activo_sucursal_id');
-        if ($sucursalActualId !== 'global' && $movimiento->sucursal_origen_id != $sucursalActualId) {
-            return back()->with('error', 'Solo el gerente de la sucursal de origen puede rechazar esta transferencia.');
-        }
+        // 🔒 Protección de permisos
+        $this->validarPermisoSucursal($movimiento->sucursal_origen_id);
         
         if ($movimiento->estado !== 'pendiente') {
             return back()->with('error', 'Solo se pueden rechazar movimientos pendientes.');
@@ -316,11 +330,8 @@ class MovimientoSucursalController extends Controller
             return back()->with('error', 'Solo se pueden recibir movimientos aprobados.');
         }
         
-        $sucursalActualId = session('activo_sucursal_id');
-        
-        if ($movimiento->sucursal_destino_id != $sucursalActualId) {
-            return back()->with('error', 'Este envío no está dirigido a tu sucursal.');
-        }
+        // 🔒 Protección: Valida contra la sucursal de destino
+        $this->validarPermisoSucursal($movimiento->sucursal_destino_id);
         
         DB::beginTransaction();
         
@@ -351,9 +362,8 @@ class MovimientoSucursalController extends Controller
      */
     public function procesarCancelacion(MovimientoSucursal $movimiento)
     {
-        if (auth()->user()->isCajero()) {
-            return back()->with('error', 'No tienes permisos para cancelar movimientos.');
-        }
+        // 🔒 Protección: Valida permisos usando la sucursal origen
+        $this->validarPermisoSucursal($movimiento->sucursal_origen_id);
 
         if (in_array($movimiento->estado, ['cancelado', 'rechazado'])) {
             return back()->with('error', 'El movimiento ya está inactivo.');

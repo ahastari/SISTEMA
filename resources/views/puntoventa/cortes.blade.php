@@ -93,9 +93,12 @@
 
                         if($corte->ventas) {
                             foreach($corte->ventas as $v) {
-                                if(($v->metodo_pago ?? '') === 'credito' && ($v->estado ?? '') === 'completada') {
+                                if ($v->estado !== 'completada') continue;
+
+                                if (($v->metodo_pago ?? '') === 'credito') {
                                     $ventasCredito += $v->total;
                                 }
+                                
                                 foreach($v->detalles as $d) {
                                     if(str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
                                         $montoFlete += $d->subtotal;

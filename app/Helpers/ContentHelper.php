@@ -26,8 +26,19 @@ class ContentHelper
      */
     public static function getSucursalActiva(): array
     {
+        // 1. Intentar obtener el ID de la sesión
         $sucursalId = session('activo_sucursal_id');
         
+        // 2. FALLBACK (Salvavidas): Si la sesión se borró, pero el usuario está logueado, usar la DB
+        if (!$sucursalId && auth()->check()) {
+            $sucursalId = auth()->user()->sucursal_id;
+            
+            // Repoblar la sesión para futuras consultas
+            if ($sucursalId) {
+                session(['activo_sucursal_id' => $sucursalId]);
+            }
+        }
+
         // Si es admin global o no hay sucursal asignada
         if ($sucursalId === 'global' || !$sucursalId) {
             return [
@@ -39,7 +50,7 @@ class ContentHelper
             ];
         }
 
-        // 🔧 CORRECCIÓN: Almacenar array en caché, NO el objeto Eloquent
+        // 3. Almacenar array en caché usando el ID que ahora estamos 100% seguros que es correcto
         $sucursalData = Cache::remember("sucursal_data_{$sucursalId}", 3600, function () use ($sucursalId) {
             $sucursal = Sucursal::find($sucursalId);
             
@@ -47,7 +58,6 @@ class ContentHelper
                 return null;
             }
             
-            // Devolver solo los datos necesarios como array
             return [
                 'id' => $sucursal->id,
                 'nombre' => $sucursal->nombre,
@@ -58,7 +68,6 @@ class ContentHelper
             ];
         });
 
-        // Si no se encontró la sucursal en BD o en caché
         if (!$sucursalData) {
             return [
                 'id' => $sucursalId,

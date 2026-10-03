@@ -16,19 +16,26 @@ class ClienteController extends Controller
         $isGlobalAdmin = $user->isAdmin() && $sucursalId === 'global';
         $puedeVerInactivos = $user->isAdmin() || $user->isGerente();
 
-        $query = Cliente::latest();
+        $query = Cliente::with('sucursal')->latest();
+        
+        $filtro = $request->get('filtro', 'activos');
 
-        // 1. Filtrar por Sucursal
-        if (!$isGlobalAdmin) {
-            $query->where('sucursal_id', $sucursalId);
+        // TODOS los usuarios pueden ver la lista de bloqueados
+        if ($filtro === 'bloqueados') {
+            $query->where('bloqueado', true);
+        } else {
+            if (!$isGlobalAdmin) {
+                $query->where('sucursal_id', $sucursalId);
+            }
+            
+            if ($filtro === 'inactivos' && $puedeVerInactivos) {
+                $query->where('activo', false)->where('bloqueado', false);
+            } else {
+                $query->where('activo', true)->where('bloqueado', false);
+                $filtro = 'activos';
+            }
         }
 
-        // 2. Control de visibilidad por Rol: Cajero solo ve clientes ACTIVOS
-        if (!$puedeVerInactivos) {
-            $query->where('activo', true);
-        }
-
-        // 3. Filtro de Búsqueda
         if ($request->has('search') && $request->search) {
             $query->where(function($q) use ($request) {
                 $q->where('nombre_completo', 'like', '%' . $request->search . '%')
@@ -38,17 +45,8 @@ class ClienteController extends Controller
             });
         }
 
-        // 4. Filtro opcional por Estado de Actividad (Solo para Admin / Gerente)
-        if ($puedeVerInactivos && $request->has('estado_cliente') && $request->estado_cliente !== '') {
-            if ($request->estado_cliente === 'activos') {
-                $query->where('activo', true);
-            } elseif ($request->estado_cliente === 'inactivos') {
-                $query->where('activo', false);
-            }
-        }
-
         $clientes = $query->paginate(10);
-        return view('clientes.index', compact('clientes', 'puedeVerInactivos'));
+        return view('clientes.index', compact('clientes', 'puedeVerInactivos', 'filtro'));
     }
 
     public function create()
@@ -62,8 +60,8 @@ class ClienteController extends Controller
             'nombre_completo' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
             'email' => 'nullable|email|max:255',
-            'rfc' => 'nullable|string|max:20',
-            'curp' => 'nullable|string|max:20',
+            'rfc' => 'required|string|max:20',
+            'curp' => 'required|string|max:20',
             'ine_numero' => 'nullable|string|max:20',
             'ine_documento' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'comprobante_domicilio_path' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
@@ -79,31 +77,66 @@ class ClienteController extends Controller
             'observaciones' => 'nullable|string',
         ]);
 
+        $clienteBloqueado = Cliente::with('sucursal')
+            ->where('bloqueado', true)
+            ->where(function ($query) use ($request) {
+                $query->where('rfc', $request->rfc)
+                    ->orWhere('curp', $request->curp)
+                    ->orWhere('nombre_completo', $request->nombre_completo);
+            })
+            ->first();
+
+        if ($clienteBloqueado) {
+
+            $sucursalNombre = $clienteBloqueado->sucursal
+                ? $clienteBloqueado->sucursal->nombre
+                : 'Otra sucursal';
+
+            $motivo = $clienteBloqueado->motivo_bloqueo
+                ?? 'Sin motivo especificado';
+
+            return back()->withErrors([
+                'global_block' => "ATENCIÓN: Cliente en LISTA NEGRA. Fue bloqueado en la sucursal '{$sucursalNombre}'. Motivo del bloqueo: {$motivo}"
+            ])->withInput();
+        }
+
         $sucursalId = session('activo_sucursal_id');
-        $sucursalIdGuardar = ($sucursalId && $sucursalId !== 'global') ? $sucursalId : null;
+        $sucursalIdGuardar = ($sucursalId && $sucursalId !== 'global')
+            ? $sucursalId
+            : null;
 
         $cliente = new Cliente();
         $cliente->fill($validated);
         $cliente->sucursal_id = $sucursalIdGuardar;
         $cliente->activo = true;
+        $cliente->bloqueado = false;
         $cliente->fecha_ultima_actividad = now();
 
         if ($request->hasFile('ine_documento')) {
-            $cliente->ine_documento = $request->file('ine_documento')->store('clientes/ine', 'public');
+            $cliente->ine_documento = $request->file('ine_documento')
+                ->store('clientes/ine', 'public');
         }
+
         if ($request->hasFile('comprobante_domicilio_path')) {
-            $cliente->comprobante_domicilio_path = $request->file('comprobante_domicilio_path')->store('clientes/comprobantes_domicilio', 'public');
+            $cliente->comprobante_domicilio_path = $request->file('comprobante_domicilio_path')
+                ->store('clientes/comprobantes_domicilio', 'public');
         }
+
         if ($request->hasFile('contrato_firmado')) {
-            $cliente->contrato_firmado = $request->file('contrato_firmado')->store('clientes/contratos', 'public');
+            $cliente->contrato_firmado = $request->file('contrato_firmado')
+                ->store('clientes/contratos', 'public');
         }
+
         if ($request->hasFile('comprobante_deposito')) {
-            $cliente->comprobante_deposito = $request->file('comprobante_deposito')->store('clientes/comprobantes', 'public');
+            $cliente->comprobante_deposito = $request->file('comprobante_deposito')
+                ->store('clientes/comprobantes', 'public');
         }
 
         $cliente->save();
 
-        return redirect()->route('clientes.index')->with('success', 'Cliente creado exitosamente');
+        return redirect()
+            ->route('clientes.index')
+            ->with('success', 'Cliente creado exitosamente');
     }
 
     public function show(Cliente $cliente)
@@ -138,8 +171,8 @@ class ClienteController extends Controller
             'nombre_completo' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
             'email' => 'nullable|email|max:255',
-            'rfc' => 'nullable|string|max:20',
-            'curp' => 'nullable|string|max:20',
+            'rfc' => 'required|string|max:20',
+            'curp' => 'required|string|max:20',
             'ine_numero' => 'nullable|string|max:20',
             'ine_documento' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'comprobante_domicilio_path' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
@@ -155,41 +188,132 @@ class ClienteController extends Controller
             'observaciones' => 'nullable|string',
         ]);
 
+        $clienteBloqueado = Cliente::with('sucursal')
+            ->where('bloqueado', true)
+            ->where('id', '!=', $cliente->id)
+            ->where(function ($query) use ($request) {
+                $query->where('rfc', $request->rfc)
+                    ->orWhere('curp', $request->curp)
+                    ->orWhere('nombre_completo', $request->nombre_completo);
+            })
+            ->first();
+
+        if ($clienteBloqueado) {
+
+            $sucursalNombre = $clienteBloqueado->sucursal
+                ? $clienteBloqueado->sucursal->nombre
+                : 'Otra sucursal';
+
+            $motivo = $clienteBloqueado->motivo_bloqueo
+                ?? 'Sin motivo especificado';
+
+            return back()->withErrors([
+                'global_block' => "ATENCIÓN: Cliente en LISTA NEGRA. Fue bloqueado en la sucursal '{$sucursalNombre}'. Motivo del bloqueo: {$motivo}"
+            ])->withInput();
+        }
+
         $cliente->fill($validated);
 
-        // 1. Verificar si se solicitó eliminar el INE actual
-        if ($request->input('eliminar_ine') == '1' && !$request->hasFile('ine_documento')) {
-            if ($cliente->ine_documento && Storage::disk('public')->exists($cliente->ine_documento)) {
+        // Eliminar INE
+        if (
+            $request->input('eliminar_ine') == '1' &&
+            !$request->hasFile('ine_documento')
+        ) {
+            if (
+                $cliente->ine_documento &&
+                Storage::disk('public')->exists($cliente->ine_documento)
+            ) {
                 Storage::disk('public')->delete($cliente->ine_documento);
             }
+
             $cliente->ine_documento = null;
         }
 
-        // 2. Si se subió un nuevo INE, eliminar el anterior y guardar el nuevo
+        // Reemplazar INE
         if ($request->hasFile('ine_documento')) {
-            if ($cliente->ine_documento && Storage::disk('public')->exists($cliente->ine_documento)) {
+
+            if (
+                $cliente->ine_documento &&
+                Storage::disk('public')->exists($cliente->ine_documento)
+            ) {
                 Storage::disk('public')->delete($cliente->ine_documento);
             }
-            $cliente->ine_documento = $request->file('ine_documento')->store('clientes/ine', 'public');
+
+            $cliente->ine_documento = $request->file('ine_documento')
+                ->store('clientes/ine', 'public');
         }
 
-        if ($request->input('eliminar_comprobante') == '1' && !$request->hasFile('comprobante_domicilio_path')) {
-            if ($cliente->comprobante_domicilio_path && Storage::disk('public')->exists($cliente->comprobante_domicilio_path)) {
+        // Eliminar comprobante domicilio
+        if (
+            $request->input('eliminar_comprobante') == '1' &&
+            !$request->hasFile('comprobante_domicilio_path')
+        ) {
+            if (
+                $cliente->comprobante_domicilio_path &&
+                Storage::disk('public')->exists($cliente->comprobante_domicilio_path)
+            ) {
                 Storage::disk('public')->delete($cliente->comprobante_domicilio_path);
             }
+
             $cliente->comprobante_domicilio_path = null;
         }
 
+        // Reemplazar comprobante domicilio
         if ($request->hasFile('comprobante_domicilio_path')) {
-            if ($cliente->comprobante_domicilio_path && Storage::disk('public')->exists($cliente->comprobante_domicilio_path)) {
+
+            if (
+                $cliente->comprobante_domicilio_path &&
+                Storage::disk('public')->exists($cliente->comprobante_domicilio_path)
+            ) {
                 Storage::disk('public')->delete($cliente->comprobante_domicilio_path);
             }
-            $cliente->comprobante_domicilio_path = $request->file('comprobante_domicilio_path')->store('clientes/comprobantes_domicilio', 'public');
+
+            $cliente->comprobante_domicilio_path = $request->file('comprobante_domicilio_path')
+                ->store('clientes/comprobantes_domicilio', 'public');
         }
 
         $cliente->save();
 
-        return redirect()->route('clientes.show', $cliente)->with('success', 'Cliente actualizado exitosamente');
+        return redirect()
+            ->route('clientes.show', $cliente)
+            ->with('success', 'Cliente actualizado exitosamente');
+    }
+
+    public function bloquear(Request $request, Cliente $cliente)
+    {
+        // 1. Quitamos la restricción de rol. Todos los usuarios logueados pueden bloquear.
+        $request->validate([
+            'motivo_bloqueo' => 'required|string|max:500'
+        ]);
+
+        Cliente::where('rfc', $cliente->rfc)
+               ->orWhere('curp', $cliente->curp)
+               ->orWhere('nombre_completo', $cliente->nombre_completo)
+               ->update([
+                   'bloqueado' => true,
+                   'motivo_bloqueo' => $request->motivo_bloqueo
+               ]);
+
+        return redirect()->back()->with('error', 'El cliente ha sido BLOQUEADO globalmente. Motivo registrado.');
+    }
+
+    public function desbloquear(Cliente $cliente)
+    {
+        // 2. Mantenemos la restricción estricta. Solo Admin/Gerente pueden desbloquear.
+        $user = auth()->user();
+        if (!($user->isAdmin() || $user->isGerente())) {
+            return redirect()->back()->with('error', 'Seguridad: Solo los gerentes o administradores pueden desbloquear clientes.');
+        }
+
+        Cliente::where('rfc', $cliente->rfc)
+               ->orWhere('curp', $cliente->curp)
+               ->orWhere('nombre_completo', $cliente->nombre_completo)
+               ->update([
+                   'bloqueado' => false,
+                   'motivo_bloqueo' => null
+               ]);
+
+        return redirect()->back()->with('success', 'El cliente ha sido DESBLOQUEADO a nivel global.');
     }
 
     public function destroy(Cliente $cliente)

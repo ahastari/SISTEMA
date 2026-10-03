@@ -24,24 +24,29 @@ class RentaController extends Controller
         $sucursalId = session('activo_sucursal_id');
         $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
 
+        $sucursales = [];
+        if ($isGlobalAdmin) {
+            $sucursales = \App\Models\Sucursal::all();
+        }
+
         // 1. CALCULAR ESTADÍSTICAS GLOBALES DE DINERO (Excluyendo canceladas)
         $queryStats = Renta::query()->where('estado', '!=', 'cancelada');
-        
+
         if (!$isGlobalAdmin) {
             $queryStats->where('sucursal_id', $sucursalId);
         }
-        
+
         $totalFacturado = $queryStats->sum('total');
         $totalDepositos = $queryStats->sum('deposito');
-        
+
         $rentasIds = $queryStats->pluck('id');
-        $totalPagos = Pago::whereIn('renta_id', $rentasIds)->sum('monto');
-        
+        $totalPagos = Pago::whereIn('renta_id', $rentasIds)->where('tipo', '!=', 'deposito')->sum('monto');
+
         $totalPagado = $totalDepositos + $totalPagos;
         $totalPendiente = $totalFacturado - $totalPagado;
 
         // 2. OBTENER LISTA DE RENTAS PARA LA TABLA
-        $query = Renta::with(['cliente', 'detalles'])->latest();
+        $query = Renta::with(['cliente', 'detalles', 'sucursal'])->latest();
 
         if (!$isGlobalAdmin) {
             $query->where('sucursal_id', $sucursalId);
@@ -61,7 +66,7 @@ class RentaController extends Controller
                 } else {
                     $renta->dias_restantes = 0;
                     $diasRetraso = $fechaFin->diffInDays($hoy);
-                    
+
                     $costoDiarioRenta = 0;
                     foreach ($renta->detalles as $detalle) {
                         $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
@@ -77,7 +82,6 @@ class RentaController extends Controller
         }
 
         // 3. RENTAS EN ESPERA: en revisión del gerente (cancelación / finalizar con adeudo)
-        //    o ya autorizadas y pendientes de liquidar. Las más antiguas primero.
         $esperaQuery = Renta::with(['cliente', 'detalles'])
             ->where('estado', 'activa')
             ->where(function ($q) {
@@ -142,36 +146,38 @@ class RentaController extends Controller
         // Gerente/admin aplican descuentos directo; el cajero necesita autorización (afecta el estado de los borradores en espera)
         $puedeAutorizarDescuento = auth()->user()->isAdmin() || auth()->user()->isGerente();
 
-        return view('rentas.index', compact('rentas', 'isGlobalAdmin', 'totalFacturado', 'totalPagado', 'totalPendiente', 'rentasEspera', 'puedeAutorizarDescuento'));
+        return view('rentas.index', compact('rentas', 'isGlobalAdmin', 'totalFacturado', 'totalPagado', 'totalPendiente', 'rentasEspera', 'puedeAutorizarDescuento', 'sucursales'));
     }
 
     public function create()
     {
         $sucursalId = session('activo_sucursal_id');
-        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
 
-        $clientes = Cliente::orderBy('nombre_completo')->get();
+        // Cada renta pertenece a una sucursal (su folio es propio de la sucursal)
+        if (!$sucursalId || $sucursalId === 'global') {
+            return redirect()->route('rentas.index')
+                ->with('error', 'Selecciona una sucursal para poder crear una renta.');
+        }
 
-        $equiposQuery = Equipo::where('activo', true)
-            ->whereIn('tipo_operacion', ['renta', 'ambas']);
+        $clientes = Cliente::where('bloqueado', false)
+            ->where('activo', true)
+            ->where('sucursal_id', $sucursalId)
+            ->orderBy('nombre_completo')
+            ->get();
 
-        if (!$isGlobalAdmin) {
-            $equiposQuery->whereHas('sucursales', function ($q) use ($sucursalId) {
+        $equipos = Equipo::where('activo', true)
+            ->whereIn('tipo_operacion', ['renta', 'ambas'])
+            ->whereHas('sucursales', function ($q) use ($sucursalId) {
                 $q->where('sucursal_id', $sucursalId)->where('stock', '>', 0);
-            });
-        } else {
-            $equiposQuery->where('stock', '>', 0);
+            })
+            ->get();
+
+        foreach ($equipos as $equipo) {
+            $equipo->stock = $equipo->getStockEnSucursal($sucursalId);
         }
 
-        $equipos = $equiposQuery->get();
-
-        if (!$isGlobalAdmin) {
-            foreach ($equipos as $equipo) {
-                $equipo->stock = $equipo->getStockEnSucursal($sucursalId);
-            }
-        }
-
-        $folio = Renta::generarFolio($sucursalId !== 'global' ? $sucursalId : null);
+        // Vista previa del folio (el definitivo se calcula dentro de la transacción)
+        $folio = Renta::generarFolio($sucursalId);
 
         // Gerente/admin aplican el descuento directo; el cajero debe pedir autorización
         $puedeAutorizarDescuento = auth()->user()->isAdmin() || auth()->user()->isGerente();
@@ -183,9 +189,16 @@ class RentaController extends Controller
     {
         $request->validate([
             'cliente_id' => 'required|exists:clientes,id',
+            'obra_id' => [
+                'nullable',
+                Rule::exists('obras', 'id')->where('cliente_id', $request->cliente_id),
+                Rule::unique('rentas', 'obra_id'),
+            ],
             'fecha_inicio' => 'required|date',
             'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
             'deposito' => 'nullable|numeric|min:0',
+            'metodo_pago_deposito' => 'nullable|in:efectivo,transferencia,tarjeta,mixto',
+            'referencia_deposito' => 'nullable|string',
             'flete' => 'nullable|numeric|min:0',
             'mano_obra' => 'nullable|numeric|min:0',
             'descuento' => 'nullable|numeric|min:0',
@@ -195,37 +208,84 @@ class RentaController extends Controller
             'equipos' => 'required|array|min:1',
             'equipos.*.id' => 'required|exists:equipos,id',
             'equipos.*.cantidad' => 'required|integer|min:1',
+        ], [
+            'obra_id.exists' => 'La obra seleccionada no corresponde al cliente.',
+            'obra_id.unique' => 'Esta obra ya está asignada a otra renta.',
         ]);
+
+        $sucursalIdGuardar = session('activo_sucursal_id');
+
+        if (!$sucursalIdGuardar || $sucursalIdGuardar === 'global') {
+            return back()
+                ->with('error', 'Selecciona una sucursal para poder crear una renta.')
+                ->withInput();
+        }
+
+        // =============== VALIDACIÓN DE CLIENTE BLOQUEADO (LISTA NEGRA) ===============
+
+        $cliente = Cliente::find($request->cliente_id);
+
+        if ($cliente) {
+
+            $clienteBloqueado = Cliente::with('sucursal')
+                ->where('bloqueado', true)
+                ->where(function ($query) use ($cliente) {
+                    $query->where('rfc', $cliente->rfc)
+                        ->orWhere('curp', $cliente->curp)
+                        ->orWhere('nombre_completo', $cliente->nombre_completo);
+                })
+                ->first();
+
+            if ($clienteBloqueado) {
+
+                $sucursalOrigen = $clienteBloqueado->sucursal
+                    ? $clienteBloqueado->sucursal->nombre
+                    : 'Otra sucursal';
+
+                $motivo = $clienteBloqueado->motivo_bloqueo
+                    ?? 'Sin motivo especificado';
+
+                // Sincronizar el cliente local
+                if (!$cliente->bloqueado) {
+                    $cliente->update([
+                        'bloqueado' => true,
+                        'motivo_bloqueo' => $motivo
+                    ]);
+                }
+
+                $mensajeError = "OPERACIÓN RECHAZADA: Cliente en LISTA NEGRA (Bloqueado en: {$sucursalOrigen}). Motivo: {$motivo}";
+
+                return back()
+                    ->with('error', $mensajeError)
+                    ->withInput();
+            }
+        }
+
+        // =============================================================================
 
         try {
             DB::beginTransaction();
 
-            $sucursalId = session('activo_sucursal_id');
-            $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
-            $sucursalIdGuardar = ($sucursalId && $sucursalId !== 'global') ? $sucursalId : null;
-
             $diasTotales = Renta::calcularDias($request->fecha_inicio, $request->fecha_fin);
 
-            // 🔥 CORRECCIÓN: Inicializamos la variable correcta aquí
             $subtotalEquipos = 0;
             $detalles = [];
 
             foreach ($request->equipos as $item) {
                 $equipo = Equipo::find($item['id']);
 
-                if (!$isGlobalAdmin) {
-                    $stockDisponible = $equipo->getStockEnSucursal($sucursalIdGuardar);
-                    if ($stockDisponible < $item['cantidad']) {
-                        throw new \Exception("Stock insuficiente en esta sucursal para {$equipo->nombre}. Disponible: {$stockDisponible}");
-                    }
-                    $equipo->actualizarStockEnSucursal($sucursalIdGuardar, $item['cantidad'], 'restar');
-                } else {
-                    if ($equipo->stock < $item['cantidad']) {
-                        throw new \Exception("Stock insuficiente para {$equipo->nombre}. Disponible: {$equipo->stock}");
-                    }
-                    $equipo->stock -= $item['cantidad'];
-                    $equipo->save();
+                // NUEVO: sin precio de venta no se puede generar pagaré/contrato
+                if ((float) $equipo->precio_venta <= 0) {
+                    throw new \Exception("El equipo {$equipo->nombre} no tiene precio de venta. Captúralo en Inventario antes de rentarlo.");
                 }
+
+                $stockDisponible = $equipo->getStockEnSucursal($sucursalIdGuardar);
+
+                if ($stockDisponible < $item['cantidad']) {
+                    throw new \Exception("Stock insuficiente en esta sucursal para {$equipo->nombre}. Disponible: {$stockDisponible}");
+                }
+
+                $equipo->actualizarStockEnSucursal($sucursalIdGuardar, $item['cantidad'], 'restar');
 
                 // Por m²: se cobra una sola vez (precio × cantidad), sin multiplicar por los días
                 $tipoTarifa = $equipo->tipo_tarifa ?? 'dia';
@@ -233,7 +293,6 @@ class RentaController extends Controller
                     ? $equipo->precio_dia * $item['cantidad']
                     : $equipo->precio_dia * $item['cantidad'] * $diasTotales;
 
-                // 🔥 Sumamos el costo de los equipos a la variable correcta
                 $subtotalEquipos += $subtotalEquipo;
 
                 $detalles[] = [
@@ -246,11 +305,9 @@ class RentaController extends Controller
                 ];
             }
 
-            // 🔥 Obtenemos flete y mano de obra
             $flete = $request->flete ?? 0;
             $manoObra = $request->mano_obra ?? 0;
 
-            // Sumamos el costo de los equipos + flete + mano de obra para el subtotal real
             $subtotal = $subtotalEquipos + $flete + $manoObra;
 
             // --- DESCUENTO DE RENTA (requiere autorización si lo captura un cajero) ---
@@ -310,7 +367,10 @@ class RentaController extends Controller
             $total = $subtotalConDescuento + $iva;
             $deposito = $request->deposito ?? 0;
 
-            $folioGenerado = Renta::generarFolio($sucursalIdGuardar);
+            // El segundo parámetro (true) bloquea la fila de la sucursal hasta el commit,
+            // así dos cajeros nunca obtienen el mismo folio.
+            $folioGenerado = Renta::generarFolio($sucursalIdGuardar, true);
+            $folioRealEntero = (int) $folioGenerado;
 
             $renta = Renta::create([
                 'folio' => $folioGenerado,
@@ -334,24 +394,8 @@ class RentaController extends Controller
                 'estado' => 'activa'
             ]);
 
-            if ($sucursalIdGuardar && $sucursalIdGuardar !== 'global') {
-                $sucursal = \App\Models\Sucursal::find($sucursalIdGuardar);
-                if ($sucursal) {
-                    $sucursal->siguiente_folio_rentas = $sucursal->siguiente_folio_rentas >= 4000 
-                        ? $sucursal->siguiente_folio_rentas + 1 
-                        : 4001;
-                    $sucursal->save();
-                }
-            } else {
-                $folioGlobal = \App\Models\Configuracion::where('key', 'folio_global_rentas')->first();
-                if ($folioGlobal) {
-                    $folioGlobal->value = $folioGlobal->value + 1;
-                    $folioGlobal->save();
-                    \Illuminate\Support\Facades\Cache::forget('config_folio_global_rentas');
-                } else {
-                    \App\Models\Configuracion::set('folio_global_rentas', 4001);
-                }
-            }
+            // Deja listo el siguiente folio SOLO de esta sucursal
+            Renta::avanzarFolio($sucursalIdGuardar, $folioRealEntero);
 
             foreach ($detalles as $detalle) {
                 $detalle['renta_id'] = $renta->id;
@@ -363,10 +407,32 @@ class RentaController extends Controller
                 $solicitudDescuento->forceFill(['estado' => 'usada', 'renta_id' => $renta->id])->save();
             }
 
+            $nuevoPagoId = null;
+            
+            if ($deposito > 0) {
+                $pago = $renta->pagos()->create([
+                    'monto' => $deposito,
+                    'metodo_pago' => $request->metodo_pago_deposito ?? 'efectivo',
+                    'tipo' => 'deposito',
+                    'referencia' => $request->referencia_deposito,
+                    'fecha_pago' => now(),
+                    'observaciones' => 'Depósito inicial al generar el contrato'
+                ]);
+                $nuevoPagoId = $pago->id;
+            }
+
             DB::commit();
 
-            return redirect()->route('rentas.show', $renta)
+            $redirect = redirect()->route('rentas.show', $renta)
                 ->with('success', 'Renta creada exitosamente. Folio: ' . $renta->folio);
+
+            // Si hubo depósito, enviamos el ID para disparar el auto-print
+            if ($nuevoPagoId) {
+                $redirect->with('imprimir_ticket_pago', $nuevoPagoId);
+            }
+
+            return $redirect;
+
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
@@ -421,7 +487,21 @@ class RentaController extends Controller
             return redirect()->route('rentas.index')->with('error', 'Solo se pueden editar rentas activas');
         }
 
-        $clientes = Cliente::orderBy('nombre_completo')->get();
+        $sucursalId = session('activo_sucursal_id');
+        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
+
+        $clientesQuery = Cliente::where('bloqueado', false)->where('activo', true);
+        if (!$isGlobalAdmin) {
+            $clientesQuery->where('sucursal_id', $sucursalId);
+        }
+        $clientes = $clientesQuery->orderBy('nombre_completo')->get();
+
+        // PRECAUCIÓN: Si estamos editando una renta de un cliente que posteriormente fue bloqueado 
+        // o inhabilitado, debemos añadirlo a la lista SÓLO para esta vista, sino el 'select' se rompe.
+        if (!$clientes->contains('id', $renta->cliente_id) && $renta->cliente) {
+            $clientes->push($renta->cliente);
+        }
+
         $equipos = Equipo::where('activo', true)->get();
 
         return view('rentas.edit', compact('renta', 'clientes', 'equipos'));
@@ -523,30 +603,80 @@ class RentaController extends Controller
             ->with('success', 'Renta cancelada. Los equipos han sido devueltos al inventario.');
     }
 
+    /**
+     * Verifica que todos los equipos de la renta tengan precio de venta.
+     * Si falta alguno, regresa un redirect con el detalle; si todo está bien, regresa null.
+     */
+    private function validarPreciosVenta(Renta $renta)
+    {
+        $sinPrecio = $renta->equiposSinPrecioVenta();
+
+        if ($sinPrecio->isEmpty()) {
+            return null;
+        }
+
+        return redirect()->route('rentas.show', $renta)->with(
+            'error',
+            'No se puede generar el documento. Faltan precios de venta en: ' . $sinPrecio->implode(', ')
+        );
+    }
+
     public function contrato(Renta $renta)
     {
-        $renta->load('cliente', 'detalles.equipo', 'obra');
-        $pdf = Pdf::loadView('rentas.pdf_contrato', compact('renta'));
+        $renta->load('cliente', 'detalles.equipo', 'obra', 'sucursal');
+
+        if ($bloqueo = $this->validarPreciosVenta($renta)) {
+            return $bloqueo;
+        }
+
+        // Costo de la renta (informativo)
+        $montoTotal = (float) ($renta->total ?? 0);
+        $montoTotalLetras = $this->montoALetras($montoTotal);
+
+        // Valor de venta de los equipos: es el monto que ampara el pagaré del contrato
+        $montoVentaTotal = $renta->valor_venta;
+        $montoVentaLetras = $this->montoALetras($montoVentaTotal);
+
+        $fechaExpedicion = $renta->created_at ? \Carbon\Carbon::parse($renta->created_at) : now();
+        $fechaPago = $renta->fecha_fin ? \Carbon\Carbon::parse($renta->fecha_fin) : now();
+
+        $empresa = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre') ?: 'INDUSTRIAS VIRAMONTES';
+        $ciudadCliente = $renta->cliente->ciudad ?? 'Durango, Dgo.';
+
+        $direccionCliente = $renta->cliente->direccion ?? '';
+        if (!empty($renta->cliente->colonia)) {
+            $direccionCliente .= ', ' . $renta->cliente->colonia;
+        }
+
+        $pdf = Pdf::loadView('rentas.pdf_contrato', compact(
+            'renta',
+            'montoTotal',
+            'montoTotalLetras',
+            'montoVentaTotal',
+            'montoVentaLetras',
+            'fechaExpedicion',
+            'fechaPago',
+            'empresa',
+            'ciudadCliente',
+            'direccionCliente'
+        ));
+
         $pdf->setPaper('letter', 'portrait');
         return $pdf->stream('Contrato_' . $renta->folio . '.pdf');
     }
 
     public function pagare(Renta $renta)
     {
-        $renta->load('cliente', 'sucursal');
+        $renta->load('cliente', 'sucursal', 'detalles.equipo');
 
-        /*
-        |--------------------------------------------------------------------------
-        | PLANTILLA
-        |--------------------------------------------------------------------------
-        */
+        if ($bloqueo = $this->validarPreciosVenta($renta)) {
+            return $bloqueo;
+        }
+
+        // PLANTILLA
         $plantilla = PlantillaDocumento::where('tipo', 'pagare')->first();
 
-        /*
-        |--------------------------------------------------------------------------
-        | CONFIGURACIÓN PERSONALIZADA DEL PAGARÉ
-        |--------------------------------------------------------------------------
-        */
+        // CONFIGURACIÓN PERSONALIZADA DEL PAGARÉ
         $pagareConfig = Configuracion::where('key', 'like', 'pagare_%')
             ->pluck('value', 'key')
             ->toArray();
@@ -555,29 +685,19 @@ class RentaController extends Controller
             return $pagareConfig[$key] ?? $default;
         };
 
-        /*
-        |--------------------------------------------------------------------------
-        | MONTO = 5% DEL TOTAL
-        |--------------------------------------------------------------------------
-        */
+        // Costo de la renta (informativo, disponible como {monto_total})
         $montoTotal = (float) ($renta->total ?? 0);
-
-        /*
-        |--------------------------------------------------------------------------
-        | EL PAGARÉ ES POR EL TOTAL COMPLETO DE LA RENTA
-        |--------------------------------------------------------------------------
-        */
-        $montoPagare = $montoTotal;
-
         $montoTotalLetras = $this->montoALetras($montoTotal);
-        
-        $montoPagareLetras = $montoTotalLetras;
 
-        /*
-        |--------------------------------------------------------------------------
-        | FECHAS
-        |--------------------------------------------------------------------------
-        */
+        // Valor de venta de los equipos (disponible como {monto_venta})
+        $montoVentaTotal = $renta->valor_venta;
+        $montoVentaLetras = $this->montoALetras($montoVentaTotal);
+
+        // EL PAGARÉ AMPARA EL VALOR DE VENTA DE LOS EQUIPOS
+        $montoPagare = $montoVentaTotal;
+        $montoPagareLetras = $montoVentaLetras;
+
+        // FECHAS
         $fechaExpedicion = $renta->created_at
             ? \Carbon\Carbon::parse($renta->created_at)
             : now();
@@ -586,149 +706,60 @@ class RentaController extends Controller
             ? \Carbon\Carbon::parse($renta->fecha_fin)
             : now();
 
-        /*
-        |--------------------------------------------------------------------------
-        | EMPRESA
-        |--------------------------------------------------------------------------
-        */
-        $empresa =
-            \App\Helpers\ContentHelper::getCompanyData(
-                'empresa_nombre'
-            )
-            ?: 'Sistema de Gestión';
+        // EMPRESA
+        $empresa = \App\Helpers\ContentHelper::getCompanyData('empresa_nombre') ?: 'Sistema de Gestión';
+        $duenoEmpresa = \App\Helpers\ContentHelper::getCompanyData('empresa_dueno') ?? '';
 
-        $duenoEmpresa =
-            \App\Helpers\ContentHelper::getCompanyData(
-                'empresa_dueno'
-            )
-            ?? '';
-
-        /*
-        |--------------------------------------------------------------------------
-        | DATOS CLIENTE
-        |--------------------------------------------------------------------------
-        */
+        // DATOS CLIENTE
         $cliente = $renta->cliente;
 
-        $nombreCliente =
-            $cliente->nombre_completo ?? '';
+        $nombreCliente = $cliente->nombre_completo ?? '';
 
         $direccionBase = $cliente->direccion ?? '';
-        $coloniaBase   = $cliente->colonia ?? '';
-        
+        $coloniaBase = $cliente->colonia ?? '';
+
         $direccionCliente = $direccionBase;
         if (!empty($coloniaBase)) {
             $direccionCliente .= (!empty($direccionBase) ? ', ' : '') . $coloniaBase;
         }
 
-        /*
-        * IMPORTANTE:
-        * Aquí utilizamos CIUDAD, no sucursal.
-        */
-        $ciudadCliente =
-            $cliente->ciudad ?? 'Durango, Dgo.';
+        // IMPORTANTE: aquí utilizamos CIUDAD, no sucursal.
+        $ciudadCliente = $cliente->ciudad ?? 'Durango, Dgo.';
+        $telefonoCliente = $cliente->telefono ?? '';
 
-        $telefonoCliente =
-            $cliente->telefono ?? '';
-
-        /*
-        |--------------------------------------------------------------------------
-        | VARIABLES DINÁMICAS
-        |--------------------------------------------------------------------------
-        */
+        // VARIABLES DINÁMICAS
         $variables = [
-
-            '{cliente}' =>
-                $nombreCliente,
-
-            '{folio}' =>
-                $renta->folio ?? '',
-
-            '{empresa}' =>
-                $empresa,
-
-            '{dueno_empresa}' =>
-                $duenoEmpresa,
-
-            '{monto_total}' =>
-                number_format(
-                    $montoTotal,
-                    2,
-                    '.',
-                    ','
-                ),
-
-            '{monto_total_letras}' =>
-                $montoTotalLetras,
-
-            '{monto_pagare}' =>
-                number_format(
-                    $montoPagare,
-                    2,
-                    '.',
-                    ','
-                ),
-
-            '{monto_pagare_letras}' =>
-                $montoPagareLetras,
-
-            '{numero_pagare}' =>
-                $cfg(
-                    'pagare_numero',
-                    '1/1'
-                ),
-
-            '{fecha_inicio}' =>
-                $renta->fecha_inicio
-                    ? \Carbon\Carbon::parse(
-                        $renta->fecha_inicio
-                    )->format('d/m/Y')
-                    : '',
-
-            '{fecha_fin}' =>
-                $renta->fecha_fin
-                    ? \Carbon\Carbon::parse(
-                        $renta->fecha_fin
-                    )->format('d/m/Y')
-                    : '',
-
-            '{fecha_pago}' =>
-                $fechaPago->format('d/m/Y'),
-
-            '{lugar_pago}' =>
-                $ciudadCliente,
-
-            '{lugar_expedicion}' =>
-                $ciudadCliente,
-
-            '{direccion_cliente}' =>
-                $direccionCliente,
-
-            '{ciudad_cliente}' =>
-                $ciudadCliente,
-
-            '{telefono_cliente}' =>
-                $telefonoCliente,
-
-            '{dia_expedicion}' =>
-                $fechaExpedicion->format('d'),
-
-            '{mes_expedicion}' =>
-                $fechaExpedicion
-                    ->locale('es')
-                    ->translatedFormat('F'),
-
-            '{anio_expedicion}' =>
-                $fechaExpedicion->format('Y'),
+            '{cliente}' => $nombreCliente,
+            '{folio}' => $renta->folio ?? '',
+            '{empresa}' => $empresa,
+            '{dueno_empresa}' => $duenoEmpresa,
+            '{monto_total}' => number_format($montoTotal, 2, '.', ','),
+            '{monto_total_letras}' => $montoTotalLetras,
+            '{monto_venta}' => number_format($montoVentaTotal, 2, '.', ','),
+            '{monto_venta_letras}' => $montoVentaLetras,
+            '{monto_pagare}' => number_format($montoPagare, 2, '.', ','),
+            '{monto_pagare_letras}' => $montoPagareLetras,
+            '{numero_pagare}' => $cfg('pagare_numero', '1/1'),
+            '{fecha_inicio}' => $renta->fecha_inicio
+                ? \Carbon\Carbon::parse($renta->fecha_inicio)->format('d/m/Y')
+                : '',
+            '{fecha_fin}' => $renta->fecha_fin
+                ? \Carbon\Carbon::parse($renta->fecha_fin)->format('d/m/Y')
+                : '',
+            '{fecha_pago}' => $fechaPago->format('d/m/Y'),
+            '{fecha_expedicion}' => $fechaExpedicion->format('d/m/Y'),
+            '{lugar_pago}' => $ciudadCliente,
+            '{lugar_expedicion}' => $ciudadCliente,
+            '{direccion_cliente}' => $direccionCliente,
+            '{ciudad_cliente}' => $ciudadCliente,
+            '{telefono_cliente}' => $telefonoCliente,
+            '{dia_expedicion}' => $fechaExpedicion->format('d'),
+            '{mes_expedicion}' => $fechaExpedicion->locale('es')->translatedFormat('F'),
+            '{anio_expedicion}' => $fechaExpedicion->format('Y'),
         ];
 
-        /*
-        |--------------------------------------------------------------------------
-        | FUNCIÓN PARA REEMPLAZAR VARIABLES
-        |--------------------------------------------------------------------------
-        */
+        // FUNCIÓN PARA REEMPLAZAR VARIABLES
         $resolver = function ($texto) use ($variables) {
-
             return str_replace(
                 array_keys($variables),
                 array_values($variables),
@@ -736,316 +767,78 @@ class RentaController extends Controller
             );
         };
 
-        /*
-        |--------------------------------------------------------------------------
-        | ENCABEZADO
-        |--------------------------------------------------------------------------
-        */
-        $pagareTitulo =
-            $resolver(
-                $cfg(
-                    'pagare_titulo',
-                    'PAGARÉ'
-                )
-            );
+        // ENCABEZADO
+        $pagareTitulo = $resolver($cfg('pagare_titulo', 'PAGARÉ'));
+        $pagareTextoBuenoPor = $resolver($cfg('pagare_texto_bueno_por', 'BUENO POR $'));
+        $pagareEtiquetaNumero = $resolver($cfg('pagare_etiqueta_numero', 'No.'));
+        $pagareNumero = $resolver($cfg('pagare_numero', '1/1'));
 
-        $pagareTextoBuenoPor =
-            $resolver(
-                $cfg(
-                    'pagare_texto_bueno_por',
-                    'BUENO POR $'
-                )
-            );
+        // EXPEDICIÓN
+        $pagareTextoEn = $cfg('pagare_texto_en', 'En');
+        $pagareTextoA = $cfg('pagare_texto_a', 'a');
+        $pagareTextoDeMes = $cfg('pagare_texto_de_mes', 'de');
+        $pagareTextoDeAnio = $cfg('pagare_texto_de_anio', 'de');
+        $pagareEtiquetaExpedicion = $resolver($cfg('pagare_etiqueta_expedicion', 'Lugar y fecha de expedición'));
 
-        $pagareEtiquetaNumero =
-            $resolver(
-                $cfg(
-                    'pagare_etiqueta_numero',
-                    'No.'
-                )
-            );
+        // CUERPO
+        $pagareTextoPromesa = $resolver($cfg(
+            'pagare_texto_promesa',
+            'Debo(mos) y pagaré(mos) incondicionalmente por este Pagaré a la orden de'
+        ));
 
-        $pagareNumero =
-            $resolver(
-                $cfg(
-                    'pagare_numero',
-                    '1/1'
-                )
-            );
+        $pagareEtiquetaBeneficiario = $resolver($cfg(
+            'pagare_etiqueta_beneficiario',
+            'Nombre de la persona a quien ha de pagarse'
+        ));
 
-        /*
-        |--------------------------------------------------------------------------
-        | EXPEDICIÓN
-        |--------------------------------------------------------------------------
-        */
-        $pagareTextoEn =
-            $cfg(
-                'pagare_texto_en',
-                'En'
-            );
+        // VALORES CONFIGURABLES (el monto por defecto ahora es el valor de VENTA)
+        $pagareBeneficiario = $resolver($cfg('pagare_valor_beneficiario', '{empresa}'));
+        $pagareLugarPago = $resolver($cfg('pagare_valor_lugar_pago', '{ciudad_cliente}'));
+        $pagareFechaPagoMostrar = $resolver($cfg('pagare_valor_fecha_pago', '{fecha_fin}'));
+        $pagareMontoMostrar = $resolver($cfg('pagare_valor_monto', '{monto_venta}'));
+        $pagareMontoLetrasMostrar = $resolver($cfg('pagare_valor_monto_letras', '{monto_venta_letras}'));
+        $pagareTextoImporte = $resolver($cfg(
+            'pagare_texto_importe',
+            'Importe correspondiente al valor de los equipos rentados.'
+        ));
 
-        $pagareTextoA =
-            $cfg(
-                'pagare_texto_a',
-                'a'
-            );
+        $pagareEtiquetaLugarPago = $cfg('pagare_etiqueta_lugar_pago', 'Lugar de pago');
+        $pagareEtiquetaFechaPago = $cfg('pagare_etiqueta_fecha_pago', 'Fecha de pago');
+        $pagareTextoCantidad = $cfg('pagare_texto_cantidad', 'La cantidad de:');
 
-        $pagareTextoDeMes =
-            $cfg(
-                'pagare_texto_de_mes',
-                'de'
-            );
+        $pagareTextoPorcentaje = $resolver($cfg(
+            'pagare_texto_porcentaje',
+            'Importe equivalente al {porcentaje_pagare}% del total de la renta.'
+        ));
 
-        $pagareTextoDeAnio =
-            $cfg(
-                'pagare_texto_de_anio',
-                'de'
-            );
+        $pagareClausulaLegal = $resolver($cfg(
+            'pagare_clausula_legal',
+            $plantilla->contenido ?? ''
+        ));
 
-        $pagareEtiquetaExpedicion =
-            $resolver(
-                $cfg(
-                    'pagare_etiqueta_expedicion',
-                    'Lugar y fecha de expedición'
-                )
-            );
+        // DEUDOR
+        $pagareTituloDeudor = $cfg('pagare_titulo_deudor', 'Datos del deudor');
+        $pagareEtiquetaNombre = $cfg('pagare_etiqueta_nombre', 'Nombre:');
+        $pagareEtiquetaDireccion = $cfg('pagare_etiqueta_direccion', 'Dirección:');
+        $pagareEtiquetaPoblacion = $cfg('pagare_etiqueta_poblacion', 'Población:');
+        $pagareEtiquetaTelefono = $cfg('pagare_etiqueta_telefono', 'Tel:');
 
-        /*
-        |--------------------------------------------------------------------------
-        | CUERPO
-        |--------------------------------------------------------------------------
-        */
-        $pagareTextoPromesa =
-            $resolver(
-                $cfg(
-                    'pagare_texto_promesa',
-                    'Debo(mos) y pagaré(mos) incondicionalmente por este Pagaré a la orden de'
-                )
-            );
+        // FIRMA
+        $pagareTextoAcepto = $cfg('pagare_texto_acepto', 'Acepto(amos)');
+        $pagareTextoFirma = $cfg('pagare_texto_firma', 'Firma(s)');
 
-        $pagareEtiquetaBeneficiario =
-            $resolver(
-                $cfg(
-                    'pagare_etiqueta_beneficiario',
-                    'Nombre de la persona a quien ha de pagarse'
-                )
-            );
+        // APARIENCIA
+        $pagareColorPrincipal = $cfg('pagare_color_principal', '#2e7d32');
+        $pagareColorFondo = $cfg('pagare_color_fondo', '#e8f5e9');
+        $pagareTamanoTexto = (int) $cfg('pagare_tamano_texto', 11);
 
-        $pagareLugarPago =
-            $resolver(
-                $cfg(
-                    'pagare_texto_lugar',
-                    '{ciudad_cliente}'
-                )
-            );
+        $pagareNumeroMostrar = $resolver($cfg('pagare_valor_numero', '{numero_pagare}'));
+        $pagareLugarExpedicionMostrar = $resolver($cfg('pagare_valor_lugar_expedicion', '{ciudad_cliente}'));
+        $pagareDiaExpedicionMostrar = $resolver($cfg('pagare_valor_dia_expedicion', '{dia_expedicion}'));
+        $pagareMesExpedicionMostrar = $resolver($cfg('pagare_valor_mes_expedicion', '{mes_expedicion}'));
+        $pagareAnioExpedicionMostrar = $resolver($cfg('pagare_valor_anio_expedicion', '{anio_expedicion}'));
 
-        /*
-        |--------------------------------------------------------------------------
-        | VALORES CONFIGURABLES
-        |--------------------------------------------------------------------------
-        */
-
-        $pagareBeneficiario = $resolver(
-            $cfg(
-                'pagare_valor_beneficiario',
-                '{empresa}'
-            )
-        );
-
-
-        $pagareLugarPago = $resolver(
-            $cfg(
-                'pagare_valor_lugar_pago',
-                '{ciudad_cliente}'
-            )
-        );
-
-
-        $pagareFechaPagoMostrar = $resolver(
-            $cfg(
-                'pagare_valor_fecha_pago',
-                '{fecha_fin}'
-            )
-        );
-
-
-        $pagareMontoMostrar = $resolver(
-            $cfg(
-                'pagare_valor_monto',
-                '{monto_total}'
-            )
-        );
-
-
-        $pagareMontoLetrasMostrar = $resolver(
-            $cfg(
-                'pagare_valor_monto_letras',
-                '{monto_total_letras}'
-            )
-        );
-
-
-        $pagareTextoImporte = $resolver(
-            $cfg(
-                'pagare_texto_importe',
-                'Importe correspondiente al total de la renta.'
-            )
-        );
-        $pagareEtiquetaLugarPago =
-            $cfg(
-                'pagare_etiqueta_lugar_pago',
-                'Lugar de pago'
-            );
-
-        $pagareEtiquetaFechaPago =
-            $cfg(
-                'pagare_etiqueta_fecha_pago',
-                'Fecha de pago'
-            );
-
-        $pagareTextoCantidad =
-            $cfg(
-                'pagare_texto_cantidad',
-                'La cantidad de:'
-            );
-
-        $pagareTextoPorcentaje =
-            $resolver(
-                $cfg(
-                    'pagare_texto_porcentaje',
-                    'Importe equivalente al {porcentaje_pagare}% del total de la renta.'
-                )
-            );
-
-        $pagareClausulaLegal =
-            $resolver(
-                $cfg(
-                    'pagare_clausula_legal',
-                    $plantilla->contenido ?? ''
-                )
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | DEUDOR
-        |--------------------------------------------------------------------------
-        */
-        $pagareTituloDeudor =
-            $cfg(
-                'pagare_titulo_deudor',
-                'Datos del deudor'
-            );
-
-        $pagareEtiquetaNombre =
-            $cfg(
-                'pagare_etiqueta_nombre',
-                'Nombre:'
-            );
-
-        $pagareEtiquetaDireccion =
-            $cfg(
-                'pagare_etiqueta_direccion',
-                'Dirección:'
-            );
-
-        $pagareEtiquetaPoblacion =
-            $cfg(
-                'pagare_etiqueta_poblacion',
-                'Población:'
-            );
-
-        $pagareEtiquetaTelefono =
-            $cfg(
-                'pagare_etiqueta_telefono',
-                'Tel:'
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | FIRMA
-        |--------------------------------------------------------------------------
-        */
-        $pagareTextoAcepto =
-            $cfg(
-                'pagare_texto_acepto',
-                'Acepto(amos)'
-            );
-
-        $pagareTextoFirma =
-            $cfg(
-                'pagare_texto_firma',
-                'Firma(s)'
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | APARIENCIA
-        |--------------------------------------------------------------------------
-        */
-        $pagareColorPrincipal =
-            $cfg(
-                'pagare_color_principal',
-                '#2e7d32'
-            );
-
-        $pagareColorFondo =
-            $cfg(
-                'pagare_color_fondo',
-                '#e8f5e9'
-            );
-
-        $pagareTamanoTexto =
-            (int) $cfg(
-                'pagare_tamano_texto',
-                11
-            );
-
-        $pagareNumeroMostrar = $resolver(
-            $cfg(
-                'pagare_valor_numero',
-                '{numero_pagare}'
-            )
-        );
-
-        $pagareImporteMostrar = $resolver(
-            $cfg(
-                'pagare_valor_importe',
-                '{monto_total}'
-            )
-        );
-
-        $pagareLugarExpedicionMostrar = $resolver(
-            $cfg(
-                'pagare_valor_lugar_expedicion',
-                '{ciudad_cliente}'
-            )
-        );
-
-        $pagareDiaExpedicionMostrar = $resolver(
-            $cfg(
-                'pagare_valor_dia_expedicion',
-                '{dia_expedicion}'
-            )
-        );
-
-        $pagareMesExpedicionMostrar = $resolver(
-            $cfg(
-                'pagare_valor_mes_expedicion',
-                '{mes_expedicion}'
-            )
-        );
-
-        $pagareAnioExpedicionMostrar = $resolver(
-            $cfg(
-                'pagare_valor_anio_expedicion',
-                '{anio_expedicion}'
-            )
-        );
-        /*
-        |--------------------------------------------------------------------------
-        | GENERAR PDF
-        |--------------------------------------------------------------------------
-        */
+        // GENERAR PDF
         $pdf = Pdf::loadView(
             'rentas.pdf_pagare',
             compact(
@@ -1099,32 +892,23 @@ class RentaController extends Controller
                 'pagareTamanoTexto',
 
                 'pagareBeneficiario',
-                'pagareLugarPago',
                 'pagareFechaPagoMostrar',
                 'pagareMontoMostrar',
                 'pagareMontoLetrasMostrar',
                 'pagareTextoImporte',
 
                 'pagareNumeroMostrar',
-                'pagareImporteMostrar',
 
                 'pagareLugarExpedicionMostrar',
                 'pagareDiaExpedicionMostrar',
                 'pagareMesExpedicionMostrar',
-                'pagareAnioExpedicionMostrar',
+                'pagareAnioExpedicionMostrar'
             )
         );
 
-        $pdf->setPaper(
-            'letter',
-            'portrait'
-        );
+        $pdf->setPaper('letter', 'portrait');
 
-        return $pdf->stream(
-            'Pagare_' .
-            $renta->folio .
-            '.pdf'
-        );
+        return $pdf->stream('Pagare_' . $renta->folio . '.pdf');
     }
 
     public function uploadContrato(Request $request, Renta $renta)
@@ -1220,7 +1004,7 @@ class RentaController extends Controller
     {
         $request->validate([
             'monto' => 'required|numeric|min:0',
-            'metodo_pago' => 'required|in:efectivo,transferencia,tarjeta',
+            'metodo_pago' => 'required|in:efectivo,transferencia,tarjeta,mixto',
             'devolver_final' => 'nullable|array',
             'devolver_final.*' => 'numeric|min:0',
             'costo_faltante' => 'nullable|array',
@@ -1231,7 +1015,7 @@ class RentaController extends Controller
             $nuevoPagoId = null;
 
             DB::transaction(function () use ($request, $renta, &$nuevoPagoId) {
-                
+
                 // 1. PROCESAR DEVOLUCIÓN DE EQUIPOS (SIEMPRE DISPONIBLE)
                 $renta->load('detalles.equipo');
                 $articulosDevueltos = [];
@@ -1368,7 +1152,7 @@ class RentaController extends Controller
                     $renta->motivo_cargos_extra = $renta->motivo_cargos_extra ? $renta->motivo_cargos_extra . ' | ' . $motivosFinal : $motivosFinal;
                     $renta->subtotal += $totalExtra;
                     $renta->total += $totalExtra;
-                    
+
                     $renta->observaciones = $renta->observaciones ? $renta->observaciones . "\n[FINALIZACIÓN] Cargos extra: $" . number_format($totalExtra, 2) . " - " . $motivosFinal : "[FINALIZACIÓN] Cargos extra: $" . number_format($totalExtra, 2) . " - " . $motivosFinal;
                     $renta->save();
                 }
@@ -1423,7 +1207,7 @@ class RentaController extends Controller
                 $renta->autorizacion_aprobada = false;
                 $renta->autorizacion_solicitada = false;
                 $renta->save();
-                
+
                 return 'finalizado';
             });
 
@@ -1436,7 +1220,7 @@ class RentaController extends Controller
             }
 
             return redirect()->route('rentas.show', $renta)->with('success', 'Renta finalizada correctamente.');
-            
+
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -1447,7 +1231,8 @@ class RentaController extends Controller
         $request->validate([
             'dias_extra' => 'required|integer|min:1',
             'abono' => 'nullable|numeric|min:0',
-            'metodo_pago' => 'nullable|in:efectivo,transferencia,tarjeta',
+            'metodo_pago' => 'nullable|in:efectivo,transferencia,tarjeta,mixto',
+            'referencia' => 'nullable|string',
             'devolver_final' => 'nullable|array',
             'devolver_final.*' => 'numeric|min:0'
         ]);
@@ -1492,13 +1277,13 @@ class RentaController extends Controller
                 $subtotalAmpliacion = 0;
                 foreach ($renta->detalles as $detalle) {
                     $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
-                    
+
                     if ($pendiente > 0) {
                         $costoDetalleExtra = $detalle->costoDiarioPendiente() * $diasExtra; // 0 si es por m²
                         $subtotalAmpliacion += $costoDetalleExtra;
 
                         $detalle->subtotal += $costoDetalleExtra;
-                        $detalle->dias += $diasExtra; 
+                        $detalle->dias += $diasExtra;
                         $detalle->save();
                     }
                 }
@@ -1540,6 +1325,7 @@ class RentaController extends Controller
                         'monto' => $request->abono,
                         'metodo_pago' => $request->metodo_pago ?? 'efectivo',
                         'tipo' => 'ampliacion',
+                        'referencia' => $request->referencia,
                         'fecha_pago' => now(),
                         'observaciones' => $obsPago
                     ]);
@@ -1621,25 +1407,27 @@ class RentaController extends Controller
         return view('rentas.ticket_pago', compact('pago'));
     }
 
-    private function montoALetras($monto) {
+    private function montoALetras($monto)
+    {
         $entero = floor($monto);
         $centavos = (int) round(($monto - $entero) * 100);
-        
+
         if ($centavos >= 100) {
             $entero++;
             $centavos = 0;
         }
-        
+
         $centavosStr = str_pad($centavos, 2, '0', STR_PAD_LEFT);
         $letras = $this->convertirEnteroALetras($entero);
-        
+
         return mb_strtoupper($letras, 'UTF-8') . ' PESOS ' . $centavosStr . '/100 M.N.';
     }
 
-    private function convertirEnteroALetras($numero) {
+    private function convertirEnteroALetras($numero)
+    {
         $numero = (int)$numero;
         if ($numero == 0) return 'cero';
-        
+
         if ($numero < 21) {
             $unidades = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
             return $unidades[$numero];

@@ -56,4 +56,19 @@ class DetalleRenta extends Model
     {
         return $this->belongsTo(Equipo::class);
     }
+
+    /**
+     * Precio de venta efectivo: el congelado en la renta o, si no existe,
+     * el actual del catálogo.
+     */
+    public function getPrecioVentaEfectivoAttribute(): float
+    {
+        $congelado = (float) ($this->precio_venta ?? 0);
+
+        if ($congelado > 0) {
+            return $congelado;
+        }
+
+        return (float) ($this->equipo?->precio_venta ?? 0);
+    }
 }

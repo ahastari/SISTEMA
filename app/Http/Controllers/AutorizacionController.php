@@ -13,6 +13,23 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class AutorizacionController extends Controller
 {
+
+    private function validarPermisoSucursal($sucursal_id_operacion)
+    {
+        $user = auth()->user();
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->isGerente() && session('activo_sucursal_id') == $sucursal_id_operacion) {
+            return true;
+        }
+
+        abort(403, 'Acceso Denegado: No tienes permisos para autorizar operaciones de otra sucursal.');
+    }
+
+
     public function index()
     {
         $sucursalId = session('activo_sucursal_id');
@@ -21,9 +38,10 @@ class AutorizacionController extends Controller
         $sucursalesNombres = Sucursal::pluck('nombre', 'id');
 
         // 1. CONSULTAS DE PENDIENTES
-        $queryRentasPendientes = \App\Models\Renta::with(['cliente', 'solicitadoPor', 'detalles'])->where('autorizacion_solicitada', true)->where('estado', 'activa');
+        $queryRentasPendientes = \App\Models\Renta::with(['cliente', 'solicitadoPor', 'detalles', 'sucursal'])->where('autorizacion_solicitada', true)->where('estado', 'activa');
         $queryMovimientosPendientes = \App\Models\MovimientoSucursal::with(['equipo', 'sucursalOrigen', 'sucursalDestino', 'usuario'])->where('tipo', 'transferencia')->where('estado', 'pendiente');
-        $queryVentasPendientes = \App\Models\Venta::with(['cliente', 'solicitadoPor'])->where('autorizacion_solicitada', true)->where('estado', 'completada');
+        
+        $queryVentasPendientes = \App\Models\Venta::with(['cliente', 'solicitadoPor', 'sucursal'])->where('autorizacion_solicitada', true)->where('estado', 'completada');
         $queryDescuentosPendientes = SolicitudDescuento::with('user')->where('estado', 'pendiente');
 
         // 2. CONSULTAS DE HISTORIAL (YA RESUELTAS)
@@ -156,9 +174,12 @@ class AutorizacionController extends Controller
         return view('autorizaciones.index', compact('autorizacionesRentas', 'rentasCancelacion', 'movimientosPendientes', 'autorizacionesVentas', 'descuentosPendientes', 'historial', 'sucursalesNombres'));
     }
 
+
     // --- NUEVOS MÉTODOS PARA VENTAS ---
     public function aprobarVenta(\App\Models\Venta $venta)
     {
+        $this->validarPermisoSucursal($venta->sucursal_id); // 🔒 Protección
+
         try {
             DB::beginTransaction();
 
@@ -195,7 +216,7 @@ class AutorizacionController extends Controller
                 'estado' => 'cancelada',
                 'autorizacion_solicitada' => false,
                 'autorizado_por_id' => auth()->id(),
-                'observaciones' => ($venta->observaciones ? $venta->observaciones . "\n" : '') . "[CANCELADA POR GERENTE] Motivo: " . $venta->motivo_cancelacion
+                'observaciones' => ($venta->observaciones ? $venta->observaciones . "\n" : '') . "[CANCELADA POR AUTORIZADOR] Motivo: " . $venta->motivo_cancelacion
             ]);
 
             DB::commit();
@@ -208,10 +229,12 @@ class AutorizacionController extends Controller
 
     public function rechazarVenta(\App\Models\Venta $venta)
     {
+        $this->validarPermisoSucursal($venta->sucursal_id); // 🔒 Protección
+
         $venta->update([
             'autorizacion_solicitada' => false,
             'autorizado_por_id' => auth()->id(),
-            'observaciones' => ($venta->observaciones ? $venta->observaciones . "\n" : '') . "[CANCELACIÓN DENEGADA POR GERENTE]"
+            'observaciones' => ($venta->observaciones ? $venta->observaciones . "\n" : '') . "[CANCELACIÓN DENEGADA POR AUTORIZADOR]"
         ]);
         return back()->with('success', 'Solicitud de cancelación rechazada.');
     }
@@ -257,6 +280,8 @@ class AutorizacionController extends Controller
 
     public function aprobarCancelacionRenta(\App\Models\Renta $renta)
     {
+        $this->validarPermisoSucursal($renta->sucursal_id); // 🔒 Protección
+
         try {
             DB::beginTransaction();
 
@@ -284,7 +309,7 @@ class AutorizacionController extends Controller
                 'fecha_devolucion' => now(),
                 'autorizacion_solicitada' => false,
                 'autorizado_por_id' => auth()->id(),
-                'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "\n[CANCELACIÓN APROBADA POR GERENTE] Motivo: " . $motivoLimpio
+                'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "\n[CANCELACIÓN APROBADA POR AUTORIZADOR] Motivo: " . $motivoLimpio
             ]);
 
             DB::commit();
@@ -297,25 +322,30 @@ class AutorizacionController extends Controller
 
     public function rechazarCancelacionRenta(\App\Models\Renta $renta)
     {
+        $this->validarPermisoSucursal($renta->sucursal_id); // 🔒 Protección
+
         $renta->update([
             'autorizacion_solicitada' => false,
             'motivo_autorizacion' => null,
             'autorizado_por_id' => auth()->id(),
-            'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "\n[CANCELACIÓN DENEGADA POR GERENTE]"
+            'observaciones' => ($renta->observaciones ? $renta->observaciones . "\n" : '') . "\n[CANCELACIÓN DENEGADA POR AUTORIZADOR]"
         ]);
         return back()->with('success', 'Solicitud de cancelación rechazada. El contrato sigue activo.');
     }
 
+
     public function aprobar(Renta $renta)
     {
+        $this->validarPermisoSucursal($renta->sucursal_id); // 🔒 Protección
+
         try {
             DB::transaction(function() use ($renta) {
-                $gerente = auth()->user()->name;
+                $autorizador = auth()->user()->name;
                 $cajero = $renta->solicitadoPor ? $renta->solicitadoPor->name : 'Usuario Desconocido';
                 
                 $registroAuditoria = "\n\n[AUTORIZACIÓN APROBADA - " . now()->format('d/m/Y H:i') . "]";
                 $registroAuditoria .= "\nSolicitó: {$cajero}";
-                $registroAuditoria .= "\nAutorizó: {$gerente}";
+                $registroAuditoria .= "\nAutorizó: {$autorizador}";
                 $registroAuditoria .= "\nAcción: Permiso concedido para finalizar el contrato con adeudo.";
 
                 $renta->observaciones = $renta->observaciones ? $renta->observaciones . $registroAuditoria : $registroAuditoria;
@@ -334,13 +364,15 @@ class AutorizacionController extends Controller
 
     public function rechazar(Renta $renta)
     {
+        $this->validarPermisoSucursal($renta->sucursal_id); // 🔒 Protección
+
         $renta->load('solicitadoPor');
-        $gerente = auth()->user()->name;
+        $autorizador = auth()->user()->name;
         $cajero = $renta->solicitadoPor ? $renta->solicitadoPor->name : 'Usuario Desconocido';
 
         $registroAuditoria = "\n\n[AUTORIZACIÓN RECHAZADA - " . now()->format('d/m/Y H:i') . "]";
         $registroAuditoria .= "\nSolicitó: {$cajero}";
-        $registroAuditoria .= "\nRechazó: {$gerente}";
+        $registroAuditoria .= "\nRechazó: {$autorizador}";
         $registroAuditoria .= "\nAcción: Se denegó la petición de finalizar la renta con adeudo.";
 
         $renta->update([
@@ -367,10 +399,15 @@ class AutorizacionController extends Controller
 
         $qRentas = \App\Models\Renta::where('autorizacion_solicitada', true)->where('estado', 'activa');
         $qMovimientos = \App\Models\MovimientoSucursal::where('tipo', 'transferencia')->where('estado', 'pendiente');
-        $qVentas = \App\Models\Venta::where('autorizacion_solicitada', true)->where('estado', 'completada'); // <- Agregado
+        
+        $qVentas = \App\Models\Venta::where('autorizacion_solicitada', true)->where('estado', 'completada');
         $qDescuentos = SolicitudDescuento::where('estado', 'pendiente');
 
+        // Filtro para el Gerente:
         if (!$isGlobalAdmin) {
+            // NOTA: Si un admin cambia temporalmente su sesión a una sucursal específica
+            // (no global), el contador también le mostrará solo los de esa sucursal. 
+            // Esto es correcto a nivel visual.
             $qRentas->where('sucursal_id', $sucursalId);
             $qMovimientos->where('sucursal_origen_id', $sucursalId);
             $qVentas->where('sucursal_id', $sucursalId);

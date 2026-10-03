@@ -406,18 +406,13 @@
                                 <i class="bi bi-card-heading me-2"></i>Identidad Corporativa y Sistema
                             </div>
                             <div class="row g-3 mb-4">
-                                <div class="col-12 col-md-4">
+                                <div class="col-12 col-md-6">
                                     <label class="form-label small fw-semibold text-body">Nombre de la Empresa <span class="text-danger">*</span></label>
                                     <input type="text" name="empresa_nombre" class="form-control form-control-sm bg-body text-body" placeholder="Ej. Corporativo Viramontes S.A." value="{{ \App\Helpers\ContentHelper::getCompanyData('empresa_nombre') }}" required>
                                 </div>
-                                <div class="col-12 col-md-4">
+                                <div class="col-12 col-md-6">
                                     <label class="form-label small fw-semibold text-body">Dueño / Representante Legal</label>
                                     <input type="text" name="empresa_dueno" class="form-control form-control-sm bg-body text-body" placeholder="Ej. Juan Pérez" value="{{ \App\Helpers\ContentHelper::getCompanyData('empresa_dueno') }}">
-                                </div>
-                                <!-- NUEVO CAMPO: FOLIO GLOBAL -->
-                                <div class="col-12 col-md-4">
-                                    <label class="form-label small fw-semibold text-body">Folio Inicial Global (Rentas)</label>
-                                    <input type="number" name="folio_global_rentas" class="form-control form-control-sm bg-body text-body" placeholder="Mínimo 4000" min="4000" value="{{ \App\Helpers\ContentHelper::getCompanyData('folio_global_rentas', '4000') }}">
                                 </div>
                             </div>
 
@@ -559,6 +554,16 @@
                                                 <label class="form-label small fw-semibold text-body">Dirección Completa <span class="text-danger">*</span></label>
                                                 <input type="text" name="direccion" class="form-control form-control-sm" value="{{ $suc->direccion }}" required>
                                             </div>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold text-body">Próximo folio de rentas</label>
+                                                <input type="number" name="siguiente_folio_rentas" class="form-control form-control-sm"
+                                                    min="1" value="{{ $suc->siguiente_folio_rentas }}"
+                                                    placeholder="Vacío = continuar desde el último folio">
+                                                <small class="text-secondary" style="font-size: 11px;">
+                                                    Solo afecta a esta sucursal. Si el número ya existe en ella, se usará el siguiente libre.
+                                                </small>
+                                            </div>
+
                                             <div class="row g-2 align-items-end">
                                                 <div class="{{ auth()->user()->isAdmin() ? 'col-8' : 'col-12' }}">
                                                     <label class="form-label fw-semibold small text-muted">Logotipo actual / Cambiar</label>
@@ -573,10 +578,6 @@
                                                         </div>
                                                         <input type="file" name="logo" class="form-control form-control-sm w-100" accept="image/*" onchange="previewImageGlobal(this, 'preview-sucursal-{{ $suc->id }}', 'icon-sucursal-{{ $suc->id }}')">
                                                     </div>
-                                                </div>
-                                                <div class="col-12 col-md-4">
-                                                    <label class="form-label fw-semibold small text-muted">Folio Inicial Rentas</label>
-                                                    <input type="number" name="siguiente_folio_rentas" class="form-control form-control-sm" value="{{ $suc->siguiente_folio_rentas }}" placeholder="Dejar en blanco para autogenerar">
                                                 </div>
                                                 @if(auth()->user()->isAdmin())
                                                     <div class="col-4">
@@ -669,9 +670,15 @@
                                     
                                     <!-- Sucursal -->
                                     <td class="py-2.5">
-                                        <span class="fw-semibold text-body small">
-                                            <i class="bi bi-geo-alt text-secondary me-1"></i>{{ $user->sucursal->nombre ?? 'Sin asignar' }}
-                                        </span>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @forelse($user->sucursales as $sAsignada)
+                                                <span class="badge bg-body-tertiary text-body border" style="font-size: 10px;">
+                                                    <i class="bi bi-geo-alt text-primary me-1"></i>{{ $sAsignada->nombre }}
+                                                </span>
+                                            @empty
+                                                <span class="text-muted small">Sin asignar</span>
+                                            @endforelse
+                                        </div>
                                     </td>
                                     
                                     <!-- Rol -->
@@ -964,7 +971,7 @@
 
 
                                                 {{-- ETIQUETA NÚMERO --}}
-                                                <div class="col-md-4">
+                                                <div class="col-md-6">
 
                                                     <label class="form-label">
                                                         Etiqueta número
@@ -985,7 +992,7 @@
 
 
                                                 {{-- VALOR NÚMERO --}}
-                                                <div class="col-md-4">
+                                                <div class="col-md-6">
 
                                                     <label class="form-label fw-bold">
                                                         Valor del número
@@ -1001,31 +1008,6 @@
                                                             '1/1'
                                                         ) }}"
                                                     >
-
-                                                </div>
-
-
-                                                {{-- VALOR DEL MONTO --}}
-                                                <div class="col-md-4">
-
-                                                    <label class="form-label fw-bold">
-                                                        Valor del importe
-                                                    </label>
-
-                                                    <input
-                                                        type="text"
-                                                        name="pagare_valor_importe"
-                                                        id="pagare_valor_importe"
-                                                        class="form-control font-monospace"
-                                                        value="{{ $valor(
-                                                            'pagare_valor_importe',
-                                                            '{monto_total}'
-                                                        ) }}"
-                                                    >
-
-                                                    <small class="text-secondary">
-                                                        Ejemplo: {monto_total}
-                                                    </small>
 
                                                 </div>
 
@@ -1431,50 +1413,29 @@
                                                 </div>
 
 
+                                                {{-- VALOR DEL MONTO --}}
                                                 <div class="col-md-6">
-
                                                     <label class="form-label fw-bold">
                                                         Valor del pagaré
                                                     </label>
-
-                                                    <input
-                                                        type="text"
-                                                        name="pagare_valor_monto"
-                                                        class="form-control font-monospace"
-                                                        value="{{ $valor(
-                                                            'pagare_valor_monto',
-                                                            '{monto_total}'
-                                                        ) }}"
-                                                        placeholder="{monto_total}"
-                                                    >
-
-                                                    <small class="text-success">
-                                                        Para usar el total completo de la renta deja {monto_total}.
+                                                    <input type="text" name="pagare_valor_monto" class="form-control font-monospace"
+                                                        value="{{ $valor('pagare_valor_monto', '{monto_venta}') }}" placeholder="{monto_venta}">
+                                                    <small class="text-success d-block lh-sm mt-1">
+                                                        • Usa <b>{monto_venta}</b> para amparar el valor de venta de los equipos (por defecto).<br>
+                                                        • Usa <b>{monto_total}</b> para amparar sólo el costo de la renta.
                                                     </small>
-
                                                 </div>
 
-
-                                                {{-- =====================================================
-                                                    CANTIDAD EN LETRAS
-                                                ====================================================== --}}
+                                                {{-- CANTIDAD EN LETRAS --}}
                                                 <div class="col-md-6">
-
                                                     <label class="form-label fw-bold">
                                                         Cantidad en letras
                                                     </label>
-
-                                                    <input
-                                                        type="text"
-                                                        name="pagare_valor_monto_letras"
-                                                        class="form-control font-monospace"
-                                                        value="{{ $valor(
-                                                            'pagare_valor_monto_letras',
-                                                            '{monto_total_letras}'
-                                                        ) }}"
-                                                        placeholder="{monto_total_letras}"
-                                                    >
-
+                                                    <input type="text" name="pagare_valor_monto_letras" class="form-control font-monospace"
+                                                        value="{{ $valor('pagare_valor_monto_letras', '{monto_venta_letras}') }}" placeholder="{monto_venta_letras}">
+                                                    <small class="text-secondary d-block mt-1">
+                                                        Usa <b>{monto_venta_letras}</b> o <b>{monto_total_letras}</b> según corresponda.
+                                                    </small>
                                                 </div>
 
 
@@ -1793,44 +1754,32 @@
 
                                         <div class="d-flex flex-wrap gap-2">
 
-                                            @foreach([
-                                                '{cliente}',
-                                                '{folio}',
+                                            @php
+                                                $variablesPagare = [
+                                                    '{monto_venta}', '{monto_venta_letras}',
+                                                    '{monto_total}', '{monto_total_letras}',
+                                                    '{cliente}', '{folio}', '{empresa}', '{dueno_empresa}',
+                                                    '{numero_pagare}',
+                                                    '{fecha_inicio}', '{fecha_fin}', '{fecha_pago}', '{fecha_expedicion}',
+                                                    '{lugar_pago}', '{lugar_expedicion}',
+                                                    '{direccion_cliente}', '{ciudad_cliente}', '{telefono_cliente}',
+                                                    '{dia_expedicion}', '{mes_expedicion}', '{anio_expedicion}',
+                                                ];
+                                                $destacadas = ['{monto_venta}', '{monto_venta_letras}'];
+                                            @endphp
 
-                                                '{empresa}',
-                                                '{dueno_empresa}',
-
-                                                '{monto_total}',
-                                                '{monto_total_letras}',
-
-                                                '{numero_pagare}',
-
-                                                '{fecha_inicio}',
-                                                '{fecha_fin}',
-                                                '{fecha_pago}',
-                                                '{fecha_expedicion}',
-
-                                                '{lugar_pago}',
-                                                '{lugar_expedicion}',
-
-                                                '{direccion_cliente}',
-                                                '{ciudad_cliente}',
-                                                '{telefono_cliente}',
-
-                                                '{dia_expedicion}',
-                                                '{mes_expedicion}',
-                                                '{anio_expedicion}'
-                                            ] as $variable)
-
-                                                <button
-                                                    type="button"
-                                                    class="btn btn-sm btn-variable pagare-variable"
+                                            @foreach($variablesPagare as $variable)
+                                                <button type="button"
+                                                    class="btn btn-sm pagare-variable {{ in_array($variable, $destacadas) ? 'btn-success' : 'btn-variable' }}"
                                                     data-variable="{{ $variable }}"
-                                                >
+                                                    @if(in_array($variable, $destacadas)) title="Valor de venta de los equipos rentados" @endif>
                                                     {{ $variable }}
                                                 </button>
-
                                             @endforeach
+
+                                            <small class="text-secondary d-block mt-3 w-100">
+                                                <b>{monto_venta}</b> = suma de (precio de venta × cantidad) de cada equipo de la renta, sin IVA.
+                                            </small>
 
                                         </div>
 
@@ -1927,14 +1876,11 @@
                                     <div class="d-flex flex-wrap gap-2">
 
                                         @foreach([
-                                            '{cliente}',
-                                            '{folio}',
-                                            '{deposito}',
-                                            '{monto_total}',
-                                            '{fecha_inicio}',
-                                            '{fecha_fin}',
-                                            '{empresa}',
-                                            '{dueno_empresa}'
+                                            '{monto_venta}', '{monto_venta_letras}',
+                                            '{monto_total}', '{monto_total_letras}',
+                                            '{cliente}', '{folio}', '{deposito}',
+                                            '{fecha_inicio}', '{fecha_fin}',
+                                            '{empresa}', '{dueno_empresa}'
                                         ] as $variable)
 
                                             <button
@@ -2016,6 +1962,11 @@
                         <label class="form-label small fw-semibold text-body">Dirección Geográfica <span class="text-danger">*</span></label>
                         <input type="text" name="direccion" class="form-control form-control-sm" required placeholder="Calle, Número, Colonia, C.P.">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-body">Folio inicial de rentas</label>
+                        <input type="number" name="siguiente_folio_rentas" class="form-control form-control-sm"
+                            min="1" placeholder="Ej: 4000 (vacío = automático)">
+                    </div>
                     <div class="mb-0">
                         <label class="form-label small fw-semibold text-body">Logotipo Especifico (Opcional)</label>
                         <input type="file" name="logo" class="form-control form-control-sm" accept="image/*">
@@ -2062,14 +2013,22 @@
                                 <option value="admin">Administrador Global</option>
                             </select>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold text-body">Sucursal <span class="text-danger">*</span></label>
-                            <select name="sucursal_id" class="form-select form-select-sm" required>
-                                <option value="" disabled selected>Seleccione...</option>
+                        <div class="col-12 mb-3">
+                            <label class="form-label small fw-semibold text-body">Sucursales Asignadas <span class="text-danger">*</span></label>
+                            <div class="p-3 border rounded-3 bg-body-tertiary d-flex flex-wrap gap-3">
                                 @foreach($sucursales as $suc)
-                                    <option value="{{ $suc->id }}">{{ $suc->nombre }}</option>
+                                    <div class="form-check">
+                                        <input class="form-check-input" 
+                                            type="checkbox" 
+                                            name="sucursales[]" 
+                                            value="{{ $suc->id }}" 
+                                            id="create_suc_{{ $suc->id }}">
+                                        <label class="form-check-label small" for="create_suc_{{ $suc->id }}">
+                                            {{ $suc->nombre }}
+                                        </label>
+                                    </div>
                                 @endforeach
-                            </select>
+                            </div>
                         </div>
                     </div>
                     <div class="mb-0">
@@ -2088,6 +2047,10 @@
 @endif
 
 <script>
+    // =====================================================
+    // FUNCIONES GLOBALES
+    // =====================================================
+    
     // Inserción de variables en Textarea (Plantillas)
     function insertVariable(button, variable) {
         const form = button.closest('form');
@@ -2103,220 +2066,118 @@
         }
     }
 
-            document.addEventListener("DOMContentLoaded", function() {
-
-            // =====================================================
-            // PESTAÑAS PRINCIPALES DE CONFIGURACIÓN
-            // =====================================================
-
-            let activeTab =
-                "{{ session('tab') }}"
-                || localStorage.getItem('activeConfigTab');
-
-            if (activeTab) {
-
-                let tabTrigger =
-                    document.querySelector(`#${activeTab}-tab`);
-
-                if (tabTrigger) {
-
-                    // SOLO botones principales
-                    document
-                        .querySelectorAll('#configTabs > .nav-item > .nav-link')
-                        .forEach(function (btn) {
-                            btn.classList.remove('active');
-                        });
-
-
-                    // SOLO paneles principales.
-                    // IMPORTANTE: NO TOCAR LOS TABS INTERNOS DEL PAGARÉ
-                    document
-                        .querySelectorAll(
-                            '#configTabsContent > .tab-pane'
-                        )
-                        .forEach(function (pane) {
-
-                            pane.classList.remove(
-                                'show',
-                                'active'
-                            );
-
-                        });
-
-
-                    tabTrigger.classList.add('active');
-
-
-                    const targetSelector =
-                        tabTrigger.getAttribute(
-                            'data-bs-target'
-                        );
-
-                    const targetPane =
-                        document.querySelector(
-                            targetSelector
-                        );
-
-                    if (targetPane) {
-
-                        targetPane.classList.add(
-                            'show',
-                            'active'
-                        );
-
-                    }
+    // Previsualización global de imágenes
+    function previewImageGlobal(input, imgId, iconId) {
+        const preview = document.getElementById(imgId);
+        const icon = document.getElementById(iconId);
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.classList.remove('d-none'); // Mostramos la imagen
+                if(icon) {
+                    icon.classList.add('d-none'); // Ocultamos el icono genérico
                 }
             }
+            
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
 
+    // =====================================================
+    // INICIALIZACIÓN DEL DOM (Un solo DOMContentLoaded)
+    // =====================================================
+    
+    document.addEventListener("DOMContentLoaded", function() {
 
-            // =====================================================
-            // GUARDAR PESTAÑA PRINCIPAL
-            // =====================================================
+        // -----------------------------------------------------
+        // PESTAÑAS PRINCIPALES DE CONFIGURACIÓN
+        // -----------------------------------------------------
+        let activeTab = "{{ session('tab') }}" || localStorage.getItem('activeConfigTab');
 
-            document
-                .querySelectorAll('#configTabs button')
-                .forEach(function (button) {
+        if (activeTab) {
+            let tabTrigger = document.querySelector(`#${activeTab}-tab`);
 
-                    button.addEventListener(
-                        'shown.bs.tab',
-                        function (e) {
-
-                            let id =
-                                e.target.id.replace(
-                                    '-tab',
-                                    ''
-                                );
-
-                            localStorage.setItem(
-                                'activeConfigTab',
-                                id
-                            );
-
-                        }
-                    );
-
+            if (tabTrigger) {
+                // SOLO botones principales
+                document.querySelectorAll('#configTabs > .nav-item > .nav-link').forEach(function (btn) {
+                    btn.classList.remove('active');
                 });
 
+                // SOLO paneles principales. IMPORTANTE: NO TOCAR LOS TABS INTERNOS DEL PAGARÉ
+                document.querySelectorAll('#configTabsContent > .tab-pane').forEach(function (pane) {
+                    pane.classList.remove('show', 'active');
+                });
 
-            // =====================================================
-            // GARANTIZAR ENCABEZADO DEL PAGARÉ
-            // =====================================================
+                tabTrigger.classList.add('active');
 
-            function mostrarEncabezadoPagare() {
+                const targetSelector = tabTrigger.getAttribute('data-bs-target');
+                const targetPane = document.querySelector(targetSelector);
 
-                const boton =
-                    document.getElementById(
-                        'pagare-encabezado-tab'
-                    );
-
-                const panel =
-                    document.getElementById(
-                        'pagare-encabezado'
-                    );
-
-                if (!boton || !panel) {
-                    return;
+                if (targetPane) {
+                    targetPane.classList.add('show', 'active');
                 }
-
-
-                // Quitar activo solamente a tabs INTERNOS del pagaré
-                document
-                    .querySelectorAll(
-                        '#pagareEditorTabs .nav-link'
-                    )
-                    .forEach(function (tab) {
-
-                        tab.classList.remove('active');
-
-                        tab.setAttribute(
-                            'aria-selected',
-                            'false'
-                        );
-
-                    });
-
-
-                // Ocultar solamente contenidos INTERNOS del pagaré
-                const contenedor =
-                    panel.closest('.tab-content');
-
-                if (contenedor) {
-
-                    Array.from(
-                        contenedor.children
-                    ).forEach(function (pane) {
-
-                        if (
-                            pane.classList.contains(
-                                'tab-pane'
-                            )
-                        ) {
-                            pane.classList.remove(
-                                'show',
-                                'active'
-                            );
-                        }
-
-                    });
-
-                }
-
-
-                // Activar Encabezado
-                boton.classList.add('active');
-
-                boton.setAttribute(
-                    'aria-selected',
-                    'true'
-                );
-
-                panel.classList.add(
-                    'show',
-                    'active'
-                );
             }
+        }
 
-
-            // Si Plantillas ya viene abierta
-            const panelPlantillas =
-                document.getElementById(
-                    'panel-plantillas'
-                );
-
-            if (
-                panelPlantillas &&
-                panelPlantillas.classList.contains(
-                    'active'
-                )
-            ) {
-
-                mostrarEncabezadoPagare();
-
-            }
-
-
-            // Cuando el usuario abra Plantillas
-            const plantillasTab =
-                document.getElementById(
-                    'plantillas-tab'
-                );
-
-            if (plantillasTab) {
-
-                plantillasTab.addEventListener(
-                    'shown.bs.tab',
-                    function () {
-
-                        mostrarEncabezadoPagare();
-
-                    }
-                );
-
-            }
-
+        // GUARDAR PESTAÑA PRINCIPAL
+        document.querySelectorAll('#configTabs button').forEach(function (button) {
+            button.addEventListener('shown.bs.tab', function (e) {
+                let id = e.target.id.replace('-tab', '');
+                localStorage.setItem('activeConfigTab', id);
+            });
         });
 
-        // Previsualización de Logo de Empresa
+        // -----------------------------------------------------
+        // GARANTIZAR ENCABEZADO DEL PAGARÉ
+        // -----------------------------------------------------
+        function mostrarEncabezadoPagare() {
+            const boton = document.getElementById('pagare-encabezado-tab');
+            const panel = document.getElementById('pagare-encabezado');
+
+            if (!boton || !panel) return;
+
+            // Quitar activo solamente a tabs INTERNOS del pagaré
+            document.querySelectorAll('#pagareEditorTabs .nav-link').forEach(function (tab) {
+                tab.classList.remove('active');
+                tab.setAttribute('aria-selected', 'false');
+            });
+
+            // Ocultar solamente contenidos INTERNOS del pagaré
+            const contenedor = panel.closest('.tab-content');
+            if (contenedor) {
+                Array.from(contenedor.children).forEach(function (pane) {
+                    if (pane.classList.contains('tab-pane')) {
+                        pane.classList.remove('show', 'active');
+                    }
+                });
+            }
+
+            // Activar Encabezado
+            boton.classList.add('active');
+            boton.setAttribute('aria-selected', 'true');
+            panel.classList.add('show', 'active');
+        }
+
+        // Si Plantillas ya viene abierta
+        const panelPlantillas = document.getElementById('panel-plantillas');
+        if (panelPlantillas && panelPlantillas.classList.contains('active')) {
+            mostrarEncabezadoPagare();
+        }
+
+        // Cuando el usuario abra Plantillas
+        const plantillasTab = document.getElementById('plantillas-tab');
+        if (plantillasTab) {
+            plantillasTab.addEventListener('shown.bs.tab', function () {
+                mostrarEncabezadoPagare();
+            });
+        }
+
+        // -----------------------------------------------------
+        // PREVISUALIZACIÓN DE LOGO DE EMPRESA
+        // -----------------------------------------------------
         const inputLogo = document.getElementById('empresa_logo');
         if(inputLogo) {
             inputLogo.addEventListener('change', function() {
@@ -2336,13 +2197,12 @@
             });
         }
 
-        // =========================================================
-        // SCRIPT GENÉRICO DE VALIDACIÓN VISUAL (Múltiples Formularios)
-        // =========================================================
+        // -----------------------------------------------------
+        // SCRIPT GENÉRICO DE VALIDACIÓN VISUAL
+        // -----------------------------------------------------
         const regexTel = /^\d{10}$/;
         const regexRFC = /^([A-Z&Ñ]{3,4})\d{6}([A-Z0-9]{3})$/i;
 
-        // Aplica o quita las clases is-valid / is-invalid
         function validarCampoVisual(input, regex, esOpcional = false) {
             if (!input) return true;
             const value = input.value.trim();
@@ -2363,34 +2223,26 @@
             return isValid;
         }
 
-        // Inicializador de eventos para inputs específicos
         function setupValidation(selector, regex, formatFn) {
             document.querySelectorAll(selector).forEach(input => {
                 input.addEventListener('input', function() {
                     if (formatFn) this.value = formatFn(this.value);
-                    // Todos estos campos los tomamos como opcionales visualmente para no obligar si el sistema lo permite
                     validarCampoVisual(this, regex, true); 
                 });
             });
         }
 
-        // 1. Aplicar a todos los inputs con clase .validar-telefono
         setupValidation('.validar-telefono', regexTel, val => val.replace(/\D/g, ''));
-        
-        // 2. Aplicar a todos los inputs con clase .validar-rfc
         setupValidation('.validar-rfc', regexRFC, val => val.toUpperCase());
 
-        // Bloquear envíos de formulario si hay campos inválidos
         document.querySelectorAll('form.needs-validation').forEach(form => {
             form.addEventListener('submit', function (event) {
                 let formValido = true;
                 
-                // Verificar campos teléfono dentro de este form
                 form.querySelectorAll('.validar-telefono').forEach(input => {
                     if (!validarCampoVisual(input, regexTel, true)) formValido = false;
                 });
 
-                // Verificar campos RFC dentro de este form
                 form.querySelectorAll('.validar-rfc').forEach(input => {
                     if (!validarCampoVisual(input, regexRFC, true)) formValido = false;
                 });
@@ -2404,185 +2256,67 @@
             });
         });
 
-        document.addEventListener('DOMContentLoaded', function () {
-
-        // =====================================================
+        // -----------------------------------------------------
         // SINCRONIZAR TÍTULO DE PLANTILLA
-        // =====================================================
-
+        // -----------------------------------------------------
         const tituloPagare = document.getElementById('pagare_titulo');
         const tituloPlantilla = document.getElementById('plantillaTituloPagare');
 
         if (tituloPagare && tituloPlantilla) {
-
             tituloPagare.addEventListener('input', function () {
-
-                tituloPlantilla.value =
-                    this.value.trim() !== ''
-                        ? this.value
-                        : 'PAGARÉ';
-
+                tituloPlantilla.value = this.value.trim() !== '' ? this.value : 'PAGARÉ';
             });
-
         }
 
-        // =====================================================
+        // -----------------------------------------------------
         // INSERTAR VARIABLES DEL PAGARÉ EN CUALQUIER CAMPO
-        // =====================================================
-
+        // -----------------------------------------------------
         let ultimoCampoPagare = null;
-
         const formPagare = document.getElementById('formPagare');
 
         if (formPagare) {
-
-            // Detectar cualquier campo editable del pagaré
-            formPagare
-                .querySelectorAll(
-                    'input[type="text"], textarea'
-                )
-                .forEach(function (campo) {
-
-                    campo.addEventListener('focus', function () {
-
-                        ultimoCampoPagare = this;
-
-                        // Marcamos visualmente el campo seleccionado
-                        formPagare
-                            .querySelectorAll('.campo-variable-activo')
-                            .forEach(function (el) {
-                                el.classList.remove(
-                                    'campo-variable-activo'
-                                );
-                            });
-
-                        this.classList.add(
-                            'campo-variable-activo'
-                        );
-
+            formPagare.querySelectorAll('input[type="text"], textarea').forEach(function (campo) {
+                campo.addEventListener('focus', function () {
+                    ultimoCampoPagare = this;
+                    formPagare.querySelectorAll('.campo-variable-activo').forEach(function (el) {
+                        el.classList.remove('campo-variable-activo');
                     });
-
-                    // También por clic, por si Bootstrap no dispara focus como esperamos
-                    campo.addEventListener('click', function () {
-                        ultimoCampoPagare = this;
-                    });
-
+                    this.classList.add('campo-variable-activo');
                 });
 
-
-            // Botones de variables
-            formPagare
-                .querySelectorAll('.pagare-variable')
-                .forEach(function (boton) {
-
-                    boton.addEventListener(
-                        'click',
-                        function () {
-
-                            const variable =
-                                this.dataset.variable;
-
-                            if (!ultimoCampoPagare) {
-
-                                alert(
-                                    'Primero selecciona el campo donde quieres colocar la variable.'
-                                );
-
-                                return;
-                            }
-
-
-                            const campo =
-                                ultimoCampoPagare;
-
-
-                            const inicio =
-                                typeof campo.selectionStart === 'number'
-                                    ? campo.selectionStart
-                                    : campo.value.length;
-
-
-                            const fin =
-                                typeof campo.selectionEnd === 'number'
-                                    ? campo.selectionEnd
-                                    : campo.value.length;
-
-
-                            const antes =
-                                campo.value.substring(
-                                    0,
-                                    inicio
-                                );
-
-                            const despues =
-                                campo.value.substring(
-                                    fin
-                                );
-
-
-                            campo.value =
-                                antes +
-                                variable +
-                                despues;
-
-
-                            const nuevaPosicion =
-                                inicio +
-                                variable.length;
-
-
-                            campo.focus();
-
-
-                            if (
-                                typeof campo.setSelectionRange ===
-                                'function'
-                            ) {
-
-                                campo.setSelectionRange(
-                                    nuevaPosicion,
-                                    nuevaPosicion
-                                );
-
-                            }
-
-
-                            // Disparar input para actualizar preview
-                            campo.dispatchEvent(
-                                new Event(
-                                    'input',
-                                    {
-                                        bubbles: true
-                                    }
-                                )
-                            );
-
-                        }
-                    );
-
+                campo.addEventListener('click', function () {
+                    ultimoCampoPagare = this;
                 });
+            });
 
-}
+            formPagare.querySelectorAll('.pagare-variable').forEach(function (boton) {
+                boton.addEventListener('click', function () {
+                    const variable = this.dataset.variable;
 
-    });
+                    if (!ultimoCampoPagare) {
+                        alert('Primero selecciona el campo donde quieres colocar la variable.');
+                        return;
+                    }
 
-    function previewImageGlobal(input, imgId, iconId) {
-        const preview = document.getElementById(imgId);
-        const icon = document.getElementById(iconId);
-        
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                preview.src = e.target.result;
-                preview.classList.remove('d-none'); // Mostramos la imagen
-                if(icon) {
-                    icon.classList.add('d-none'); // Ocultamos el icono genérico
-                }
-            }
-            
-            reader.readAsDataURL(input.files[0]);
+                    const campo = ultimoCampoPagare;
+                    const inicio = typeof campo.selectionStart === 'number' ? campo.selectionStart : campo.value.length;
+                    const fin = typeof campo.selectionEnd === 'number' ? campo.selectionEnd : campo.value.length;
+                    const antes = campo.value.substring(0, inicio);
+                    const despues = campo.value.substring(fin);
+
+                    campo.value = antes + variable + despues;
+                    const nuevaPosicion = inicio + variable.length;
+
+                    campo.focus();
+
+                    if (typeof campo.setSelectionRange === 'function') {
+                        campo.setSelectionRange(nuevaPosicion, nuevaPosicion);
+                    }
+
+                    campo.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            });
         }
-    }
+    }); // Cierre del único DOMContentLoaded
 </script>
 @endsection

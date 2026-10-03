@@ -39,7 +39,16 @@
     </div>
 </div>
 
-@if($errors->any())
+<!-- ALERTAS DE VALIDACIÓN Y BLOQUEO -->
+@if($errors->has('global_block'))
+    <div class="alert alert-danger shadow-sm border-danger d-flex align-items-center mb-4">
+        <i class="bi bi-shield-fill-x fs-1 me-3 text-danger"></i>
+        <div>
+            <h5 class="mb-1 fw-bold text-danger">ACTUALIZACIÓN DENEGADA (LISTA NEGRA)</h5>
+            <p class="mb-0">{{ $errors->first('global_block') }}</p>
+        </div>
+    </div>
+@elseif($errors->any())
     <div class="alert alert-danger border-0 shadow-sm rounded-3 mb-4" role="alert">
         <div class="d-flex align-items-center mb-1">
             <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
@@ -120,8 +129,8 @@
         <div class="row g-3 mb-4">
             <!-- RFC -->
             <div class="col-12 col-md-4">
-                <label class="form-label small fw-semibold text-body">RFC</label>
-                <input type="text" name="rfc" id="input_rfc" class="form-control form-control-sm bg-body text-body text-uppercase @error('rfc') is-invalid @enderror" value="{{ old('rfc', $cliente->rfc ?? '') }}" placeholder="12 o 13 caracteres" maxlength="13">
+                <label class="form-label small fw-semibold text-body">RFC <span class="text-danger">*</span></label>
+                <input type="text" name="rfc" id="input_rfc" class="form-control form-control-sm bg-body text-body text-uppercase @error('rfc') is-invalid @enderror" value="{{ old('rfc', $cliente->rfc ?? '') }}" placeholder="12 o 13 caracteres" maxlength="13" required>
                 <div class="invalid-feedback" id="feedback_rfc">Formato de RFC inválido (Ejemplo: VECJ881226XXX o ABC680524P36).</div>
                 @error('rfc')
                     <div class="invalid-feedback">{{ $message }}</div>
@@ -130,8 +139,8 @@
 
             <!-- CURP -->
             <div class="col-12 col-md-4">
-                <label class="form-label small fw-semibold text-body">CURP</label>
-                <input type="text" name="curp" id="input_curp" class="form-control form-control-sm bg-body text-body text-uppercase @error('curp') is-invalid @enderror" value="{{ old('curp', $cliente->curp ?? '') }}" placeholder="18 caracteres" maxlength="18">
+                <label class="form-label small fw-semibold text-body">CURP <span class="text-danger">*</span></label>
+                <input type="text" name="curp" id="input_curp" class="form-control form-control-sm bg-body text-body text-uppercase @error('curp') is-invalid @enderror" value="{{ old('curp', $cliente->curp ?? '') }}" placeholder="18 caracteres" maxlength="18" required>
                 <div class="invalid-feedback" id="feedback_curp">El CURP debe tener exactamente 18 caracteres con estructura válida.</div>
                 @error('curp')
                     <div class="invalid-feedback">{{ $message }}</div>
@@ -329,14 +338,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (inputRFC) {
         inputRFC.addEventListener('input', function() {
             this.value = this.value.toUpperCase();
-            validarCampo(this, regexRFC.test(this.value), true);
+            validarCampo(this, regexRFC.test(this.value), false);
         });
     }
 
     if (inputCURP) {
         inputCURP.addEventListener('input', function() {
             this.value = this.value.toUpperCase();
-            validarCampo(this, regexCURP.test(this.value), true);
+            validarCampo(this, regexCURP.test(this.value), false);
         });
     }
 });

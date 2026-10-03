@@ -454,6 +454,17 @@
             </select>
         </div>
 
+        @if($isGlobalAdmin)
+        <div class="col-6 col-md-2">
+            <select id="sucursalSelect" class="form-select form-select-sm bg-body text-body filtro-input">
+                <option value="">Sucursal: Todas</option>
+                @foreach($sucursales as $sucursal)
+                    <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+
         <div class="col-6 col-md-2">
             <input type="date" id="fechaFilter" class="form-control form-control-sm bg-body text-body filtro-input">
         </div>
@@ -474,7 +485,6 @@
         $estadoData = $esAprobadaConAdeudo ? 'aprobada_adeudo' : $renta->estado;
         $inicialCliente = strtoupper(substr($renta->cliente->nombre_completo ?? 'C', 0, 1));
 
-        // 🔥 CÁLCULO DE MULTA Y DEUDA REAL
         $multaGenerada = ($renta->estado == 'activa' && isset($renta->total_real)) ? max(0, $renta->total_real - $renta->total) : 0;
         $saldoPendienteReal = $renta->estado == 'cancelada' ? 0 : ($renta->saldo_pendiente + $multaGenerada);
     @endphp
@@ -484,12 +494,22 @@
          data-fecha="{{ $renta->fecha_inicio->format('Y-m-d') }}" 
          data-adeudo="{{ $saldoPendienteReal > 0 ? 'si' : 'no' }}"
          data-factura="{{ $renta->facturar ? 'si' : 'no' }}"
+         data-sucursal="{{ $renta->sucursal_id }}"
          data-url="{{ route('rentas.show', $renta) }}">
         
         <div class="row align-items-center g-3">
             
             <!-- Folio, Factura y Cliente -->
             <div class="col-12 col-md-4 col-lg-3">
+
+                @if($isGlobalAdmin)
+                <div class="mb-1">
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle rounded-pill" style="font-size: 10px;">
+                        <i class="bi bi-shop me-1"></i> {{ $renta->sucursal->nombre ?? 'Global / General' }}
+                    </span>
+                </div>
+                @endif
+
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <span class="folio-badge">
                         <i class="bi bi-file-text me-1"></i>{{ $renta->folio }}
@@ -676,6 +696,9 @@ function filtrarRentas() {
     const factura = document.getElementById('facturaSelect').value;
     const fecha = document.getElementById('fechaFilter').value;
     
+    const selectSucursal = document.getElementById('sucursalSelect');
+    const sucursal = selectSucursal ? selectSucursal.value : '';
+    
     document.querySelectorAll('.renta-card').forEach(renta => {
         let mostrar = true;
         
@@ -689,6 +712,8 @@ function filtrarRentas() {
         if (mostrar && factura && renta.dataset.factura !== factura) mostrar = false;
         if (mostrar && fecha && renta.dataset.fecha !== fecha) mostrar = false;
         
+        if (mostrar && sucursal && renta.dataset.sucursal !== sucursal) mostrar = false;
+        
         renta.style.display = mostrar ? '' : 'none';
     });
 }
@@ -698,6 +723,11 @@ document.getElementById('limpiarFiltros').addEventListener('click', () => {
     document.getElementById('estadoSelect').value = '';
     document.getElementById('facturaSelect').value = '';
     document.getElementById('fechaFilter').value = '';
+    
+    if (document.getElementById('sucursalSelect')) {
+        document.getElementById('sucursalSelect').value = '';
+    }
+    
     filtrarRentas();
 });
 
@@ -705,6 +735,10 @@ document.getElementById('buscarInput').addEventListener('keyup', filtrarRentas);
 document.getElementById('estadoSelect').addEventListener('change', filtrarRentas);
 document.getElementById('facturaSelect').addEventListener('change', filtrarRentas);
 document.getElementById('fechaFilter').addEventListener('change', filtrarRentas);
+
+if (document.getElementById('sucursalSelect')) {
+    document.getElementById('sucursalSelect').addEventListener('change', filtrarRentas);
+}
 
 function verDocumento(url, titulo) {
     document.getElementById('modalVerDocumentoTitulo').textContent = titulo;

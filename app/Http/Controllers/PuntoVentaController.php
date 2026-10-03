@@ -53,7 +53,15 @@ class PuntoVentaController extends Controller
             }
         }
 
-        $clientes = Cliente::orderBy('nombre_completo')->get();
+        $isGlobalAdmin = auth()->user()->isAdmin() && $sucursalId === 'global';
+        
+        $clientesQuery = Cliente::where('bloqueado', false)->where('activo', true);
+        
+        if (!$isGlobalAdmin) {
+            $clientesQuery->where('sucursal_id', $sucursalId);
+        }
+        
+        $clientes = $clientesQuery->orderBy('nombre_completo')->get();
 
         // Admin/Gerente pueden dar descuentos sin pedir autorización a nadie más
         $puedeAutorizarDescuento = auth()->user()->isAdmin() || auth()->user()->isGerente();
@@ -336,6 +344,51 @@ class PuntoVentaController extends Controller
         try {
             DB::beginTransaction();
 
+            // =============== VALIDACIÓN DE CLIENTE BLOQUEADO (LISTA NEGRA) ===============
+
+            $clienteId = $request->cliente_id ?? null;
+
+            if ($clienteId) {
+
+                $cliente = Cliente::find($clienteId);
+
+                if ($cliente) {
+
+                    $clienteBloqueado = Cliente::with('sucursal')
+                        ->where('bloqueado', true)
+                        ->where(function ($query) use ($cliente) {
+                            $query->where('rfc', $cliente->rfc)
+                                ->orWhere('curp', $cliente->curp)
+                                ->orWhere('nombre_completo', $cliente->nombre_completo);
+                        })
+                        ->first();
+
+                    if ($clienteBloqueado) {
+
+                        $sucursalOrigen = $clienteBloqueado->sucursal
+                            ? $clienteBloqueado->sucursal->nombre
+                            : 'Otra sucursal';
+
+                        $motivo = $clienteBloqueado->motivo_bloqueo
+                            ?? 'Sin motivo especificado';
+
+                        // Sincronizar el cliente local
+                        if (!$cliente->bloqueado) {
+                            $cliente->update([
+                                'bloqueado' => true,
+                                'motivo_bloqueo' => $motivo
+                            ]);
+                        }
+
+                        $mensajeError = "OPERACIÓN RECHAZADA: Cliente en LISTA NEGRA (Bloqueado en: {$sucursalOrigen}). Motivo: {$motivo}";
+
+                        throw new \Exception($mensajeError);
+                    }
+                }
+            }
+
+            // =============================================================================
+
             $corteActivo = CorteCaja::where('estado', 'abierto')
                 ->where('user_id', auth()->id())
                 ->first();
@@ -538,6 +591,9 @@ class PuntoVentaController extends Controller
             $corteActivo->load('ventas.detalles', 'movimientos');
 
             foreach ($corteActivo->ventas as $v) {
+                
+                if ($v->estado !== 'completada') continue;
+
                 foreach ($v->detalles as $d) {
                     if (str_contains(strtolower($d->concepto_especial ?? ''), 'flete')) {
                         $montoFleteModal += $d->subtotal;

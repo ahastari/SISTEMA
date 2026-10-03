@@ -250,8 +250,13 @@
             <h6 style="color: #6f42c1;"><i class="bi bi-building me-1"></i> OBRA / PROYECTO</h6>
             <div class="text-body small">
                 <strong>Nombre:</strong> {{ $renta->obra->nombre }}<br>
-                <strong>Dirección:</strong> {{ $renta->obra->direccion }}<br>
-                <strong>Contacto:</strong> {{ $renta->obra->contacto_obra ?? 'No especificado' }}
+                <strong>Dirección:</strong> {{ $renta->obra->direccion }}@if($renta->obra->colonia), {{ $renta->obra->colonia }}@endif<br>
+                <strong>Ciudad:</strong> {{ $renta->obra->ciudad ?? 'N/A' }}, {{ $renta->obra->estado ?? 'N/A' }}@if($renta->obra->codigo_postal) (C.P. {{ $renta->obra->codigo_postal }})@endif<br>
+                <strong>Contacto:</strong> {{ $renta->obra->contacto_obra ?? 'No especificado' }}<br>
+                <strong>Teléfono:</strong> {{ $renta->obra->telefono_obra ?? 'No especificado' }}
+                @if($renta->obra->observaciones)
+                    <br><strong>Notas:</strong> {{ $renta->obra->observaciones }}
+                @endif
             </div>
         </div>
     </div>
@@ -308,12 +313,33 @@
                     </thead>
                     <tbody>
                         @if(($renta->deposito ?? 0) > 0)
+                        @php
+                            // Buscamos el registro formal del pago del depósito
+                            $pagoDeposito = $renta->pagos->where('tipo', 'deposito')->first();
+                        @endphp
                         <tr>
-                            <td class="text-secondary">{{ $renta->fecha_inicio->format('d/m/Y') }}</td>
+                            <td class="text-secondary">
+                                {{ $pagoDeposito ? $pagoDeposito->fecha_pago->format('d/m/Y') : $renta->fecha_inicio->format('d/m/Y') }}
+                            </td>
                             <td><span class="badge bg-secondary">Depósito</span></td>
-                            <td class="text-secondary small">Garantía inicial</td>
+                            <td class="text-secondary small text-truncate" style="max-width: 150px;" title="Depósito Inicial">
+                                @if($pagoDeposito)
+                                    Pago con {{ ucfirst($pagoDeposito->metodo_pago) }}
+                                    @if($pagoDeposito->referencia)
+                                        (Ref: {{ $pagoDeposito->referencia }})
+                                    @endif
+                                @else
+                                    Garantía inicial
+                                @endif
+                            </td>
                             <td class="text-end fw-bold text-primary">-${{ number_format($renta->deposito, 2) }}</td>
-                            <td></td>
+                            <td class="text-center">
+                                @if($pagoDeposito)
+                                <button type="button" class="btn btn-sm btn-outline-secondary border rounded-3 shadow-sm px-2 py-1" onclick="reimprimirTicket('{{ route('rentas.ticketPago', $pagoDeposito->id) }}')" title="Reimprimir Ticket de Depósito">
+                                    <i class="bi bi-printer"></i>
+                                </button>
+                                @endif
+                            </td>
                         </tr>
                         @endif
 
@@ -335,7 +361,7 @@
                         </tr>
                         @endif
 
-                        @foreach($renta->pagos as $pago)
+                        @foreach($renta->pagos->where('tipo', '!=', 'deposito') as $pago)
                         <tr>
                             <td class="text-secondary">{{ $pago->fecha_pago->format('d/m/Y') }}</td>
                             <td>
@@ -470,7 +496,7 @@
                     </tr>
 
                     @php
-                    $totalAbonado = $renta->pagos->sum('monto') + ($renta->deposito ?? 0);
+                    $totalAbonado = $renta->pagos->where('tipo', '!=', 'deposito')->sum('monto') + ($renta->deposito ?? 0);
                     @endphp
                     <tr class="border-bottom">
                         <td class="text-secondary fw-bold">Total Abonado (Inc. Depósito):</td>
@@ -792,6 +818,7 @@
                                             <option value="efectivo">Efectivo</option>
                                             <option value="transferencia">Transferencia</option>
                                             <option value="tarjeta">Tarjeta</option>
+                                            <option value="mixto">Mixto</option>
                                         </select>
                                     </div>
 
@@ -895,9 +922,27 @@
                                 <label class="form-label small fw-semibold text-body">Días adicionales <span class="text-danger">*</span></label>
                                 <input type="number" name="dias_extra" id="dias_extra" class="form-control form-control-sm bg-body" min="1" required oninput="calcularAmpliacion()" placeholder="Ej: 3">
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold text-body">Abono a cuenta</label>
-                                <input type="number" name="abono" class="form-control form-control-sm bg-body" step="0.01" placeholder="0.00">
+                            <div class="row g-2 mb-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label small fw-semibold text-body">Abono a cuenta</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-body text-secondary">$</span>
+                                        <input type="number" name="abono" id="abonoAmpliar" class="form-control form-control-sm bg-body" step="0.01" placeholder="0.00">
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-4" id="divMetodoAmpliar" style="display: none;">
+                                    <label class="form-label small fw-semibold text-body">Método <span class="text-danger">*</span></label>
+                                    <select name="metodo_pago" id="metodoPagoAmpliar" class="form-select form-select-sm bg-body" onchange="toggleReferenciaAmpliar()">
+                                        <option value="efectivo">Efectivo</option>
+                                        <option value="transferencia">Transferencia</option>
+                                        <option value="tarjeta">Tarjeta</option>
+                                        <option value="mixto">Mixto</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-4" id="divReferenciaAmpliar" style="display: none;">
+                                    <label class="form-label small fw-semibold text-body">Ref. / Folio <span class="text-danger">*</span></label>
+                                    <input type="text" name="referencia" id="inputReferenciaAmpliar" class="form-control form-control-sm bg-body" placeholder="Ref. pago">
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-semibold text-body">¿Se devuelve algún equipo hoy?</label>
@@ -1056,6 +1101,7 @@
                                 <option value="efectivo">Efectivo</option>
                                 <option value="transferencia">Transferencia</option>
                                 <option value="tarjeta">Tarjeta</option>
+                                <option value="mixto">Mixto</option>
                             </select>
                         </div>
                         <div class="col-12" id="campoReferenciaFinal" style="display: none;">
@@ -1408,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!selectMetodo || !campoRef) return;
 
         const metodo = selectMetodo.value;
-        if (metodo === 'transferencia' || metodo === 'tarjeta') {
+        if (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto') {
             campoRef.style.display = 'block';
             if (inputReferencia) inputReferencia.setAttribute('required', 'required');
         } else {
@@ -1438,7 +1484,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!selectMetodo || !campoRef) return;
 
         const metodo = selectMetodo.value;
-        if (metodo === 'transferencia' || metodo === 'tarjeta') {
+        if (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto') {
             campoRef.style.display = 'block';
             if (inputReferencia) inputReferencia.setAttribute('required', 'required');
         } else {
@@ -1631,6 +1677,31 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     });
+
+    const inputAbonoAmpliar = document.getElementById('abonoAmpliar');
+    if (inputAbonoAmpliar) {
+        inputAbonoAmpliar.addEventListener('input', function() {
+            const val = parseFloat(this.value) || 0;
+            document.getElementById('divMetodoAmpliar').style.display = val > 0 ? 'block' : 'none';
+            toggleReferenciaAmpliar();
+        });
+    }
+
+    function toggleReferenciaAmpliar() {
+        const val = parseFloat(document.getElementById('abonoAmpliar').value) || 0;
+        const metodo = document.getElementById('metodoPagoAmpliar').value;
+        const campoRef = document.getElementById('divReferenciaAmpliar');
+        const inputRef = document.getElementById('inputReferenciaAmpliar');
+
+        if (val > 0 && (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto')) {
+            campoRef.style.display = 'block';
+            inputRef.setAttribute('required', 'required');
+        } else {
+            campoRef.style.display = 'none';
+            inputRef.removeAttribute('required');
+            inputRef.value = '';
+        }
+    }
 </script>
 
 <!-- AUTO-INICIAR EL TICKET TÉRMICO SI ESTÁ DISPONIBLE EN LA SESIÓN -->

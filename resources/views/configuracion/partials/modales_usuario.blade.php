@@ -52,13 +52,23 @@
                                 <option value="admin" {{ $user->role == 'admin' ? 'selected' : '' }}>Administrador Global</option>
                             </select>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold text-body-secondary">Sucursal de Trabajo</label>
-                            <select name="sucursal_id" class="form-select rounded-3 bg-body-tertiary text-body border" required>
+                        <div class="col-12 mb-3">
+                            <label class="form-label small fw-semibold text-body">Sucursales Asignadas <span class="text-danger">*</span></label>
+                            <div class="p-3 border rounded-3 bg-body-tertiary d-flex flex-wrap gap-3">
                                 @foreach($sucursales as $sSelect)
-                                    <option value="{{ $sSelect->id }}" {{ $user->sucursal_id == $sSelect->id ? 'selected' : '' }}>{{ $sSelect->nombre }}</option>
+                                    <div class="form-check">
+                                        <input class="form-check-input" 
+                                            type="checkbox" 
+                                            name="sucursales[]" 
+                                            value="{{ $sSelect->id }}" 
+                                            id="edit_suc_{{ $user->id }}_{{ $sSelect->id }}"
+                                            {{ $user->sucursales->contains($sSelect->id) ? 'checked' : '' }}>
+                                        <label class="form-check-label small" for="edit_suc_{{ $user->id }}_{{ $sSelect->id }}">
+                                            {{ $sSelect->nombre }}
+                                        </label>
+                                    </div>
                                 @endforeach
-                            </select>
+                            </div>
                         </div>
                     </div>
                     <div class="mb-0 mt-2">

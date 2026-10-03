@@ -6,14 +6,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class UsuarioConfigController extends Controller
 {
-    /**
-     * ALTA DE OPERADOR CON FOTO Y NUEVOS ROLES
-     * Solo accesible por Administrador Global
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -21,7 +16,8 @@ class UsuarioConfigController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6',
             'role' => 'required|in:admin,gerente,cajero',
-            'sucursal_id' => 'required|exists:sucursales,id',
+            'sucursales' => 'required|array|min:1',
+            'sucursales.*' => 'exists:sucursales,id',
             'foto' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
@@ -30,7 +26,7 @@ class UsuarioConfigController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
-            'sucursal_id' => $request->sucursal_id,
+            'sucursal_id' => $request->sucursales[0], // Asigna por defecto la primera seleccionada
             'status' => 'activo'
         ];
 
@@ -38,22 +34,22 @@ class UsuarioConfigController extends Controller
             $userData['foto'] = $request->file('foto')->store('usuarios', 'public');
         }
 
-        User::create($userData);
+        $user = User::create($userData);
+        
+        // Sincronizar múltiples sucursales
+        $user->sucursales()->sync($request->sucursales);
 
         return redirect()->back()->with(['success' => 'Operador registrado con éxito.', 'tab' => 'usuarios']);
     }
 
-    /**
-     * ACTUALIZACIÓN COMPLETA DE OPERADOR
-     * Solo accesible por Administrador Global
-     */
     public function update(Request $request, $id)
     {
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,'.$id,
             'role' => 'required|in:admin,gerente,cajero',
-            'sucursal_id' => 'required|exists:sucursales,id',
+            'sucursales' => 'required|array|min:1',
+            'sucursales.*' => 'exists:sucursales,id',
             'foto' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
@@ -62,10 +58,13 @@ class UsuarioConfigController extends Controller
         $user->name = $request->name;
         $user->email = $request->email;
         $user->role = $request->role;
-        $user->sucursal_id = $request->sucursal_id;
+
+        // Si la sucursal actual activa ya no está entre las asignadas, cambiamos al primer ID del array
+        if (!in_array($user->sucursal_id, $request->sucursales)) {
+            $user->sucursal_id = $request->sucursales[0];
+        }
 
         if ($request->hasFile('foto')) {
-            // Eliminar foto anterior si existía para optimizar espacio
             if ($user->foto && Storage::disk('public')->exists($user->foto)) {
                 Storage::disk('public')->delete($user->foto);
             }
@@ -74,78 +73,82 @@ class UsuarioConfigController extends Controller
 
         $user->save();
 
+        // Sincronizar relación de sucursales
+        $user->sucursales()->sync($request->sucursales);
+
         return redirect()->back()->with(['success' => 'Perfil operativo actualizado correctamente.', 'tab' => 'usuarios']);
     }
 
-    /**
-     * CAMBIO DE CONTRASEÑA DE USUARIO
-     * Solo accesible por Administrador Global
-     */
-    public function changePassword(Request $request, $id)
+    // Método para cambiar la sucursal activa durante la sesión/modal
+    public function cambiarSucursalActiva(Request $request)
     {
         $request->validate([
-            'password' => 'required|string|min:6'
+            'sucursal_id' => 'required|exists:sucursales,id'
         ]);
-        
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+
+        if ($user->sucursales->contains($request->sucursal_id)) {
+            
+            // 1. Guardar en Base de Datos
+            $user->sucursal_id = $request->sucursal_id;
+            $user->save();
+
+            // 2. LA CLAVE DEL ÉXITO: Actualizar la variable exacta que lee el Helper
+            session([
+                'sucursal_seleccionada' => true,
+                'activo_sucursal_id' => $request->sucursal_id // <- ESTE ES EL NOMBRE CORRECTO
+            ]);
+            
+            // 3. Limpiar variables viejas
+            session()->forget('mostrar_modal_sucursal');
+            $user->unsetRelation('sucursal');
+
+            return redirect()->route('dashboard')->with('success', 'Sucursal cambiada correctamente.');
+        }
+
+        return redirect()->back()->with('error', 'No tienes permiso para acceder a esta sucursal.');
+    }
+
+    public function changePassword(Request $request, $id)
+    {
+        $request->validate(['password' => 'required|string|min:6']);
         $user = User::findOrFail($id);
         $user->password = Hash::make($request->password);
         $user->save();
-
         return redirect()->back()->with(['success' => 'Contraseña actualizada exitosamente.', 'tab' => 'usuarios']);
     }
 
-    /**
-     * DAR DE BAJA A UN USUARIO (SUSPENSIÓN)
-     * Solo accesible por Administrador Global
-     */
     public function bajaUsuario($id)
     {
         $user = User::findOrFail($id);
-        
-        // No permitir que un admin se dé de baja a sí mismo
         if (auth()->id() === $user->id) {
             return redirect()->back()->with(['error' => 'No puedes suspender tu propio acceso.', 'tab' => 'usuarios']);
         }
-        
         $user->status = 'baja';
         $user->save();
-        
         return redirect()->back()->with(['success' => 'Acceso de usuario suspendido exitosamente.', 'tab' => 'usuarios']);
     }
 
-    /**
-     * REACTIVAR ACCESO DE USUARIO
-     * Solo accesible por Administrador Global
-     */
     public function altaUsuario($id)
     {
         $user = User::findOrFail($id);
         $user->status = 'activo';
         $user->save();
-        
         return redirect()->back()->with(['success' => 'Acceso de usuario reactivado exitosamente.', 'tab' => 'usuarios']);
     }
 
-    /**
-     * ELIMINAR USUARIO PERMANENTEMENTE (Opcional)
-     * Solo accesible por Administrador Global
-     */
     public function destroy($id)
     {
         $user = User::findOrFail($id);
-        
-        // No permitir que un admin se elimine a sí mismo
         if (auth()->id() === $user->id) {
             return redirect()->back()->with(['error' => 'No puedes eliminar tu propio usuario.', 'tab' => 'usuarios']);
         }
-        
-        // Eliminar foto si existe
         if ($user->foto && Storage::disk('public')->exists($user->foto)) {
             Storage::disk('public')->delete($user->foto);
         }
-        
         $user->delete();
-        
         return redirect()->back()->with(['success' => 'Usuario eliminado permanentemente.', 'tab' => 'usuarios']);
     }
 }

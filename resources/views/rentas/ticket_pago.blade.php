@@ -98,7 +98,12 @@
                 <div class="mb-1"><span class="bold">Cliente:</span> Público General</div>
             @endif
             
-            <div><span class="bold">Método de Pago:</span> {{ strtoupper($pago->metodo_pago) }}</div>
+            <div class="mb-1"><span class="bold">Método de Pago:</span> {{ strtoupper($pago->metodo_pago) }}</div>
+
+            <!-- 🔥 NUEVA LÍNEA: Mostrar Referencia si aplica -->
+            @if(in_array($pago->metodo_pago, ['transferencia', 'tarjeta', 'mixto']) && $pago->referencia)
+                <div><span class="bold">Ref / Folio:</span> {{ $pago->referencia }}</div>
+            @endif
         </div>
 
         <!-- DETALLE DE LA OPERACIÓN -->
@@ -115,9 +120,6 @@
                     <td class="text-left" style="vertical-align: top;">1</td>
                     <td class="text-left">
                         Operación: {{ strtoupper($pago->tipo) }}
-                        @if($pago->referencia)
-                            <br><small>Ref: {{ $pago->referencia }}</small>
-                        @endif
                     </td>
                     <td class="text-right" style="vertical-align: top;">${{ number_format($pago->monto, 2) }}</td>
                 </tr>

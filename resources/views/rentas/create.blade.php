@@ -63,7 +63,12 @@
 @endif
 @if($errors->any())
     <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ $errors->first() }}
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <ul class="mb-0 small">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
@@ -109,13 +114,37 @@
                             </select>
                             @error('cliente_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+
+                        <!-- OBRA / PROYECTO (única por renta) -->
+                        @php $obraOld = old('obra_id') ? \App\Models\Obra::find(old('obra_id')) : null; @endphp
                         <div class="col-12 col-md-6">
-                            <label class="form-label-sm">Obra / Proyecto</label>
-                            <select name="obra_id" class="form-select form-select-sm bg-body" id="obraSelect">
-                                <option value="">Seleccionar obra (opcional)...</option>
-                            </select>
-                            <small class="text-secondary" style="font-size: 11px;">¿No existe? <a href="#" data-bs-toggle="modal" data-bs-target="#modalNuevaObra" class="text-primary">Regístrala aquí</a></small>
+                            <label class="form-label-sm">Obra / Proyecto <span class="text-danger">*</span></label>
+                            <input type="hidden" name="obra_id" id="obra_id" value="{{ $obraOld?->id }}">
+
+                            <div id="obraVacia" class="{{ $obraOld ? 'd-none' : '' }}">
+                                <button type="button" class="btn btn-outline-primary btn-sm rounded-3" onclick="abrirModalObra()">
+                                    <i class="bi bi-building-add me-1"></i> Registrar obra de esta renta
+                                </button>
+                                <small class="text-secondary d-block mt-1" style="font-size: 11px;">Obligatorio. Los datos de la obra se guardan únicamente para esta renta.</small>
+                            </div>
+
+                            <div id="obraResumen" class="border rounded-3 p-2 bg-body-tertiary {{ $obraOld ? '' : 'd-none' }}">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="small">
+                                        <strong id="obraResumenNombre" class="d-block text-body">{{ $obraOld?->nombre }}</strong>
+                                        <span id="obraResumenDireccion" class="text-secondary">{{ $obraOld?->direccion }}</span>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-3" onclick="quitarObra()" title="Quitar obra">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="obraError" class="text-danger small mt-1 d-none">
+                                <i class="bi bi-exclamation-circle me-1"></i>Debes registrar la obra para poder guardar la renta.
+                            </div>
                         </div>
+
                         <div class="col-6 col-md-4">
                             <label class="form-label-sm">Fecha inicio <span class="text-danger">*</span></label>
                             <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control form-control-sm bg-body @error('fecha_inicio') is-invalid @enderror"
@@ -222,6 +251,21 @@
                             <small class="text-secondary" style="font-size: 11px;">Garantía reembolsable o acreditable</small>
                         </div>
 
+                        <!-- Método y referencia del depósito (aparecen si hay depósito) -->
+                        <div class="col-12 col-md-4" id="divMetodoPagoDeposito" style="display: none;">
+                            <label class="form-label-sm">Método de pago <span class="text-danger">*</span></label>
+                            <select name="metodo_pago_deposito" id="metodo_pago_deposito" class="form-select form-select-sm bg-body">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="mixto">Mixto</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4" id="divReferenciaDeposito" style="display: none;">
+                            <label class="form-label-sm">Ref. / Folio <span class="text-danger">*</span></label>
+                            <input type="text" name="referencia_deposito" id="referencia_deposito" class="form-control form-control-sm bg-body" placeholder="Ref. de pago">
+                        </div>
+
                         <!-- Descuento (el cajero debe pedir autorización al gerente) -->
                         <div class="col-12">
                             <div class="p-2 p-md-3 border rounded-3 bg-body-tertiary" id="bloqueDescuento">
@@ -320,65 +364,53 @@
 </form>
 
 <!-- ======================================================= -->
-<!-- MODAL PARA REGISTRAR NUEVA OBRA (AHORA SOLO HAY UNO) -->
+<!-- MODAL PARA REGISTRAR LA OBRA DE ESTA RENTA              -->
 <!-- ======================================================= -->
 <div class="modal fade" id="modalNuevaObra" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
             <div class="modal-header bg-primary text-white py-3 px-4 border-0">
-                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-building-add me-2"></i>Registrar Nueva Obra</h5>
+                <h5 class="modal-title fw-bold mb-0"><i class="bi bi-building-add me-2"></i>Registrar Obra de esta Renta</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="formNuevaObraAjax">
                 @csrf
+                {{-- El cliente se toma automáticamente de la renta --}}
+                <input type="hidden" name="cliente_id" id="modal_cliente_id">
+
                 <div class="modal-body p-4">
                     <div class="row g-3">
-                        <div class="col-12 col-md-6">
+                        <div class="col-12">
                             <label class="form-label small fw-semibold text-body">Nombre de la Obra / Proyecto <span class="text-danger">*</span></label>
                             <input type="text" name="nombre" class="form-control form-control-sm bg-body" placeholder="Ej: Residencial Los Arboles" required>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold text-body">Cliente Asociado <span class="text-danger">*</span></label>
-                            <select name="cliente_id" id="modal_cliente_id" class="form-select form-select-sm bg-body" required>
-                                <option value="">Seleccionar cliente...</option>
-                                @foreach($clientes as $cliente)
-                                    <option value="{{ $cliente->id }}">{{ $cliente->nombre_completo }}</option>
-                                @endforeach
-                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-semibold text-body">Calle y Número <span class="text-danger">*</span></label>
                             <textarea name="direccion" class="form-control form-control-sm bg-body" rows="2" required></textarea>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label small fw-semibold text-body">Colonia</label>
-                            <input type="text" name="colonia" class="form-control form-control-sm bg-body">
+                            <label class="form-label small fw-semibold text-body">Colonia <span class="text-danger">*</span></label>
+                            <input type="text" name="colonia" class="form-control form-control-sm bg-body" required>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label small fw-semibold text-body">Ciudad / Municipio</label>
-                            <input type="text" name="ciudad" class="form-control form-control-sm bg-body" value="Durango">
+                            <label class="form-label small fw-semibold text-body">Ciudad / Municipio <span class="text-danger">*</span></label>
+                            <input type="text" name="ciudad" class="form-control form-control-sm bg-body" value="Durango" required>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label small fw-semibold text-body">Estado</label>
-                            <input type="text" name="estado" class="form-control form-control-sm bg-body" value="Dgo.">
+                            <label class="form-label small fw-semibold text-body">Estado <span class="text-danger">*</span></label>
+                            <input type="text" name="estado" class="form-control form-control-sm bg-body" value="Dgo." required>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label small fw-semibold text-body">Código Postal</label>
-                            <input type="text" name="codigo_postal" class="form-control form-control-sm bg-body">
+                            <label class="form-label small fw-semibold text-body">Código Postal <span class="text-danger">*</span></label>
+                            <input type="text" name="codigo_postal" id="modal_codigo_postal" class="form-control form-control-sm bg-body" maxlength="5" minlength="5" pattern="\d{5}" inputmode="numeric" placeholder="5 dígitos" title="Debe tener 5 dígitos" required>
                         </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small fw-semibold text-body">Teléfono de la Obra</label>
-                            <input type="text" name="telefono_obra" class="form-control form-control-sm bg-body" maxlength="10">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-body">Contacto / Encargado <span class="text-danger">*</span></label>
+                            <input type="text" name="contacto_obra" class="form-control form-control-sm bg-body" placeholder="Ej: Ing. Carlos Ruiz" required>
                         </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small fw-semibold text-body">Contacto / Encargado</label>
-                            <input type="text" name="contacto_obra" class="form-control form-control-sm bg-body">
-                        </div>
-                        <div class="col-12 col-md-4 d-flex align-items-center">
-                            <div class="form-check form-switch mt-3">
-                                <input class="form-check-input" type="checkbox" name="activa" id="modal_activa" value="1" checked>
-                                <label class="form-check-label fw-semibold text-body small" for="modal_activa">Obra activa</label>
-                            </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-body">Teléfono de la Obra <span class="text-danger">*</span></label>
+                            <input type="text" name="telefono_obra" id="modal_telefono_obra" class="form-control form-control-sm bg-body" maxlength="10" minlength="10" pattern="\d{10}" inputmode="numeric" placeholder="10 dígitos" title="Debe tener 10 dígitos" required>
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-semibold text-body">Observaciones</label>
@@ -397,7 +429,6 @@
     </div>
 </div>
 
-
 @php
     $equiposPrevios = collect(old('equipos', []))->map(function ($e) use ($equipos) {
         $eq = $equipos->firstWhere('id', $e['id'] ?? null);
@@ -406,10 +437,9 @@
 @endphp
 <script>
 // ======================= DATOS INICIALES ======================= //
-// Si el servidor regresó el formulario con un error, se recuperan productos, factura y obra
+// Si el servidor regresó el formulario con un error, se recuperan productos y factura
 const EQUIPOS_PREVIOS = @json($equiposPrevios);
 const FACTURA_PREVIA = @json(old('requiere_factura', '1')) === '1';
-let OBRA_PREVIA = @json(old('obra_id'));
 
 const PUEDE_AUTORIZAR_DESCUENTO = @json($puedeAutorizarDescuento);
 const URL_SOLICITAR_DESCUENTO = '{{ route("puntoventa.descuento.solicitar") }}';
@@ -504,11 +534,12 @@ function actualizarResumen() {
 
     const faltan = [];
     if (!$('clienteSelect').value) faltan.push('Selecciona el cliente');
+    if (!$('obra_id').value) faltan.push('Registra la obra de la renta');
     if (equipos.length === 0) faltan.push('Agrega al menos un producto');
     if (!descuentoListo(subtotal)) faltan.push('El descuento necesita autorización');
     $('faltante').innerHTML = faltan.length ? '<i class="bi bi-info-circle me-1"></i>' + faltan.join(' · ') : '';
 
-    $('btnGuardar').disabled = equipos.length === 0 || !descuentoListo(subtotal);
+    $('btnGuardar').disabled = equipos.length === 0 || !descuentoListo(subtotal) || !$('obra_id').value;
     $('btnEspera').disabled = equipos.length === 0;
 }
 
@@ -582,30 +613,10 @@ function renderizarEquipos() {
         <tbody>${filas}</tbody></table></div>`;
 }
 
-// ======================= CLIENTE / OBRAS ======================= //
-$('clienteSelect').addEventListener('change', function () {
-    const obraSelect = $('obraSelect');
-    if (this.value) {
-        obraSelect.innerHTML = '<option value="">Cargando obras...</option>';
-        fetch(`/get-obras/${this.value}`)
-            .then(r => r.json())
-            .then(data => {
-                obraSelect.innerHTML = '<option value="">Seleccionar obra (opcional)...</option>';
-                if (data.length === 0) {
-                    obraSelect.innerHTML += '<option value="" disabled>No hay obras registradas para este cliente</option>';
-                } else {
-                    data.forEach(obra => { obraSelect.innerHTML += `<option value="${obra.id}">${esc(obra.nombre)} - ${esc(obra.direccion)}</option>`; });
-                    if (OBRA_PREVIA) { obraSelect.value = OBRA_PREVIA; OBRA_PREVIA = null; }
-                }
-            })
-            .catch(err => { console.error('Error:', err); obraSelect.innerHTML = '<option value="">Error al cargar obras</option>'; });
-    } else {
-        obraSelect.innerHTML = '<option value="">Seleccionar obra (opcional)...</option>';
-    }
-    actualizarResumen();
-});
+// ======================= CLIENTE / CAMPOS ======================= //
+$('clienteSelect').addEventListener('change', actualizarResumen);
 
-['flete', 'mano_obra', 'deposito', 'descuento'].forEach(id => $(id).addEventListener('input', actualizarResumen));
+['flete', 'mano_obra', 'descuento'].forEach(id => $(id).addEventListener('input', actualizarResumen));
 $('fecha_inicio').addEventListener('change', actualizarResumen);
 $('fecha_fin').addEventListener('change', actualizarResumen);
 
@@ -802,12 +813,14 @@ function capturarFormulario() {
         ts: Date.now(),
         cliente_id: $('clienteSelect').value,
         cliente_nombre: nombreCliente() || 'Sin cliente',
-        obra_id: $('obraSelect').value,
+        obra: $('obra_id').value ? { id: $('obra_id').value, nombre: $('obraResumenNombre').textContent, direccion: $('obraResumenDireccion').textContent } : null,
         fecha_inicio: $('fecha_inicio').value,
         fecha_fin: $('fecha_fin').value,
         requiere_factura: requiereFactura ? '1' : '0',
         flete: $('flete').value, mano_obra: $('mano_obra').value,
         descuento: $('descuento').value, deposito: $('deposito').value,
+        metodo_pago_deposito: $('metodo_pago_deposito').value,
+        referencia_deposito: $('referencia_deposito').value,
         motivo: $('descuentoMotivo') ? $('descuentoMotivo').value : '',
         observaciones: $('observaciones').value,
         equipos: equipos.map(e => Object.assign({}, e)),
@@ -819,15 +832,18 @@ function capturarFormulario() {
 function limpiarFormulario() {
     equipos = []; solDescuento = null;
     $('clienteSelect').value = '';
-    $('obraSelect').innerHTML = '<option value="">Seleccionar obra (opcional)...</option>';
+    mostrarObra(null);   // solo limpia la pantalla; la obra ya guardada se queda con el borrador
     const hoy = new Date(), manana = new Date(); manana.setDate(manana.getDate() + 1);
     $('fecha_inicio').value = fechaLocal(hoy);
     $('fecha_fin').value = fechaLocal(manana);
     ['flete', 'mano_obra', 'descuento', 'deposito'].forEach(id => $(id).value = 0);
+    $('metodo_pago_deposito').value = 'efectivo';
+    $('referencia_deposito').value = '';
     $('observaciones').value = '';
     if ($('descuentoMotivo')) $('descuentoMotivo').value = '';
     $('solicitud_descuento_id').value = '';
     renderizarEquipos();
+    toggleDepositoFields();
     seleccionarFacturacion(true);   // también refresca el resumen
 }
 
@@ -840,16 +856,19 @@ function cargarBorrador(b) {
         }
     });
     solDescuento = b.sol ? Object.assign({}, b.sol) : null;
+    // OJO: no se dispara 'change' del cliente, porque el handler de la obra la borraría
     $('clienteSelect').value = b.cliente_id || '';
-    OBRA_PREVIA = b.obra_id || null;
-    $('clienteSelect').dispatchEvent(new Event('change'));   // carga obras y refresca
     $('fecha_inicio').value = b.fecha_inicio;
     $('fecha_fin').value = b.fecha_fin;
     $('flete').value = b.flete; $('mano_obra').value = b.mano_obra;
     $('descuento').value = b.descuento; $('deposito').value = b.deposito;
+    $('metodo_pago_deposito').value = b.metodo_pago_deposito || 'efectivo';
+    $('referencia_deposito').value = b.referencia_deposito || '';
     $('observaciones').value = b.observaciones || '';
     if ($('descuentoMotivo')) $('descuentoMotivo').value = b.motivo || '';
     renderizarEquipos();
+    mostrarObra(b.obra || null);
+    toggleDepositoFields();
     seleccionarFacturacion(b.requiere_factura === '1');
 }
 
@@ -931,6 +950,12 @@ $('formRenta').addEventListener('submit', function (e) {
         alert('El descuento todavía no está autorizado para este monto y cliente. Espera la autorización o ajusta el monto.');
         return;
     }
+    if (!$('obra_id').value) {
+        e.preventDefault();
+        $('obraError').classList.remove('d-none');
+        $('obraVacia').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
     enviando = true;
 });
 
@@ -948,8 +973,8 @@ window.addEventListener('beforeunload', function (e) {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-    if ($('clienteSelect').value) $('clienteSelect').dispatchEvent(new Event('change'));
     renderizarEquipos();
+    toggleDepositoFields();
     seleccionarFacturacion(FACTURA_PREVIA);   // también refresca el resumen
     renderEspera();
     recuperarAutorizacionPrevia();
@@ -964,26 +989,70 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(renderEspera, 60000);          // refresca el "hace X min"
 });
 
-// ====== LÓGICA DEL MODAL DE NUEVA OBRA ====== //
+// ====== OBRA (ÚNICA POR RENTA) ====== //
 
-document.getElementById('modalNuevaObra').addEventListener('show.bs.modal', function () {
-    const clienteSelectRenta = document.getElementById('clienteSelect');
-    const modalClienteId = document.getElementById('modal_cliente_id');
-    if(clienteSelectRenta.value) {
-        modalClienteId.value = clienteSelectRenta.value;
+const csrfToken = document.querySelector('#formRenta input[name="_token"]').value;
+
+function mostrarObra(obra) {
+    $('obra_id').value = obra ? obra.id : '';
+    $('obraResumenNombre').textContent = obra ? obra.nombre : '';
+    $('obraResumenDireccion').textContent = obra ? obra.direccion : '';
+    $('obraResumen').classList.toggle('d-none', !obra);
+    $('obraVacia').classList.toggle('d-none', !!obra);
+    if (obra) $('obraError').classList.add('d-none');
+    actualizarResumen();
+}
+
+function abrirModalObra() {
+    const clienteId = $('clienteSelect').value;
+    if (!clienteId) {
+        alert('Primero selecciona el cliente de la renta.');
+        return;
+    }
+    $('modal_cliente_id').value = clienteId;
+    bootstrap.Modal.getOrCreateInstance($('modalNuevaObra')).show();
+}
+
+function quitarObra() {
+    const id = $('obra_id').value;
+    mostrarObra(null);
+    if (!id) return;
+
+    // Borra la obra recién creada para no dejar registros huérfanos
+    fetch(`/obras/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).catch(console.error);
+}
+
+// Si cambia el cliente, la obra ya registrada deja de corresponder
+$('clienteSelect').addEventListener('change', function () {
+    if ($('obra_id').value) {
+        quitarObra();
     }
 });
 
-document.getElementById('formNuevaObraAjax').addEventListener('submit', function(e) {
+// Solo números en el código postal y el teléfono de la obra
+$('modal_codigo_postal').addEventListener('input', function () {
+    this.value = this.value.replace(/\D/g, '');
+});
+$('modal_telefono_obra').addEventListener('input', function () {
+    this.value = this.value.replace(/\D/g, '');
+});
+
+$('formNuevaObraAjax').addEventListener('submit', function (e) {
     e.preventDefault();
-    
+
     const form = this;
-    const formData = new FormData(form);
-    const btnGuardar = document.getElementById('btnGuardarObraAjax');
-    const originalBtnHtml = btnGuardar.innerHTML;
-    
-    btnGuardar.disabled = true;
-    btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
+    const btn = $('btnGuardarObraAjax');
+    const originalHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Guardando...';
 
     fetch("{{ route('obras.store') }}", {
         method: 'POST',
@@ -991,43 +1060,59 @@ document.getElementById('formNuevaObraAjax').addEventListener('submit', function
             'X-Requested-With': 'XMLHttpRequest',
             'Accept': 'application/json'
         },
-        body: formData 
+        body: new FormData(form)
     })
     .then(async response => {
         if (!response.ok) {
-            if (response.status === 422) { 
+            if (response.status === 422) {
                 const data = await response.json();
-                let errors = '';
-                for (let field in data.errors) {
-                    errors += data.errors[field].join('\n') + '\n';
-                }
-                throw new Error(errors);
+                throw new Error(Object.values(data.errors).flat().join('\n'));
             }
             throw new Error('Ocurrió un error en el servidor al guardar la obra.');
         }
         return response.json();
     })
     .then(data => {
-        if(data.success) {
-            const clienteActual = document.getElementById('clienteSelect').value;
-            if(clienteActual == data.obra.cliente_id) {
-                const obraSelect = document.getElementById('obraSelect');
-                const option = new Option(data.obra.nombre + ' - ' + data.obra.direccion, data.obra.id, true, true);
-                obraSelect.add(option);
-            }
+        if (data.success) {
+            mostrarObra(data.obra);
             form.reset();
-            const modalInstance = bootstrap.Modal.getInstance(document.getElementById('modalNuevaObra'));
-            modalInstance.hide();
-            alert('¡La obra fue registrada y seleccionada exitosamente!');
+            // form.reset() restaura los valores por defecto (Durango / Dgo.) y vacía el cliente oculto
+            bootstrap.Modal.getInstance($('modalNuevaObra')).hide();
         }
     })
-    .catch(error => {
-        alert("Errores al guardar:\n\n" + error.message);
-    })
+    .catch(error => alert("Errores al guardar:\n\n" + error.message))
     .finally(() => {
-        btnGuardar.disabled = false;
-        btnGuardar.innerHTML = originalBtnHtml;
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     });
 });
+
+// ====== DEPÓSITO: método y referencia dinámicos ====== //
+$('deposito').addEventListener('input', toggleDepositoFields);
+$('metodo_pago_deposito').addEventListener('change', toggleDepositoFields);
+
+function toggleDepositoFields() {
+    const val = parseFloat($('deposito').value) || 0;
+    const metodo = $('metodo_pago_deposito').value;
+    const refInput = $('referencia_deposito');
+
+    if (val > 0) {
+        $('divMetodoPagoDeposito').style.display = 'block';
+        if (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto') {
+            $('divReferenciaDeposito').style.display = 'block';
+            refInput.setAttribute('required', 'required');
+        } else {
+            $('divReferenciaDeposito').style.display = 'none';
+            refInput.removeAttribute('required');
+            refInput.value = '';
+        }
+    } else {
+        $('divMetodoPagoDeposito').style.display = 'none';
+        $('divReferenciaDeposito').style.display = 'none';
+        refInput.removeAttribute('required');
+        refInput.value = '';
+    }
+    actualizarResumen();
+}
 </script>
 @endsection

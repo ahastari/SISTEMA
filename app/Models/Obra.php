@@ -7,10 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class Obra extends Model
 {
     protected $fillable = [
-        'nombre', 'direccion', 'colonia', 'ciudad', 'estado', 
-        'codigo_postal', 'telefono_obra', 'contacto_obra', 
+        'nombre', 'direccion', 'colonia', 'ciudad', 'estado',
+        'codigo_postal', 'telefono_obra', 'contacto_obra',
         'cliente_id', 'observaciones', 'activa',
-        'sucursal_id'
+        'sucursal_id',
     ];
 
     public function cliente()
@@ -18,6 +18,17 @@ class Obra extends Model
         return $this->belongsTo(Cliente::class);
     }
 
+    /**
+     * Cada obra pertenece a una sola renta.
+     */
+    public function renta()
+    {
+        return $this->hasOne(Renta::class);
+    }
+
+    /**
+     * Se conserva por compatibilidad con datos/consultas existentes.
+     */
     public function rentas()
     {
         return $this->hasMany(Renta::class);

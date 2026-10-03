@@ -9,7 +9,7 @@
         color: var(--bs-heading-color);
     }
 
-    /* PESTAÑAS PREMIUM (Consistentes con el resto del sistema) */
+    /* PESTAÑAS PREMIUM */
     .premium-tabs {
         border-bottom: 1px solid var(--bs-border-color);
         gap: 8px;
@@ -37,7 +37,7 @@
         font-weight: 700;
     }
 
-    /* TARJETAS DE AUTORIZACIÓN (UX/UI MEJORADO) */
+    /* TARJETAS DE AUTORIZACIÓN (UX/UI ADAPTATIVO) */
     .auth-card {
         background: var(--bs-body-bg);
         border: 1px solid var(--bs-border-color);
@@ -48,17 +48,18 @@
         flex-direction: column;
         height: 100%;
         position: relative;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);
     }
     .auth-card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
     }
     
-    /* Borde lateral de color para identificar el tipo rápidamente */
-    .auth-card.type-renta { border-left: 4px solid #ffc107; }
-    .auth-card.type-movimiento { border-left: 4px solid #0dcaf0; }
-    .auth-card.type-venta { border-left: 4px solid #dc3545; }
-    .auth-card.type-descuento { border-left: 4px solid #198754; }
+    /* Bordes de color lateral */
+    .auth-card.type-renta { border-left: 4px solid var(--bs-warning); }
+    .auth-card.type-movimiento { border-left: 4px solid var(--bs-info); }
+    .auth-card.type-venta { border-left: 4px solid var(--bs-danger); }
+    .auth-card.type-descuento { border-left: 4px solid var(--bs-success); }
 
     .auth-header {
         padding: 12px 16px;
@@ -97,14 +98,6 @@
         filter: brightness(0.95);
     }
     
-    html {
-        scroll-behavior: smooth;
-    }
-
-    .seccion-ancla {
-        scroll-margin-top: 90px;
-    }
-    
     /* ESTADO VACÍO GLOBAL */
     .empty-state-global {
         display: flex;
@@ -128,6 +121,28 @@
         justify-content: center;
         font-size: 2rem;
         margin-bottom: 16px;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+    .seccion-ancla {
+        scroll-margin-top: 90px;
+    }
+
+    /* ========================================================
+       AJUSTES ESPECÍFICOS PARA MODO OSCURO (DARK THEME)
+       ======================================================== */
+    [data-bs-theme="dark"] .auth-card {
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    [data-bs-theme="dark"] .auth-card:hover {
+        box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+    }
+    [data-bs-theme="dark"] .stat-pill:hover {
+        /* En oscuro, al pasar el mouse iluminamos en lugar de oscurecer */
+        filter: brightness(1.15); 
+        box-shadow: 0 6px 12px rgba(0,0,0,0.4);
     }
 </style>
 
@@ -156,7 +171,7 @@
         <button class="nav-link active" id="pendientes-tab" data-bs-toggle="tab" data-bs-target="#pendientes" type="button" role="tab">
             <i class="bi bi-clock-history me-1"></i> Solicitudes Pendientes 
             @if($totalPendientes > 0)
-                <span class="badge bg-danger ms-1 rounded-pill" id="badge-contador-tabs">{{ $totalPendientes }}</span>
+                <span class="badge text-bg-danger ms-1 rounded-pill" id="badge-contador-tabs">{{ $totalPendientes }}</span>
             @endif
         </button>
     </li>
@@ -181,7 +196,7 @@
                         <i class="bi bi-check2-all"></i>
                     </div>
                     <h4 class="fw-bold text-body">¡Estás al día!</h4>
-                    <p class="text-secondary mb-0">No hay ninguna solicitud pendiente de autorización en este momento.</p>
+                    <p class="text-body-secondary mb-0">No hay ninguna solicitud pendiente de autorización en este momento.</p>
                 </div>
             @else
                 <!-- QUICK STATS -->
@@ -228,25 +243,29 @@
                         <div class="col-12 col-md-6 col-xl-4">
                             <div class="auth-card type-renta">
                                 <div class="auth-header">
-                                    <span class="badge bg-warning text-dark font-monospace px-2 py-1"><i class="bi bi-file-text me-1"></i>{{ $renta->folio }}</span>
-                                    <span class="text-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $renta->updated_at->diffForHumans() }}</span>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="badge text-bg-warning font-monospace px-2 py-1"><i class="bi bi-file-text me-1"></i>{{ $renta->folio }}</span>
+                                        @if(auth()->user()->isAdmin())
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle font-monospace px-2 py-1" style="font-size: 10px;" title="Sucursal de Origen"><i class="bi bi-shop me-1"></i>{{ $renta->sucursal->nombre ?? 'N/A' }}</span>
+                                        @endif
+                                    </div>
+                                    <span class="text-body-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $renta->updated_at->diffForHumans() }}</span>
                                 </div>
                                 <div class="auth-body">
                                     <h6 class="fw-bold text-body mb-2 text-truncate" title="{{ $renta->cliente->nombre_completo ?? 'Cliente General' }}">
                                         <i class="bi bi-person text-warning me-1"></i> {{ $renta->cliente->nombre_completo ?? 'Cliente General' }}
                                     </h6>
-                                    <div class="p-2 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded-3 small text-body mb-3">
+                                    <div class="p-2 bg-warning-subtle border border-warning-subtle rounded-3 small text-body mb-3">
                                         <strong class="text-warning-emphasis d-block mb-1"><i class="bi bi-info-circle me-1"></i>Motivo:</strong>
                                         {{ $renta->motivo_autorizacion }}
                                     </div>
                                     <div class="d-flex justify-content-between align-items-end">
                                         <div>
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Solicitó:</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Solicitó:</span>
                                             <span class="fw-semibold text-body small">{{ $renta->solicitadoPor->name ?? 'Usuario' }}</span>
                                         </div>
                                         <div class="text-end">
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Deuda a perdonar:</span>
-                                            <!-- AQUI USAMOS EL SALDO PENDIENTE REAL QUE CREASTE EN EL CONTROLADOR -->
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Deuda a perdonar:</span>
                                             <strong class="text-danger fs-6">${{ number_format($renta->saldo_pendiente_real ?? $renta->saldo_pendiente, 2) }}</strong>
                                         </div>
                                     </div>
@@ -286,33 +305,33 @@
                         <div class="col-12 col-md-6 col-xl-4">
                             <div class="auth-card type-movimiento">
                                 <div class="auth-header">
-                                    <span class="badge bg-info text-dark font-monospace px-2 py-1"><i class="bi bi-box-seam me-1"></i>Stock Req.</span>
-                                    <span class="text-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $movimiento->fecha_movimiento->diffForHumans() }}</span>
+                                    <span class="badge text-bg-info font-monospace px-2 py-1"><i class="bi bi-box-seam me-1"></i>Stock Req.</span>
+                                    <span class="text-body-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $movimiento->fecha_movimiento->diffForHumans() }}</span>
                                 </div>
                                 <div class="auth-body">
                                     <h6 class="fw-bold text-body mb-1 text-truncate" title="{{ $movimiento->equipo->nombre }}">
                                         {{ $movimiento->equipo->nombre }}
                                     </h6>
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary font-monospace mb-3">{{ $movimiento->equipo->codigo }}</span>
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace mb-3">{{ $movimiento->equipo->codigo }}</span>
                                     
                                     <div class="d-flex align-items-center justify-content-between bg-body-tertiary border rounded-3 p-2 mb-3 small">
                                         <div class="text-center w-50 border-end">
-                                            <span class="d-block text-secondary" style="font-size: 10px;">Origen</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 10px;">Origen</span>
                                             <strong class="text-danger text-truncate d-block px-1">{{ $movimiento->sucursalOrigen->nombre ?? 'N/A' }}</strong>
                                         </div>
                                         <div class="text-center w-50">
-                                            <span class="d-block text-secondary" style="font-size: 10px;">Destino</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 10px;">Destino</span>
                                             <strong class="text-success text-truncate d-block px-1">{{ $movimiento->sucursalDestino->nombre ?? 'N/A' }}</strong>
                                         </div>
                                     </div>
 
                                     <div class="d-flex justify-content-between align-items-end">
                                         <div style="max-width: 60%;">
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Motivo:</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Motivo:</span>
                                             <span class="fw-semibold text-body small text-truncate d-block" title="{{ $movimiento->motivo }}">{{ $movimiento->motivo }}</span>
                                         </div>
                                         <div class="text-end">
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Cantidad:</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Cantidad:</span>
                                             <strong class="text-info-emphasis fs-6">{{ $movimiento->cantidad }} <small>uds</small></strong>
                                         </div>
                                     </div>
@@ -349,24 +368,29 @@
                         <div class="col-12 col-md-6 col-xl-4">
                             <div class="auth-card type-venta">
                                 <div class="auth-header">
-                                    <span class="badge bg-danger text-white font-monospace px-2 py-1"><i class="bi bi-receipt me-1"></i>{{ $venta->folio }}</span>
-                                    <span class="text-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $venta->updated_at->diffForHumans() }}</span>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="badge text-bg-danger font-monospace px-2 py-1"><i class="bi bi-receipt me-1"></i>{{ $venta->folio }}</span>
+                                        @if(auth()->user()->isAdmin())
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle font-monospace px-2 py-1" style="font-size: 10px;" title="Sucursal de Origen"><i class="bi bi-shop me-1"></i>{{ $venta->sucursal->nombre ?? 'N/A' }}</span>
+                                        @endif
+                                    </div>
+                                    <span class="text-body-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $venta->updated_at->diffForHumans() }}</span>
                                 </div>
                                 <div class="auth-body">
                                     <h6 class="fw-bold text-body mb-2 text-truncate" title="{{ $venta->cliente_nombre ?? 'Público General' }}">
                                         <i class="bi bi-person text-danger me-1"></i> {{ $venta->cliente_nombre ?? 'Público General' }}
                                     </h6>
-                                    <div class="p-2 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 small text-body mb-3">
-                                        <strong class="text-danger d-block mb-1"><i class="bi bi-info-circle me-1"></i>Justificación Cajero:</strong>
+                                    <div class="p-2 bg-danger-subtle border border-danger-subtle rounded-3 small text-body mb-3">
+                                        <strong class="text-danger-emphasis d-block mb-1"><i class="bi bi-info-circle me-1"></i>Justificación Cajero:</strong>
                                         {{ $venta->motivo_cancelacion }}
                                     </div>
                                     <div class="d-flex justify-content-between align-items-end">
                                         <div>
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Método Origen:</span>
-                                            <span class="fw-bold text-body small text-uppercase"><i class="bi bi-wallet2 text-secondary me-1"></i>{{ $venta->metodo_pago }}</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Método Origen:</span>
+                                            <span class="fw-bold text-body small text-uppercase"><i class="bi bi-wallet2 text-body-secondary me-1"></i>{{ $venta->metodo_pago }}</span>
                                         </div>
                                         <div class="text-end">
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Monto a devolver:</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Monto a devolver:</span>
                                             <strong class="text-danger fs-6">${{ number_format($venta->total, 2) }}</strong>
                                         </div>
                                     </div>
@@ -375,7 +399,7 @@
                                     <form action="{{ route('autorizaciones.aprobarVenta', $venta) }}" method="POST" class="flex-fill form-autorizacion">
                                         @csrf
                                         <button type="button" class="btn btn-danger btn-sm w-100 fw-bold rounded-3 btn-submit-auth" data-confirm="¿Aprobar cancelación? El stock regresará y el dinero se descontará de la caja.">
-                                            <i class="bi bi-check-lg me-1"></i> Cancelar Venta
+                                            <i class="bi bi-check-lg me-1"></i> Aprovar
                                         </button>
                                     </form>
                                     <form action="{{ route('autorizaciones.rechazarVenta', $venta) }}" method="POST" class="flex-fill form-autorizacion">
@@ -403,24 +427,29 @@
                         <div class="col-12 col-md-6 col-xl-4">
                             <div class="auth-card type-venta">
                                 <div class="auth-header">
-                                    <span class="badge bg-danger text-white font-monospace px-2 py-1"><i class="bi bi-file-text me-1"></i>{{ $renta->folio }}</span>
-                                    <span class="text-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $renta->updated_at->diffForHumans() }}</span>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="badge text-bg-danger font-monospace px-2 py-1"><i class="bi bi-file-text me-1"></i>{{ $renta->folio }}</span>
+                                        @if(auth()->user()->isAdmin())
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle font-monospace px-2 py-1" style="font-size: 10px;" title="Sucursal de Origen"><i class="bi bi-shop me-1"></i>{{ $renta->sucursal->nombre ?? 'N/A' }}</span>
+                                        @endif
+                                    </div>
+                                    <span class="text-body-secondary" style="font-size: 11px;"><i class="bi bi-clock me-1"></i>{{ $renta->updated_at->diffForHumans() }}</span>
                                 </div>
                                 <div class="auth-body">
                                     <h6 class="fw-bold text-body mb-2 text-truncate" title="{{ $renta->cliente->nombre_completo ?? 'Cliente General' }}">
                                         <i class="bi bi-person text-danger me-1"></i> {{ $renta->cliente->nombre_completo ?? 'Cliente General' }}
                                     </h6>
-                                    <div class="p-2 bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 small text-body mb-3">
-                                        <strong class="text-danger d-block mb-1"><i class="bi bi-info-circle me-1"></i>Motivo Cajero:</strong>
+                                    <div class="p-2 bg-danger-subtle border border-danger-subtle rounded-3 small text-body mb-3">
+                                        <strong class="text-danger-emphasis d-block mb-1"><i class="bi bi-info-circle me-1"></i>Motivo Cajero:</strong>
                                         {{ str_replace('[CANCELACION] ', '', $renta->motivo_autorizacion) }}
                                     </div>
                                     <div class="d-flex justify-content-between align-items-end">
                                         <div>
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Solicitó:</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Solicitó:</span>
                                             <span class="fw-semibold text-body small">{{ $renta->solicitadoPor->name ?? 'Usuario' }}</span>
                                         </div>
                                         <div class="text-end">
-                                            <span class="d-block text-secondary" style="font-size: 11px;">Saldo pendiente:</span>
+                                            <span class="d-block text-body-secondary" style="font-size: 11px;">Saldo pendiente:</span>
                                             <strong class="text-danger fs-6">${{ number_format($renta->saldo_pendiente_real ?? $renta->saldo_pendiente, 2) }}</strong>
                                         </div>
                                     </div>
@@ -429,7 +458,7 @@
                                     <form action="{{ route('autorizaciones.aprobarCancelacionRenta', $renta) }}" method="POST" class="flex-fill form-autorizacion">
                                         @csrf
                                         <button type="button" class="btn btn-danger btn-sm w-100 fw-bold rounded-3 btn-submit-auth" data-confirm="¿Aprobar cancelación? Los equipos regresarán al inventario.">
-                                            <i class="bi bi-check-lg me-1"></i> Cancelar Renta
+                                            <i class="bi bi-check-lg me-1"></i> Aprovar
                                         </button>
                                     </form>
                                     <form action="{{ route('autorizaciones.rechazarCancelacionRenta', $renta) }}" method="POST" class="flex-fill form-autorizacion">
@@ -466,7 +495,7 @@
                             <th class="ps-4 py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Referencia / Fecha</th>
                             <th class="py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Cliente / Sucursal</th>
                             <th class="py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Solicitó</th>
-                            <th class="py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Gerente</th>
+                            <th class="py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Autorizador</th>
                             <th class="py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Resolución</th>
                             <th class="text-center pe-4 py-3 fw-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px;">Ver</th>
                         </tr>
@@ -476,11 +505,11 @@
                         <tr class="border-bottom">
                             <td class="ps-4 py-3">
                                 @if($item->tipo === 'renta')
-                                    <span class="badge bg-warning text-dark mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-file-text me-1"></i>{{ $item->identificador }}</span>
+                                    <span class="badge text-bg-warning mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-file-text me-1"></i>{{ $item->identificador }}</span>
                                 @elseif($item->tipo === 'venta')
-                                    <span class="badge bg-danger text-white mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-receipt me-1"></i>{{ $item->identificador }}</span>
+                                    <span class="badge text-bg-danger mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-receipt me-1"></i>{{ $item->identificador }}</span>
                                 @elseif($item->tipo === 'descuento')
-                                    <span class="badge bg-success text-white mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-percent me-1"></i>{{ $item->identificador }}</span>
+                                    <span class="badge text-bg-success mb-1 rounded-pill px-2 py-1 fw-bold font-monospace"><i class="bi bi-percent me-1"></i>{{ $item->identificador }}</span>
                                 @else
                                     <span class="badge bg-info-subtle text-info-emphasis mb-1 rounded-pill px-2 py-1 fw-bold border border-info-subtle font-monospace"><i class="bi bi-arrow-left-right me-1"></i>{{ $item->identificador }}</span>
                                 @endif
@@ -505,23 +534,23 @@
                             </td>
                             <td class="text-body py-3">
                                 <span class="d-flex align-items-center gap-2">
-                                    <div class="bg-secondary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-person text-secondary" style="font-size: 12px;"></i></div>
+                                    <div class="bg-secondary-subtle rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-person text-secondary" style="font-size: 12px;"></i></div>
                                     {{ $item->solicitado_por }}
                                 </span>
                             </td>
                             <td class="text-body py-3">
                                 <span class="d-flex align-items-center gap-2">
-                                    <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-shield-check text-primary" style="font-size: 12px;"></i></div>
+                                    <div class="bg-primary-subtle rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;"><i class="bi bi-shield-check text-primary" style="font-size: 12px;"></i></div>
                                     {{ $item->autorizado_por }}
                                 </span>
                             </td>
                             <td class="py-3">
                                 @if($item->estado === 'aprobada')
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1.5">
+                                    <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle rounded-pill px-3 py-1.5">
                                         <i class="bi bi-check-circle-fill me-1"></i> Aprobada
                                     </span>
                                 @else
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-1.5">
+                                    <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle rounded-pill px-3 py-1.5">
                                         <i class="bi bi-x-circle-fill me-1"></i> Rechazada
                                     </span>
                                 @endif
@@ -576,7 +605,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         
-        // INTERACCIÓN DE BOTONES: Evitar doble clic y mostrar spinner en los botones de aprobar/rechazar
+        // INTERACCIÓN DE BOTONES
         document.querySelectorAll('.btn-submit-auth').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -584,17 +613,13 @@
                 const confirmMsg = this.getAttribute('data-confirm');
                 
                 if (confirm(confirmMsg)) {
-                    // Deshabilitar todos los botones de la misma tarjeta para evitar doble acción
                     const card = this.closest('.auth-card');
                     card.querySelectorAll('.btn-submit-auth').forEach(btn => {
                         btn.classList.add('disabled');
                         btn.style.pointerEvents = 'none';
                     });
                     
-                    // Mostrar spinner en el botón clickeado
-                    const originalContent = this.innerHTML;
                     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Procesando...';
-                    
                     form.submit();
                 }
             });
@@ -619,7 +644,6 @@
                                 const contenedorActual = document.getElementById('contenedor-autorizaciones');
                                 if (nuevoContenedor && contenedorActual) {
                                     contenedorActual.innerHTML = nuevoContenedor.innerHTML;
-                                    // Re-asignar eventos a los nuevos botones insertados vía AJAX
                                     asignarEventosBotones();
                                 }
                                 

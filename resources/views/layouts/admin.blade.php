@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Sistema') | {{ \App\Helpers\ContentHelper::getNombreMostrar() }}</title>
 
-    <!-- 🔥 SCRIPT DE BLOQUEO INSTANTÁNEO (EVITA FLASH BLANCO Y PARPADEO DEL MENU) -->
+    <!-- SCRIPT DE BLOQUEO INSTANTÁNEO (EVITA FLASH BLANCO Y PARPADEO DEL MENU) -->
     <script>
         (function() {
             // 1. Cargar tema de forma inmediata
@@ -229,13 +229,6 @@
                 <a href="{{ route('movimientos.index') }}" class="nav-link {{ request()->routeIs('movimientos.*') ? 'active' : 'text-white' }}" title="Movimientos">
                     <i class="bi bi-arrow-left-right me-2"></i>
                     <span class="sidebar-text">Movimientos</span>
-                </a>
-            </li>
-
-            <li class="nav-item mb-1">
-                <a href="{{ route('obras.index') }}" class="nav-link {{ request()->routeIs('obras.*') ? 'active' : 'text-white' }}" title="Obras">
-                    <i class="bi bi-building me-2"></i>
-                    <span class="sidebar-text">Obras</span>
                 </a>
             </li>
 
@@ -539,6 +532,43 @@
         });
     });
 </script>
+
+{{-- INICIO: Modal Global de Selección Obligatoria de Sucursal post-login --}}
+@if(auth()->check() && session('mostrar_modal_sucursal') && !session('sucursal_seleccionada'))
+<div class="modal fade show" id="modalSeleccionarSucursal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" style="display: block; background: rgba(0,0,0,0.75); z-index: 1060;" aria-hidden="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-primary text-white border-0 py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-shop me-2"></i>Seleccionar Sucursal de Trabajo</h5>
+            </div>
+            <form action="{{ route('sucursal.seleccionar') }}" method="POST">
+                @csrf
+                <div class="modal-body p-4 bg-body">
+                    <p class="text-secondary small mb-3">
+                        Hola <strong>{{ auth()->user()->name }}</strong>, cuentas con acceso a múltiples sucursales. Selecciona en cuál trabajarás durante esta sesión:
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-body-secondary">Sucursal de Trabajo</label>
+                        <select name="sucursal_id" class="form-select form-select-lg rounded-3 bg-body-tertiary border" required>
+                            @foreach(auth()->user()->sucursales as $suc)
+                                <option value="{{ $suc->id }}" {{ auth()->user()->sucursal_id == $suc->id ? 'selected' : '' }}>
+                                    {{ $suc->nombre }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top p-3 bg-body-tertiary">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold rounded-3 py-2">
+                        Confirmar e Iniciar Trabajo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+{{-- FIN: Modal Global --}}
 
 </body>
 </html>

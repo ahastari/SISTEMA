@@ -1,5 +1,4 @@
 <?php
-// bootstrap/app.php
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'permission' => \App\Http\Middleware\EnsureUserHasPermission::class,
+        ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\VerificarSeleccionSucursal::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
