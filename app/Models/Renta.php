@@ -190,7 +190,7 @@ class Renta extends Model
 
         $saldo = $this->total - ($this->deposito ?? 0) - $totalPagado;
 
-        return $saldo;
+        return round($saldo, 2);
     }
 
     public function ampliarDias($diasExtra, $motivo = null, $conIva = false)

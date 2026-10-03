@@ -378,7 +378,7 @@
                     </label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-body text-secondary fw-bold">$</span>
-                        <input type="number" id="descuentoMonto" class="form-control bg-body text-body fw-bold" step="0.01" min="0" value="0.00" oninput="alCambiarDescuento()">
+                        <input type="number" id="descuentoMonto" class="form-control bg-body text-body fw-bold" step="0.01" min="0" value="0.00" oninput="alCambiarDescuento()" onfocus="if(this.value == '0' || this.value == '0.00') this.value = '';" onblur="if(this.value == '') { this.value = '0.00'; alCambiarDescuento(); }">
                     </div>
                 </div>
 
@@ -420,10 +420,62 @@
                 <!-- Campo Días de Crédito (Oculto dinámicamente) -->
                 <div class="mb-2" id="seccionCredito" style="display: none;">
                     <label class="form-label text-body fw-bold mb-1" style="font-size: 11px;">Días de Crédito Otorgados <span id="badgeCreditoEstado" class="badge ms-1" style="display: none; font-size: 9px;"></span></label>
-                    <div class="input-group input-group-sm">
+                    <div class="input-group input-group-sm mb-2">
                         <span class="input-group-text bg-body text-secondary fw-bold"><i class="bi bi-calendar-range"></i></span>
                         <input type="number" id="diasCredito" class="form-control bg-body text-body fw-bold" min="1" value="15" placeholder="Ej: 15, 30 días">
                         <span class="input-group-text bg-body text-secondary">días</span>
+                    </div>
+                    
+                    <label class="form-label text-body fw-bold mb-1" style="font-size: 11px;">Abono Inicial / Enganche ($)</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-body text-secondary fw-bold">$</span>
+                        <input type="number" id="abonoInicial" class="form-control bg-body text-body fw-bold" step="0.01" min="0" value="0.00"
+                            oninput="actualizarAbonoUI()"
+                            onfocus="if(this.value == '0' || this.value == '0.00') this.value = '';"
+                            onblur="if(this.value == '') this.value = '0.00'; actualizarAbonoUI();">
+                    </div>
+
+                    <!-- Método del enganche (solo visible si hay abono) -->
+                    <div id="grupoMetodoAbono" class="mt-2" style="display: none;">
+                        <label class="form-label text-body fw-bold mb-1" style="font-size: 11px;">¿Cómo paga el enganche?</label>
+                        <select id="abonoMetodo" class="form-select form-select-sm bg-body text-body" onchange="actualizarAbonoUI()">
+                            <option value="efectivo" selected>Efectivo</option>
+                            <option value="transferencia">Transferencia</option>
+                            <option value="tarjeta">Terminal</option>
+                            <option value="mixto">Pago Mixto</option>
+                        </select>
+
+                        <div id="abonoMixtoBox" class="p-2 border rounded-3 mt-2 bg-body-tertiary" style="display: none;">
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <select id="abonoMixtoMetodo1" class="form-select form-select-sm bg-body text-body" onchange="actualizarAbonoUI()">
+                                        <option value="efectivo" selected>Efectivo</option>
+                                        <option value="tarjeta">Tarjeta</option>
+                                        <option value="transferencia">Transferencia</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" id="abonoMixtoMonto1" class="form-control form-control-sm bg-body fw-bold" step="0.01" min="0" placeholder="0.00" oninput="actualizarAbonoUI()">
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <select id="abonoMixtoMetodo2" class="form-select form-select-sm bg-body text-body" onchange="actualizarAbonoUI()">
+                                        <option value="tarjeta" selected>Tarjeta</option>
+                                        <option value="transferencia">Transferencia</option>
+                                        <option value="efectivo">Efectivo</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" id="abonoMixtoMonto2" class="form-control form-control-sm bg-body fw-bold" step="0.01" min="0" placeholder="0.00" oninput="actualizarAbonoUI()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="abonoReferenciaBox" class="mt-2" style="display: none;">
+                            <input type="text" id="abonoReferencia" class="form-control form-control-sm bg-body text-body" maxlength="100"
+                                placeholder="Referencia (folio de transferencia / voucher), opcional">
+                        </div>
                     </div>
                 </div>
                 <!-- DESGLOSE DINÁMICO DE PAGO MIXTO -->
@@ -1141,6 +1193,43 @@ function diasCreditoActual() {
     return parseInt(document.getElementById('diasCredito')?.value) || 0;
 }
 
+function actualizarAbonoUI() {
+    const metodo  = document.getElementById('abonoMetodo')?.value || 'efectivo';
+    const inp     = document.getElementById('abonoInicial');
+    const grupo   = document.getElementById('grupoMetodoAbono');
+    const mixto   = document.getElementById('abonoMixtoBox');
+    const refBox  = document.getElementById('abonoReferenciaBox');
+    const refInp  = document.getElementById('abonoReferencia');
+    const esMixto = metodo === 'mixto';
+
+    if (mixto) mixto.style.display = esMixto ? 'block' : 'none';
+
+    if (inp) {
+        if (esMixto) {
+            const s = (parseFloat(document.getElementById('abonoMixtoMonto1')?.value) || 0)
+                    + (parseFloat(document.getElementById('abonoMixtoMonto2')?.value) || 0);
+            inp.value = s.toFixed(2);
+            inp.readOnly = true;      // en mixto el total sale de la suma de los 2 pagos
+        } else {
+            inp.readOnly = false;
+        }
+    }
+    const monto = parseFloat(inp?.value) || 0;
+    if (grupo) grupo.style.display = (monto > 0 || esMixto) ? 'block' : 'none';
+
+    // La referencia solo aplica si el enganche NO es 100% efectivo
+    let requiereRef;
+    if (esMixto) {
+        const m1 = document.getElementById('abonoMixtoMetodo1')?.value;
+        const m2 = document.getElementById('abonoMixtoMetodo2')?.value;
+        requiereRef = (m1 !== 'efectivo') || (m2 !== 'efectivo');
+    } else {
+        requiereRef = metodo !== 'efectivo';
+    }
+    if (refBox) refBox.style.display = requiereRef ? 'block' : 'none';
+    if (!requiereRef && refInp) refInp.value = '';   // no arrastrar una referencia vieja
+}
+
 function creditoCoincide(total) {
     const cli = String(document.getElementById('clienteVenta')?.value || '');
     return !!solicitudCredito
@@ -1359,11 +1448,18 @@ function guardarActualEnEspera() {
         pago: {
             metodo: document.getElementById('metodoPago')?.value || '',
             dias: document.getElementById('diasCredito')?.value || '15',
+            abono: document.getElementById('abonoInicial')?.value || '0.00',
             recibido: document.getElementById('montoRecibido')?.value || '',
             m1: document.getElementById('mixtoMetodo1')?.value || '',
             monto1: document.getElementById('mixtoMonto1')?.value || '',
             m2: document.getElementById('mixtoMetodo2')?.value || '',
-            monto2: document.getElementById('mixtoMonto2')?.value || ''
+            monto2: document.getElementById('mixtoMonto2')?.value || '',
+            abMetodo: document.getElementById('abonoMetodo')?.value || 'efectivo',
+            abRef:    document.getElementById('abonoReferencia')?.value || '',
+            abM1: document.getElementById('abonoMixtoMetodo1')?.value || '', 
+            abMonto1: document.getElementById('abonoMixtoMonto1')?.value || '',
+            abM2: document.getElementById('abonoMixtoMetodo2')?.value || '', 
+            abMonto2: document.getElementById('abonoMixtoMonto2')?.value || '',
         },
         solicitud: solicitudDescuento,
         solicitudCredito: solicitudCredito
@@ -1418,6 +1514,13 @@ function cargarCarrito(snap) {
         selMetodo.dispatchEvent(new Event('change'));
     }
     setVal('diasCredito', pg.dias);
+    setVal('abonoInicial', pg.abono);
+    setVal('abonoMetodo', pg.abMetodo); setVal('abonoReferencia', pg.abRef);
+    setVal('abonoMixtoMetodo1', pg.abM1); 
+    setVal('abonoMixtoMonto1', pg.abMonto1);
+    setVal('abonoMixtoMetodo2', pg.abM2); 
+    setVal('abonoMixtoMonto2', pg.abMonto2);
+    actualizarAbonoUI();
     setVal('montoRecibido', pg.recibido);
     setVal('mixtoMetodo1', pg.m1);
     setVal('mixtoMonto1', pg.monto1);
@@ -1685,9 +1788,10 @@ function realizarVenta() {
         clienteNombre = selectCliente.options[selectCliente.selectedIndex].text.trim();
     }
 
-    // CAPTURAR DESCUENTO Y DÍAS DE CRÉDITO
+    // CAPTURAR DESCUENTO, DÍAS DE CRÉDITO Y ABONO INICIAL
     const descuento = parseFloat(document.getElementById('descuentoMonto')?.value) || 0;
     const diasCredito = parseInt(document.getElementById('diasCredito')?.value) || 0;
+    const abonoInicial = parseFloat(document.getElementById('abonoInicial')?.value) || 0;
 
     if (!metodoPago) {
         alert('Selecciona un método de pago');
@@ -1724,6 +1828,27 @@ function realizarVenta() {
     if (metodoPago === 'credito' && !creditoAutorizado(totalVenta)) {
         solicitarAutorizacionCredito(totalVenta);
         return;
+    }
+
+    let abonoMetodo = null, abonoPagos = null, abonoTotal = 0;
+    if (metodoPago === 'credito') {
+        abonoMetodo = document.getElementById('abonoMetodo')?.value || 'efectivo';
+        abonoTotal  = abonoInicial;
+
+        if (abonoMetodo === 'mixto') {
+            const m1 = document.getElementById('abonoMixtoMetodo1').value;
+            const m2 = document.getElementById('abonoMixtoMetodo2').value;
+            const a1 = parseFloat(document.getElementById('abonoMixtoMonto1').value) || 0;
+            const a2 = parseFloat(document.getElementById('abonoMixtoMonto2').value) || 0;
+            if (m1 === m2) { alert('En el abono mixto debes elegir dos métodos diferentes.'); return; }
+            if (a1 <= 0 || a2 <= 0) { alert('En el abono mixto ambos montos deben ser mayores a cero.'); return; }
+            abonoPagos = [{ metodo: m1, monto: a1 }, { metodo: m2, monto: a2 }];
+            abonoTotal = a1 + a2;
+        }
+        if (abonoTotal > totalVenta + 0.009) {
+            alert('El abono inicial no puede ser mayor al total de la venta.');
+            return;
+        }
     }
 
     if (metodoPago === 'efectivo') {
@@ -1786,6 +1911,12 @@ function realizarVenta() {
         solicitud_descuento_id: (descuento > 0 && solicitudDescuento) ? solicitudDescuento.id : null,
         solicitud_credito_id: (metodoPago === 'credito' && solicitudCredito) ? solicitudCredito.id : null,
         dias_credito: metodoPago === 'credito' ? diasCredito : null,
+        abono_inicial: metodoPago === 'credito' ? abonoTotal : 0,
+        abono_metodo: (metodoPago === 'credito' && abonoTotal > 0) ? abonoMetodo : null,
+        abono_pagos_mixtos: (metodoPago === 'credito' && abonoMetodo === 'mixto') ? abonoPagos : null,
+        abono_referencia: (metodoPago === 'credito' && abonoTotal > 0 && abonoMetodo !== 'efectivo')
+            ? (document.getElementById('abonoReferencia')?.value || null)
+            : null,
         pagos_mixtos: detalleMixto,
         monto_recibido: finalMontoRecibido,
         cliente_nombre: clienteId ? clienteNombre : 'Cliente general',
@@ -1844,6 +1975,9 @@ function realizarVenta() {
                 if (document.getElementById('m-v-flete')) document.getElementById('m-v-flete').textContent = '$' + m.total_flete;
                 if (document.getElementById('m-v-mano-obra')) document.getElementById('m-v-mano-obra').textContent = '$' + m.total_mano_obra;
                 if (document.getElementById('m-total-esperado')) document.getElementById('m-total-esperado').textContent = m.efectivo_esperado;
+                if (document.getElementById('m-abonos-efectivo'))      document.getElementById('m-abonos-efectivo').textContent      = '$' + m.abonos_efectivo;
+                if (document.getElementById('m-abonos-transferencia')) document.getElementById('m-abonos-transferencia').textContent = '$' + m.abonos_transferencia;
+                if (document.getElementById('m-abonos-tarjeta'))       document.getElementById('m-abonos-tarjeta').textContent       = '$' + m.abonos_tarjeta;
             }
 
             // Mostrar ticket de venta
@@ -1962,6 +2096,7 @@ function limpiarYEnfocarPOS() {
     // 4. Resetear descuento, días de crédito, método de pago y secciones dinámicas
     const inputDescuento = document.getElementById('descuentoMonto');
     const inputDiasCredito = document.getElementById('diasCredito');
+    const inputAbonoInicial = document.getElementById('abonoInicial');
     const selectMetodo = document.getElementById('metodoPago');
     const inputRecibido = document.getElementById('montoRecibido');
     const seccionCambio = document.getElementById('seccionCambio');
@@ -1973,6 +2108,17 @@ function limpiarYEnfocarPOS() {
     solicitudCredito = null;
     actualizarBadgeCredito();
     if (inputDiasCredito) inputDiasCredito.value = '15';
+    if (inputAbonoInicial) inputAbonoInicial.value = '0.00';
+
+    ['abonoMixtoMonto1','abonoMixtoMonto2','abonoReferencia'].forEach(id => { 
+        const e = document.getElementById(id); 
+        if (e) e.value = ''; 
+    });
+
+    const am = document.getElementById('abonoMetodo'); if (am) am.value = 'efectivo';
+
+    actualizarAbonoUI();
+
     if (selectMetodo) selectMetodo.value = '';
     if (inputRecibido) inputRecibido.value = '';
 

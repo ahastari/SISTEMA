@@ -86,8 +86,13 @@ class PuntoVentaController extends Controller
             'cliente_id'  => 'nullable|integer',
             'reemplaza_id' => 'nullable|integer',
             'tipo'        => 'nullable|in:descuento,credito',
-            'origen'      => 'nullable|in:renta', // descuento pedido desde una RENTA (null = venta del POS)
+            'origen'      => 'nullable|in:renta',
             'dias_credito' => 'required_if:tipo,credito|nullable|integer|min:1|max:365',
+            'abono_metodo'                  => 'nullable|in:efectivo,transferencia,tarjeta,mixto',
+            'abono_pagos_mixtos'            => 'nullable|array|size:2',
+            'abono_pagos_mixtos.*.metodo'   => 'required_with:abono_pagos_mixtos|in:efectivo,transferencia,tarjeta',
+            'abono_pagos_mixtos.*.monto'    => 'required_with:abono_pagos_mixtos|numeric|min:0.01',
+            'abono_referencia'              => 'nullable|string|max:100',
         ]);
 
         $monto = round((float) $request->monto, 2);
@@ -333,6 +338,7 @@ class PuntoVentaController extends Controller
             'solicitud_descuento_id' => 'nullable|integer',
             'solicitud_credito_id' => 'nullable|integer',
             'dias_credito' => 'required_if:metodo_pago,credito|nullable|integer|min:1',
+            'abono_inicial' => 'nullable|numeric|min:0',
             'monto_recibido' => 'nullable|numeric|min:0',
             'pagos_mixtos' => 'nullable|array',
             'cliente_id' => 'nullable',
@@ -511,22 +517,30 @@ class PuntoVentaController extends Controller
             if ($metodoPago === 'credito' && !(auth()->user()->isAdmin() || auth()->user()->isGerente())) {
                 $limiteCredito = $this->limiteCredito($sucursalId);
                 if ($limiteCredito !== null && $totalFinal > $limiteCredito + 0.0001) {
-                    $solicitudCredito = SolicitudDescuento::where('id', $request->input('solicitud_credito_id'))
-                        ->where('user_id', auth()->id())
+                    
+                    $solicitudCredito = SolicitudDescuento::where('user_id', auth()->id())
                         ->where('tipo', 'credito')
-                        ->when($sucursalId !== 'global', fn ($q) => $q->where('sucursal_id', $sucursalId))
                         ->where('estado', 'aprobada')
+                        ->when($sucursalId !== 'global', fn ($q) => $q->where('sucursal_id', $sucursalId))
+                        ->where('cliente_id', $clienteIdValido)
+                        ->whereRaw('ABS(monto - ?) < 0.01', [$totalFinal])
                         ->lockForUpdate()
                         ->first();
 
-                    if (!$solicitudCredito
-                        || abs($solicitudCredito->monto - $totalFinal) >= 0.01
-                        || (int) ($solicitudCredito->cliente_id ?? 0) !== (int) ($clienteIdValido ?? 0)
-                        || (int) ($solicitudCredito->dias_credito ?? 0) !== (int) $request->input('dias_credito', 15)) {
-                        throw new \Exception('Este crédito ($' . number_format($totalFinal, 2) . ') excede el límite de $' . number_format($limiteCredito, 2) . ' de esta sucursal y requiere autorización de un gerente o administrador para este cliente.');
+                    if (!$solicitudCredito || (int) ($solicitudCredito->dias_credito ?? 0) !== (int) $request->input('dias_credito', 15)) {
+                        
+                        throw new \Exception("ERROR_CREDITO_LIMITE|" . json_encode([
+                            'monto' => $totalFinal,
+                            'subtotal' => $subtotalBruto,
+                            'cliente_id' => $clienteIdValido,
+                            'cliente_nombre' => $clienteNombre,
+                            'limite' => $limiteCredito,
+                            'dias' => (int) $request->input('dias_credito', 15)
+                        ]));
                     }
                 }
             }
+
             $montoRecibido = $request->monto_recibido > 0 ? floatval($request->monto_recibido) : $totalFinal;
             $cambio = max(0, $montoRecibido - $totalFinal);
 
@@ -567,7 +581,54 @@ class PuntoVentaController extends Controller
                 DetalleVenta::create($detalle);
             }
 
-            // Actualizar Arqueo / Corte de Caja (Excluyendo Créditos del Efectivo)
+            $abonoInicial = round(floatval($request->input('abono_inicial', 0)), 2);
+
+            if ($metodoPago === 'credito' && $abonoInicial > 0) {
+
+                $metodoAbono = $request->input('abono_metodo', 'efectivo');
+
+                if ($metodoAbono === 'mixto') {
+                    $pagosAbono = collect($request->input('abono_pagos_mixtos', []))->map(fn ($p) => [
+                        'metodo' => $p['metodo'],
+                        'monto'  => round((float) $p['monto'], 2),
+                    ])->values()->all();
+
+                    if (count($pagosAbono) !== 2 || count(array_unique(array_column($pagosAbono, 'metodo'))) < 2) {
+                        throw new \Exception('En el abono inicial mixto debes elegir dos métodos de pago diferentes.');
+                    }
+                    $abonoInicial = round(array_sum(array_column($pagosAbono, 'monto')), 2);
+                } else {
+                    $pagosAbono = [['metodo' => $metodoAbono, 'monto' => $abonoInicial]];
+                }
+
+                if ($abonoInicial > $totalFinal + 0.009) {
+                    throw new \Exception('El abono inicial no puede ser mayor al total de la venta.');
+                }
+
+                AbonoVenta::create([
+                    'venta_id'      => $venta->id,
+                    'user_id'       => auth()->id(),
+                    'sucursal_id'   => $sucursalId !== 'global' ? $sucursalId : null,
+                    'corte_caja_id' => $corteActivo->id,
+                    'monto'         => $abonoInicial,
+                    'metodo'        => $metodoAbono,
+                    'pagos_mixtos'  => $metodoAbono === 'mixto' ? $pagosAbono : null,
+                    'referencia'    => $request->input('abono_referencia') ?: 'Abono inicial / Enganche',
+                    'observaciones' => 'Abono inicial / Enganche',
+                ]);
+
+                foreach ($pagosAbono as $p) {
+                    MovimientoCaja::create([
+                        'corte_caja_id' => $corteActivo->id,
+                        'tipo'          => 'ingreso',
+                        'concepto'      => 'Abono crédito ' . $venta->folio . ' (enganche)' . ($metodoAbono === 'mixto' ? ' (mixto)' : ''),
+                        'monto'         => $p['monto'],
+                        'metodo'        => $p['metodo'],
+                    ]);
+                }
+            }
+
+            // Actualizar Arqueo / Corte de Caja
             $corteActivo->total_ventas += $totalFinal;
 
             if ($metodoPago === 'mixto' && is_array($request->pagos_mixtos)) {
@@ -607,6 +668,10 @@ class PuntoVentaController extends Controller
             $egresosEfe = $corteActivo->movimientos->where('tipo', 'egreso')->where('metodo', 'efectivo')->sum('monto');
             $efeEsperado = $corteActivo->monto_inicial + $corteActivo->total_efectivo + $ingresosEfe - $egresosEfe;
 
+            $abonosMov = $corteActivo->movimientos
+                ->where('tipo', 'ingreso')
+                ->filter(fn ($m) => \Illuminate\Support\Str::startsWith($m->concepto ?? '', 'Abono crédito'));
+
             DB::commit();
 
             return response()->json([
@@ -622,11 +687,58 @@ class PuntoVentaController extends Controller
                     'total_flete' => number_format($montoFleteModal, 2),
                     'total_mano_obra' => number_format($montoManoObraModal, 2),
                     'efectivo_esperado' => number_format($efeEsperado, 2),
+                    'abonos_efectivo'      => number_format($abonosMov->where('metodo', 'efectivo')->sum('monto'), 2),
+                    'abonos_transferencia' => number_format($abonosMov->where('metodo', 'transferencia')->sum('monto'), 2),
+                    'abonos_tarjeta'       => number_format($abonosMov->where('metodo', 'tarjeta')->sum('monto'), 2),
                 ]
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+
+            if (str_starts_with($e->getMessage(), 'ERROR_CREDITO_LIMITE|')) {
+                $payload = json_decode(explode('|', $e->getMessage(), 2)[1], true);
+                
+                $montoCredito = (float) $payload['monto'];
+                $subtBruto    = (float) $payload['subtotal'];
+                $idCl         = $payload['cliente_id'];
+                $nomCl        = $payload['cliente_nombre'];
+                $limCred      = (float) $payload['limite'];
+                $diasCredito  = (int) $payload['dias'];
+
+                $pendiente = SolicitudDescuento::where('user_id', auth()->id())
+                    ->where('tipo', 'credito')
+                    ->where('estado', 'pendiente')
+                    ->where('cliente_id', $idCl)
+                    ->whereRaw('ABS(monto - ?) < 0.01', [$montoCredito])
+                    ->first();
+
+                if (!$pendiente) {
+                    $corteActivo = CorteCaja::where('estado', 'abierto')->where('user_id', auth()->id())->first();
+                    
+                    $nuevaSolicitud = (new SolicitudDescuento)->forceFill([
+                        'user_id'        => auth()->id(),
+                        'cliente_id'     => $idCl,
+                        'cliente_nombre' => $nomCl,
+                        'tipo'           => 'credito',
+                        'limite_credito' => $limCred,
+                        'dias_credito'   => $diasCredito,
+                        'sucursal_id'    => session('activo_sucursal_id') !== 'global' ? session('activo_sucursal_id') : null,
+                        'corte_caja_id'  => $corteActivo ? $corteActivo->id : null,
+                        'monto'          => $montoCredito,
+                        'subtotal'       => $subtBruto,
+                        'motivo'         => 'Venta a crédito (' . $diasCredito . ' días). El monto excede el límite de sucursal configurado ($' . number_format($limCred, 2) . ').',
+                        'estado'         => 'pendiente',
+                    ]);
+                    $nuevaSolicitud->save();
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El crédito de $' . number_format($montoCredito, 2) . ' excede el límite sin autorización. Se ha enviado la solicitud automáticamente al gerente. Espera la confirmación en sistema y vuelve a Registrar.'
+                ], 422); 
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -636,7 +748,7 @@ class PuntoVentaController extends Controller
     
     public function ticket(Venta $venta)
     {
-        $venta->load(['detalles.equipo', 'cliente', 'sucursal']); 
+        $venta->load(['detalles.equipo', 'cliente', 'sucursal', 'abonos']); 
         return view('puntoventa.ticket', compact('venta'));
     }
 
@@ -669,14 +781,15 @@ class PuntoVentaController extends Controller
         try {
             $venta = Venta::with(['detalles.equipo', 'cliente', 'sucursal'])->findOrFail($id);
 
-            // Validaciones ANTES de abrir la transacción: un `return` con la transacción abierta
-            // hace que se pierda el mensaje flash de la sesión y el usuario no vea ningún aviso.
             if ($venta->estado === 'cancelada') {
                 return back()->with('error', 'Esta transacción comercial ya fue cancelada con anterioridad.');
             }
 
-            if ($venta->metodo_pago === 'credito' && AbonoVenta::where('venta_id', $venta->id)->exists()) {
-                return back()->with('error', 'Esta venta a crédito ya tiene abonos registrados; no se puede cancelar sin antes resolver los abonos con el gerente.');
+            $abonosRegistrados = AbonoVenta::where('venta_id', $venta->id)->get();
+            $esGerente = auth()->user()->isAdmin() || auth()->user()->isGerente();
+
+            if (!$esGerente && $venta->metodo_pago === 'credito' && $abonosRegistrados->count() > 1) {
+                return back()->with('error', 'Esta venta a crédito tiene abonos adicionales registrados; no se puede cancelar sin antes resolver las devoluciones con el gerente.');
             }
 
             if ($venta->autorizacion_solicitada) {
@@ -685,9 +798,6 @@ class PuntoVentaController extends Controller
 
             DB::beginTransaction();
 
-            $esGerente = auth()->user()->isAdmin() || auth()->user()->isGerente();
-
-            // SI ES CAJERO: Solo se envía la solicitud
             if (!$esGerente) {
                 $venta->update([
                     'autorizacion_solicitada' => true,
@@ -698,7 +808,6 @@ class PuntoVentaController extends Controller
                 return back()->with('success', "Se envió la solicitud de cancelación al gerente para la venta {$venta->folio}.");
             }
 
-            // SI ES GERENTE O ADMIN: Se cancela directamente
             foreach ($venta->detalles as $detalle) {
                 $producto = Equipo::find($detalle->equipo_id);
                 if ($producto) {
@@ -710,18 +819,35 @@ class PuntoVentaController extends Controller
                 }
             }
 
-            $corteActivo = CorteCaja::where('estado', 'abierto')->where('user_id', $venta->corte_caja_id)->first();
+            $corteActivo = CorteCaja::where('estado', 'abierto')->where('id', $venta->corte_caja_id)->first();
+            
             if ($corteActivo) {
                 $corteActivo->decrement('total_ventas', $venta->total);
 
-                if ($venta->metodo_pago === 'efectivo') $corteActivo->decrement('total_efectivo', $venta->total);
-                elseif ($venta->metodo_pago === 'transferencia') $corteActivo->decrement('total_transferencias', $venta->total);
-                elseif ($venta->metodo_pago === 'tarjeta') $corteActivo->decrement('total_tarjetas', $venta->total);
-                elseif ($venta->metodo_pago === 'mixto' && is_array($venta->pagos_mixtos)) {
+                if ($venta->metodo_pago === 'efectivo') {
+                    $corteActivo->decrement('total_efectivo', $venta->total);
+                } elseif ($venta->metodo_pago === 'transferencia') {
+                    $corteActivo->decrement('total_transferencias', $venta->total);
+                } elseif ($venta->metodo_pago === 'tarjeta') {
+                    $corteActivo->decrement('total_tarjetas', $venta->total);
+                } elseif ($venta->metodo_pago === 'mixto' && is_array($venta->pagos_mixtos)) {
                     foreach ($venta->pagos_mixtos as $pago) {
                         if ($pago['metodo'] === 'efectivo') $corteActivo->decrement('total_efectivo', $pago['monto']);
                         elseif ($pago['metodo'] === 'transferencia') $corteActivo->decrement('total_transferencias', $pago['monto']);
                         elseif ($pago['metodo'] === 'tarjeta') $corteActivo->decrement('total_tarjetas', $pago['monto']);
+                    }
+                } 
+                elseif ($venta->metodo_pago === 'credito' && $abonosRegistrados->count() > 0) {
+                    foreach ($abonosRegistrados as $ab) {
+                        foreach (CreditoController::desglosePago($ab) as $p) {
+                            MovimientoCaja::create([
+                                'corte_caja_id' => $corteActivo->id,
+                                'tipo'          => 'egreso',
+                                'concepto'      => 'Devolución de abono de crédito por cancelación ' . $venta->folio,
+                                'monto'         => $p['monto'],
+                                'metodo'        => $p['metodo'],
+                            ]);
+                        }
                     }
                 }
                 $corteActivo->save();

@@ -16,6 +16,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\PlantillaDocumento;
 use App\Models\Configuracion;
 use App\Models\SolicitudDescuento;
+use Illuminate\Validation\Rule;
 
 class RentaController extends Controller
 {
@@ -408,13 +409,17 @@ class RentaController extends Controller
             }
 
             $nuevoPagoId = null;
-            
+
             if ($deposito > 0) {
+                $metodoDep = $request->metodo_pago_deposito ?? 'efectivo';
+                $desglose = $this->desgloseMixto($request, $metodoDep, (float) $deposito);
+
                 $pago = $renta->pagos()->create([
                     'monto' => $deposito,
-                    'metodo_pago' => $request->metodo_pago_deposito ?? 'efectivo',
+                    'metodo_pago' => $metodoDep,
                     'tipo' => 'deposito',
-                    'referencia' => $request->referencia_deposito,
+                    'referencia' => $desglose ? $this->textoDesglose($desglose) : $request->referencia_deposito,
+                    'desglose_mixto' => $desglose,
                     'fecha_pago' => now(),
                     'observaciones' => 'Depósito inicial al generar el contrato'
                 ]);
@@ -972,12 +977,55 @@ class RentaController extends Controller
         return back()->with('error', 'Documento no encontrado');
     }
 
-    /**
-     * Refleja en el corte de caja abierto del usuario el cobro de una renta
-     * (igual que los abonos de crédito): queda como INGRESO con concepto "Abono renta <folio>".
-     * TODO cobro (efectivo, transferencia o tarjeta) requiere caja abierta: sin caja no se registra el pago.
-     */
-    private function registrarIngresoCaja(Renta $renta, float $monto, string $metodo, string $detalle = ''): void
+    private function desgloseMixto(Request $request, string $metodo, float $monto): ?array
+    {
+        if ($metodo !== 'mixto' || $monto <= 0) {
+            return null;
+        }
+
+        $permitidos = ['efectivo', 'transferencia', 'tarjeta'];
+        $partes = [];
+
+        foreach ([1, 2] as $n) {
+            $m = (string) $request->input("mixto_metodo_$n");
+            $v = round((float) $request->input("mixto_monto_$n", 0), 2);
+            $ref = trim((string) $request->input("mixto_ref_$n"));
+
+            if (!in_array($m, $permitidos, true)) {
+                throw new \Exception("Pago mixto: el método de la parte $n no es válido.");
+            }
+            if ($v <= 0) {
+                throw new \Exception("Pago mixto: captura el monto de la parte $n.");
+            }
+            if ($m !== 'efectivo' && $ref === '') {
+                throw new \Exception("Pago mixto: captura la referencia de la parte $n (" . ucfirst($m) . ").");
+            }
+
+            $partes[] = ['metodo' => $m, 'monto' => $v, 'referencia' => $ref !== '' ? $ref : null];
+        }
+
+        if ($partes[0]['metodo'] === $partes[1]['metodo']) {
+            throw new \Exception('Pago mixto: elige dos métodos distintos.');
+        }
+
+        $suma = round($partes[0]['monto'] + $partes[1]['monto'], 2);
+        if (abs($suma - round($monto, 2)) >= 0.01) {
+            throw new \Exception('Pago mixto: la suma de las partes ($' . number_format($suma, 2) . ') debe ser igual al monto a registrar ($' . number_format($monto, 2) . ').');
+        }
+
+        return $partes;
+    }
+
+    private function textoDesglose(array $partes): string
+    {
+        return collect($partes)->map(function ($p) {
+            return ucfirst($p['metodo']) . ' $' . number_format($p['monto'], 2)
+                . (!empty($p['referencia']) ? ' (Ref: ' . $p['referencia'] . ')' : '');
+        })->implode(' + ');
+    }
+
+    
+    private function registrarIngresoCaja(Renta $renta, float $monto, string $metodo, string $detalle = '', ?array $desglose = null): void
     {
         if ($monto <= 0) {
             return;
@@ -985,19 +1033,26 @@ class RentaController extends Controller
 
         $corte = CorteCaja::where('estado', 'abierto')->where('user_id', auth()->id())->first();
 
-        // Sin caja abierta no se permite ningún cobro. Al lanzar la excepción dentro de la transacción,
-        // se revierte todo (pago, devoluciones y cargos de esa operación).
         if (!$corte) {
             throw new \Exception('No hay caja abierta. Abre tu caja en el Punto de Venta para poder registrar cobros de rentas. (Las operaciones sin cobro, con monto $0, sí se pueden procesar.)');
         }
 
-        MovimientoCaja::create([
-            'corte_caja_id' => $corte->id,
-            'tipo'          => 'ingreso',
-            'concepto'      => 'Abono renta ' . $renta->folio . ($detalle !== '' ? ' (' . $detalle . ')' : ''),
-            'monto'         => round($monto, 2),
-            'metodo'        => $metodo,
-        ]);
+        $partes = $desglose ?: [['metodo' => $metodo, 'monto' => $monto]];
+
+        foreach ($partes as $i => $p) {
+            $etiqueta = $detalle;
+            if ($desglose) {
+                $etiqueta = trim($detalle . ($detalle !== '' ? ' · ' : '') . 'mixto ' . ($i + 1) . '/2');
+            }
+
+            MovimientoCaja::create([
+                'corte_caja_id' => $corte->id,
+                'tipo'          => 'ingreso',
+                'concepto'      => 'Abono renta ' . $renta->folio . ($etiqueta !== '' ? ' (' . $etiqueta . ')' : ''),
+                'monto'         => round($p['monto'], 2),
+                'metodo'        => $p['metodo'],
+            ]);
+        }
     }
 
     public function registrarPago(Request $request, Renta $renta)
@@ -1098,8 +1153,9 @@ class RentaController extends Controller
 
                 $renta->save();
 
-                // 4. CREAR EL PAGO (Y guardar qué equipo se devolvió en este recibo)
                 if ($request->monto > 0) {
+                    $desglose = $this->desgloseMixto($request, (string) $request->metodo_pago, (float) $request->monto);
+
                     $textoRetornoTicket = !empty($articulosDevueltos) ? implode(', ', $articulosDevueltos) : "Ninguno";
                     $obsPago = 'Registro de pago' . ($renta->estado === 'finalizada' ? ' / liquidación final' : '');
                     $obsPago .= " | Equipo devuelto: " . $textoRetornoTicket;
@@ -1108,14 +1164,15 @@ class RentaController extends Controller
                         'monto' => $request->monto,
                         'metodo_pago' => $request->metodo_pago,
                         'tipo' => $renta->estado === 'finalizada' ? 'liquidacion' : 'abono',
-                        'referencia' => $request->referencia,
+                        'referencia' => $desglose ? $this->textoDesglose($desglose) : $request->referencia,
+                        'desglose_mixto' => $desglose,
                         'fecha_pago' => now(),
                         'observaciones' => $obsPago
                     ]);
                     $nuevoPagoId = $pago->id;
 
-                    // Se refleja en el corte de caja del día
-                    $this->registrarIngresoCaja($renta, (float) $request->monto, (string) $request->metodo_pago, $renta->estado === 'finalizada' ? 'liquidación' : '');
+                    $this->registrarIngresoCaja($renta, (float) $request->monto, (string) $request->metodo_pago,
+                        $renta->estado === 'finalizada' ? 'liquidación' : '', $desglose);
                 }
             });
 
@@ -1159,18 +1216,21 @@ class RentaController extends Controller
 
                 $montoPago = floatval($request->input('monto_pago', 0));
                 if ($montoPago > 0) {
+                    $metodoFinal = (string) ($request->metodo_pago_final ?? 'efectivo');
+                    $desglose = $this->desgloseMixto($request, $metodoFinal, $montoPago);
+
                     $pago = $renta->pagos()->create([
                         'monto' => $montoPago,
-                        'metodo_pago' => $request->metodo_pago_final ?? 'efectivo',
+                        'metodo_pago' => $metodoFinal,
                         'tipo' => 'liquidacion',
-                        'referencia' => $request->referencia_final,
+                        'referencia' => $desglose ? $this->textoDesglose($desglose) : $request->referencia_final,
+                        'desglose_mixto' => $desglose,
                         'fecha_pago' => now(),
                         'observaciones' => 'Abono en intento de finalización'
                     ]);
                     $nuevoPagoId = $pago->id;
 
-                    // Se refleja en el corte de caja del día
-                    $this->registrarIngresoCaja($renta, $montoPago, (string) ($request->metodo_pago_final ?? 'efectivo'), 'liquidación');
+                    $this->registrarIngresoCaja($renta, $montoPago, $metodoFinal, 'liquidación', $desglose);
                 }
 
                 $saldoFinal = $renta->fresh()->saldo_pendiente;
@@ -1318,21 +1378,24 @@ class RentaController extends Controller
 
                 // 3. CREAR PAGO SI HUBIERA
                 if ($request->filled('abono') && $request->abono > 0) {
+                    $metodoAmp = (string) ($request->metodo_pago ?? 'efectivo');
+                    $desglose = $this->desgloseMixto($request, $metodoAmp, (float) $request->abono);
+
                     $textoRetornoTicket = !empty($articulosDevueltos) ? implode(', ', $articulosDevueltos) : "Ninguno";
                     $obsPago = ($request->motivo ?? 'Abono en ampliación de días') . " | Equipo devuelto: " . $textoRetornoTicket;
 
                     $pago = $renta->pagos()->create([
                         'monto' => $request->abono,
-                        'metodo_pago' => $request->metodo_pago ?? 'efectivo',
+                        'metodo_pago' => $metodoAmp,
                         'tipo' => 'ampliacion',
-                        'referencia' => $request->referencia,
+                        'referencia' => $desglose ? $this->textoDesglose($desglose) : $request->referencia,
+                        'desglose_mixto' => $desglose,
                         'fecha_pago' => now(),
                         'observaciones' => $obsPago
                     ]);
                     $nuevoPagoId = $pago->id;
 
-                    // Se refleja en el corte de caja del día
-                    $this->registrarIngresoCaja($renta, (float) $request->abono, (string) ($request->metodo_pago ?? 'efectivo'), 'ampliación');
+                    $this->registrarIngresoCaja($renta, (float) $request->abono, $metodoAmp, 'ampliación', $desglose);
                 }
             });
 

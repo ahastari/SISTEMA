@@ -11,10 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class MovimientoSucursalController extends Controller
 {
-    /**
-     * 🔒 CANDADO DE SEGURIDAD (NUEVO)
-     * Centraliza los permisos: Admin autoriza todo, Gerente solo lo de su sucursal
-     */
+
     private function validarPermisoSucursal($sucursal_id_operacion)
     {
         $user = auth()->user();
@@ -88,6 +85,7 @@ class MovimientoSucursalController extends Controller
     public function create(Request $request)
     {
         $sucursalActivaId = session('activo_sucursal_id');
+        $user = auth()->user();
         
         $querySucursales = Sucursal::where('activa', true);
         if ($sucursalActivaId && $sucursalActivaId !== 'global') {
@@ -101,9 +99,16 @@ class MovimientoSucursalController extends Controller
             ->where('sucursal_destino_id', $sucursalActivaId)
             ->get();
 
-        $equipos = Equipo::where('activo', true)
-            ->with(['categoria', 'unidadMedida', 'sucursales'])
-            ->get();
+        $queryEquipos = Equipo::where('activo', true)
+            ->with(['categoria', 'unidadMedida', 'sucursales']);
+            
+        if ($sucursalActivaId !== 'global' && !$user->isAdmin()) {
+            $queryEquipos->whereHas('sucursales', function($q) use ($sucursalActivaId) {
+                $q->where('sucursal_id', $sucursalActivaId);
+            });
+        }
+        
+        $equipos = $queryEquipos->get();
         
         $equipoSeleccionado = $request->get('equipo_id');
         

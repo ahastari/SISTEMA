@@ -10,10 +10,13 @@ class AbonoVenta extends Model
 
     protected $fillable = [
         'venta_id', 'user_id', 'sucursal_id', 'corte_caja_id',
-        'monto', 'metodo', 'referencia', 'observaciones',
+        'monto', 'metodo', 'pagos_mixtos', 'referencia', 'observaciones',
     ];
 
-    protected $casts = ['monto' => 'float'];
+    protected $casts = [
+        'monto' => 'float',
+        'pagos_mixtos' => 'array',
+    ];
 
     public function venta()
     {

@@ -266,6 +266,10 @@
                             <input type="text" name="referencia_deposito" id="referencia_deposito" class="form-control form-control-sm bg-body" placeholder="Ref. de pago">
                         </div>
 
+                        <div class="col-12">
+                            @include('rentas.partials.pago_mixto', ['id' => 'deposito'])
+                        </div>
+
                         <!-- Descuento (el cajero debe pedir autorización al gerente) -->
                         <div class="col-12">
                             <div class="p-2 p-md-3 border rounded-3 bg-body-tertiary" id="bloqueDescuento">
@@ -435,9 +439,10 @@
         return $eq ? ['id' => (string) $eq->id, 'nombre' => $eq->nombre, 'cantidad' => (int) ($e['cantidad'] ?? 1), 'precio' => (float) $eq->precio_dia, 'tarifa' => $eq->tipo_tarifa ?? 'dia', 'stock' => (int) $eq->stock] : null;
     })->filter()->values();
 @endphp
+
+@include('rentas.partials.pago_mixto_js')
+
 <script>
-// ======================= DATOS INICIALES ======================= //
-// Si el servidor regresó el formulario con un error, se recuperan productos y factura
 const EQUIPOS_PREVIOS = @json($equiposPrevios);
 const FACTURA_PREVIA = @json(old('requiere_factura', '1')) === '1';
 
@@ -956,6 +961,12 @@ $('formRenta').addEventListener('submit', function (e) {
         $('obraVacia').scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
     }
+
+    const dep = parseFloat($('deposito').value) || 0;
+    if (dep > 0 && $('metodo_pago_deposito').value === 'mixto' && !mixtoValido('deposito', dep)) {
+        e.preventDefault();
+        return;
+    }
     enviando = true;
 });
 
@@ -1095,23 +1106,18 @@ function toggleDepositoFields() {
     const val = parseFloat($('deposito').value) || 0;
     const metodo = $('metodo_pago_deposito').value;
     const refInput = $('referencia_deposito');
+    const necesitaRef = val > 0 && (metodo === 'transferencia' || metodo === 'tarjeta');
 
-    if (val > 0) {
-        $('divMetodoPagoDeposito').style.display = 'block';
-        if (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto') {
-            $('divReferenciaDeposito').style.display = 'block';
-            refInput.setAttribute('required', 'required');
-        } else {
-            $('divReferenciaDeposito').style.display = 'none';
-            refInput.removeAttribute('required');
-            refInput.value = '';
-        }
+    $('divMetodoPagoDeposito').style.display = val > 0 ? 'block' : 'none';
+    $('divReferenciaDeposito').style.display = necesitaRef ? 'block' : 'none';
+    if (necesitaRef) {
+        refInput.setAttribute('required', 'required');
     } else {
-        $('divMetodoPagoDeposito').style.display = 'none';
-        $('divReferenciaDeposito').style.display = 'none';
         refInput.removeAttribute('required');
         refInput.value = '';
     }
+
+    mixtoToggle('deposito', val > 0 ? metodo : '');
     actualizarResumen();
 }
 </script>

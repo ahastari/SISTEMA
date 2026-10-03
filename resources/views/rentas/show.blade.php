@@ -322,15 +322,16 @@
                                 {{ $pagoDeposito ? $pagoDeposito->fecha_pago->format('d/m/Y') : $renta->fecha_inicio->format('d/m/Y') }}
                             </td>
                             <td><span class="badge bg-secondary">Depósito</span></td>
-                            <td class="text-secondary small text-truncate" style="max-width: 150px;" title="Depósito Inicial">
+                            <td class="text-secondary small {{ $pagoDeposito && $pagoDeposito->desglose_mixto ? '' : 'text-truncate' }}"
+                                style="max-width: 220px;"
+                                title="{{ $pagoDeposito->referencia ?? 'Depósito Inicial' }}">
+                            
                                 @if($pagoDeposito)
-                                    Pago con {{ ucfirst($pagoDeposito->metodo_pago) }}
-                                    @if($pagoDeposito->referencia)
-                                        (Ref: {{ $pagoDeposito->referencia }})
-                                    @endif
+                                {{ $pagoDeposito->referencia ?? 'Depósito Inicial' }}
                                 @else
-                                    Garantía inicial
+                                Garantía inicial
                                 @endif
+                            
                             </td>
                             <td class="text-end fw-bold text-primary">-${{ number_format($renta->deposito, 2) }}</td>
                             <td class="text-center">
@@ -373,7 +374,7 @@
                                     Pago {{ ucfirst($pago->metodo_pago) }}
                                 </span>
                             </td>
-                            <td class="text-secondary small text-truncate" style="max-width: 150px;" title="{{ $pago->referencia ?? $pago->observaciones }}">
+                            <td class="text-secondary small {{ $pago->desglose_mixto ? '' : 'text-truncate' }}" style="max-width: 220px;" title="{{ $pago->referencia ?? $pago->observaciones }}">
                                 {{ $pago->referencia ?? $pago->observaciones ?? 'Abono a cuenta' }}
                             </td>
                             <td class="text-end fw-bold text-success">-${{ number_format($pago->monto, 2) }}</td>
@@ -800,6 +801,7 @@
 
                             <!-- 2. Monto y Método de Pago (Anidados en una fila) -->
                             <div class="row g-3">
+                                @include('rentas.partials.pago_mixto', ['id' => 'pago'])
                                 <div class="col-12 col-md-6">
                                     <div class="mb-3 mb-md-0">
                                         <label class="form-label small fw-semibold text-body">Monto Recibido <span class="text-danger">*</span></label>
@@ -818,7 +820,7 @@
                                             <option value="efectivo">Efectivo</option>
                                             <option value="transferencia">Transferencia</option>
                                             <option value="tarjeta">Tarjeta</option>
-                                            <option value="mixto">Mixto</option>
+                                            <option value="mixto">Pago Mixto</option>
                                         </select>
                                     </div>
 
@@ -902,7 +904,7 @@
                 <h5 class="modal-title fw-bold mb-0"><i class="bi bi-plus-circle me-2"></i>Ampliar Días de Renta</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ route('rentas.ampliarDias', $renta) }}" method="POST">
+            <form action="{{ route('rentas.ampliarDias', $renta) }}" method="POST" onsubmit="return validarMixtoAmpliar();">
                 @csrf
                 <div class="modal-body p-4">
                     @unless($cajaAbierta)
@@ -923,6 +925,7 @@
                                 <input type="number" name="dias_extra" id="dias_extra" class="form-control form-control-sm bg-body" min="1" required oninput="calcularAmpliacion()" placeholder="Ej: 3">
                             </div>
                             <div class="row g-2 mb-3">
+                                @include('rentas.partials.pago_mixto', ['id' => 'ampliar'])
                                 <div class="col-12 col-md-4">
                                     <label class="form-label small fw-semibold text-body">Abono a cuenta</label>
                                     <div class="input-group input-group-sm">
@@ -936,7 +939,7 @@
                                         <option value="efectivo">Efectivo</option>
                                         <option value="transferencia">Transferencia</option>
                                         <option value="tarjeta">Tarjeta</option>
-                                        <option value="mixto">Mixto</option>
+                                        <option value="mixto">Pago Mixto</option>
                                     </select>
                                 </div>
                                 <div class="col-12 col-md-4" id="divReferenciaAmpliar" style="display: none;">
@@ -1101,12 +1104,15 @@
                                 <option value="efectivo">Efectivo</option>
                                 <option value="transferencia">Transferencia</option>
                                 <option value="tarjeta">Tarjeta</option>
-                                <option value="mixto">Mixto</option>
+                                <option value="mixto">Pago Mixto</option>
                             </select>
                         </div>
                         <div class="col-12" id="campoReferenciaFinal" style="display: none;">
                             <label class="form-label small fw-semibold text-body">Referencia</label>
                             <input type="text" name="referencia_final" id="inputReferenciaFinal" class="form-control form-control-sm bg-body">
+                        </div>
+                        <div class="col-12">
+                            @include('rentas.partials.pago_mixto', ['id' => 'final'])
                         </div>
                         <div class="col-12 mt-2">
                             <div class="alert alert-secondary py-2 px-3 small mb-0">
@@ -1302,9 +1308,8 @@
     </div>
 </div>
 
+
 <script>
-// Barrera en el navegador: con caja cerrada, cualquier envío con monto cobrado > 0 se detiene
-// (el servidor también lo rechaza). Se permiten los movimientos con monto $0 (p. ej. solo devolver equipo).
 document.addEventListener('DOMContentLoaded', function () {
     const reglas = [
         { form: '#modalPago form',      monto: () => document.getElementById('inputMontoRecibidoPago') },
@@ -1331,6 +1336,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 @endunless
 
+@include('rentas.partials.pago_mixto_js')
 <script>
     const rentaData = document.getElementById('renta-js-data') ? document.getElementById('renta-js-data').dataset : {};
     const saldoBaseOriginal = parseFloat(rentaData.saldoPendiente) || 0;
@@ -1426,6 +1432,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
         
+        const metodo = document.getElementById('metodoPagoRegistro').value;
+        const aRegistrar = parseFloat(document.getElementById('inputMontoRegistrarPago').value) || 0;
+        if (metodo === 'mixto' && aRegistrar > 0 && !mixtoValido('pago', aRegistrar)) return false;
         return true;
     }
 
@@ -1454,16 +1463,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!selectMetodo || !campoRef) return;
 
         const metodo = selectMetodo.value;
-        if (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto') {
+        if (metodo === 'transferencia' || metodo === 'tarjeta') {
             campoRef.style.display = 'block';
             if (inputReferencia) inputReferencia.setAttribute('required', 'required');
         } else {
             campoRef.style.display = 'none';
-            if (inputReferencia) {
-                inputReferencia.removeAttribute('required');
-                inputReferencia.value = '';
-            }
+            if (inputReferencia) { inputReferencia.removeAttribute('required'); inputReferencia.value = ''; }
         }
+        mixtoToggle('pago', metodo);
     }
 
     function toggleCargoManual() {
@@ -1484,16 +1491,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!selectMetodo || !campoRef) return;
 
         const metodo = selectMetodo.value;
-        if (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto') {
+        if (metodo === 'transferencia' || metodo === 'tarjeta') {
             campoRef.style.display = 'block';
             if (inputReferencia) inputReferencia.setAttribute('required', 'required');
         } else {
             campoRef.style.display = 'none';
-            if (inputReferencia) {
-                inputReferencia.removeAttribute('required');
-                inputReferencia.value = '';
-            }
+            if (inputReferencia) { inputReferencia.removeAttribute('required'); inputReferencia.value = ''; }
         }
+        mixtoToggle('final', metodo);
     }
 
     function recalcularFinalizacion() {
@@ -1502,6 +1507,8 @@ document.addEventListener('DOMContentLoaded', function () {
         
         let deudaReal = saldoBaseOriginal + multa + manual;
         if (deudaReal < 0) deudaReal = 0;
+
+        deudaReal = parseFloat(deudaReal.toFixed(2));
 
         const formatter = new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -1550,8 +1557,16 @@ document.addEventListener('DOMContentLoaded', function () {
         let deudaReal = saldoBaseOriginal + multa + manual;
         if (deudaReal < 0) deudaReal = 0;
 
+        deudaReal = parseFloat(deudaReal.toFixed(2));
+
         const elRecibido = document.getElementById('montoRecibidoFinal');
         let montoRecibido = parseFloat(elRecibido ? elRecibido.value : 0) || 0;
+
+        montoRecibido = parseFloat(montoRecibido.toFixed(2));
+
+        const metodoFinal = document.getElementById('metodoPagoFinalRegistro').value;
+        const aCobrar = Math.min(montoRecibido, deudaReal);
+        if (metodoFinal === 'mixto' && aCobrar > 0 && !mixtoValido('final', aCobrar)) return false;
 
         if (montoRecibido < deudaReal) {
             const esGerenteAdmin = rentaData.esGerente === '1';
@@ -1693,7 +1708,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const campoRef = document.getElementById('divReferenciaAmpliar');
         const inputRef = document.getElementById('inputReferenciaAmpliar');
 
-        if (val > 0 && (metodo === 'transferencia' || metodo === 'tarjeta' || metodo === 'mixto')) {
+        if (val > 0 && (metodo === 'transferencia' || metodo === 'tarjeta')) {
             campoRef.style.display = 'block';
             inputRef.setAttribute('required', 'required');
         } else {
@@ -1701,7 +1716,31 @@ document.addEventListener('DOMContentLoaded', function () {
             inputRef.removeAttribute('required');
             inputRef.value = '';
         }
+        mixtoToggle('ampliar', val > 0 ? metodo : '');
     }
+
+    function validarMixtoAmpliar() {
+        const abono = parseFloat(document.getElementById('abonoAmpliar').value) || 0;
+        const metodo = document.getElementById('metodoPagoAmpliar').value;
+        if (abono > 0 && metodo === 'mixto') return mixtoValido('ampliar', abono);
+        return true;
+    }
+
+    // En mixto, el "Monto recibido" se calcula solo con la suma de las dos partes
+    window.mixtoCallbacks.pago = function (suma) {
+        const el = document.getElementById('inputMontoRecibidoPago');
+        const mix = document.getElementById('metodoPagoRegistro')?.value === 'mixto';
+        if (!el) return;
+        el.readOnly = mix;
+        if (mix) { el.value = suma > 0 ? suma.toFixed(2) : ''; calcularCambioPago(); }
+    };
+    window.mixtoCallbacks.final = function (suma) {
+        const el = document.getElementById('montoRecibidoFinal');
+        const mix = document.getElementById('metodoPagoFinalRegistro')?.value === 'mixto';
+        if (!el) return;
+        el.readOnly = mix;
+        if (mix) { el.value = suma > 0 ? suma.toFixed(2) : ''; recalcularFinalizacion(); }
+    };
 </script>
 
 <!-- AUTO-INICIAR EL TICKET TÉRMICO SI ESTÁ DISPONIBLE EN LA SESIÓN -->

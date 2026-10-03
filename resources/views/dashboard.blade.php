@@ -178,13 +178,6 @@
             </div>
         </div>
         <div class="col-12 col-sm-6 col-xl-2">
-            <div class="kpi-card border-start border-4 border-info shadow-sm">
-                <span class="kpi-title">Proyectos / Obras</span>
-                <h3 class="kpi-value font-mono text-info">{{ $totalObras }}</h3>
-                <a href="{{ route('obras.index') }}" class="kpi-sub text-decoration-none fw-bold">Supervisar <i class="bi bi-arrow-right"></i></a>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-xl-2">
             <div class="kpi-card border-start border-4 border-secondary shadow-sm">
                 <span class="kpi-title">Rentas Históricas</span>
                 <h3 class="kpi-value font-mono">{{ $rentasTotales }}</h3>

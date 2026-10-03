@@ -387,9 +387,6 @@ class AutorizacionController extends Controller
         return back()->with('success', 'Solicitud rechazada.');
     }
 
-    /**
-     * CONTADOR DE NOTIFICACIONES EN TIEMPO REAL (Rentas + Transferencias + Ventas + Descuentos)
-     */
     public function notificaciones()
     {
         if (!auth()->user()->isAdmin() && !auth()->user()->isGerente()) return response()->json(['count' => 0]);
@@ -403,11 +400,7 @@ class AutorizacionController extends Controller
         $qVentas = \App\Models\Venta::where('autorizacion_solicitada', true)->where('estado', 'completada');
         $qDescuentos = SolicitudDescuento::where('estado', 'pendiente');
 
-        // Filtro para el Gerente:
         if (!$isGlobalAdmin) {
-            // NOTA: Si un admin cambia temporalmente su sesión a una sucursal específica
-            // (no global), el contador también le mostrará solo los de esa sucursal. 
-            // Esto es correcto a nivel visual.
             $qRentas->where('sucursal_id', $sucursalId);
             $qMovimientos->where('sucursal_origen_id', $sucursalId);
             $qVentas->where('sucursal_id', $sucursalId);

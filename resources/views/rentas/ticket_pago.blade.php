@@ -100,8 +100,14 @@
             
             <div class="mb-1"><span class="bold">Método de Pago:</span> {{ strtoupper($pago->metodo_pago) }}</div>
 
-            <!-- 🔥 NUEVA LÍNEA: Mostrar Referencia si aplica -->
-            @if(in_array($pago->metodo_pago, ['transferencia', 'tarjeta', 'mixto']) && $pago->referencia)
+            @if($pago->metodo_pago === 'mixto' && !empty($pago->desglose_mixto))
+                @foreach($pago->desglose_mixto as $parte)
+                    <div class="mb-1" style="padding-left: 8px;">
+                        {{ ucfirst($parte['metodo']) }}: ${{ number_format($parte['monto'], 2) }}
+                        @if(!empty($parte['referencia'])) <br>&nbsp;&nbsp;Ref: {{ $parte['referencia'] }} @endif
+                    </div>
+                @endforeach
+            @elseif(in_array($pago->metodo_pago, ['transferencia', 'tarjeta']) && $pago->referencia)
                 <div><span class="bold">Ref / Folio:</span> {{ $pago->referencia }}</div>
             @endif
         </div>
