@@ -9,7 +9,9 @@
     <div class="d-flex gap-2 w-100 w-md-auto justify-content-start justify-content-md-end">
         @php $rutaRegreso = session('inventory_view') == 'kanban' ? route('inventario.kanban') : route('inventario.index'); @endphp
         <a href="{{ $rutaRegreso }}" class="btn btn-outline-secondary btn-sm rounded-3"><i class="bi bi-arrow-left"></i> Volver</a>
+        @if(auth()->user()->role !== 'cajero')
         <a href="{{ route('inventario.edit', $equipo) }}" class="btn btn-warning btn-sm rounded-3 text-dark fw-semibold"><i class="bi bi-pencil"></i> Editar Ficha</a>
+        @endif
     </div>
 </div>
 

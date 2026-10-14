@@ -112,8 +112,15 @@
 
             <!-- Registrar Pago / Liquidar -->
             @if($saldoPendienteReal > 0 || $renta->autorizacion_aprobada || ($renta->estado == 'activa' && !$renta->autorizacion_solicitada))
-                <button class="btn {{ $renta->autorizacion_aprobada ? 'btn-success' : 'btn-info' }} btn-sm rounded-3 text-white" data-bs-toggle="modal" data-bs-target="#modalPago">
-                    <i class="bi bi-cash-coin me-1"></i> {{ $renta->autorizacion_aprobada ? 'Liquidar / Registrar Productos' : 'Registrar Pago' }}
+                <button class="btn {{ $renta->autorizacion_aprobada ? 'btn-success' : 'btn-info text-white' }} btn-sm rounded-3" data-bs-toggle="modal" data-bs-target="#modalPago">
+                    <i class="bi bi-{{ $saldoPendienteReal > 0 ? 'cash-coin' : 'box-arrow-in-down' }} me-1"></i> 
+                    @if($renta->autorizacion_aprobada)
+                        Liquidar / Registrar Productos
+                    @elseif($saldoPendienteReal <= 0)
+                        Registrar Retorno
+                    @else
+                        Registrar Pago
+                    @endif
                 </button>
             @endif
 
@@ -717,20 +724,31 @@
 @if($renta->saldo_pendiente > 0 || $renta->estado == 'activa')
 <!-- MODAL: Registro de Pago / Liquidación -->
 <div class="modal fade" id="modalPago" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="background: var(--bs-body-bg);">
-            
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header {{ $renta->autorizacion_aprobada ? 'bg-success' : 'bg-info' }} text-white py-3 px-4 border-0">
                 <div class="d-flex align-items-center gap-3">
                     <div class="rounded-circle p-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: rgba(255, 255, 255, 0.2);">
-                        <i class="bi bi-cash-coin fs-4 text-white"></i>
+                        <i class="bi bi-{{ $saldoPendienteReal > 0 ? 'cash-coin' : 'box-arrow-in-down' }} fs-4 text-white"></i>
                     </div>
                     <div>
                         <h5 class="modal-title fw-bold mb-0 text-white">
-                            {{ $renta->autorizacion_aprobada ? 'Liquidar Renta Aprobada y Registrar Productos' : 'Registrar Nuevo Pago' }}
+                            @if($renta->autorizacion_aprobada)
+                                Liquidar Renta Aprobada y Registrar Productos
+                            @elseif($saldoPendienteReal <= 0)
+                                Registrar Retorno de Equipo
+                            @else
+                                Registrar Nuevo Pago
+                            @endif
                         </h5>
                         <small class="text-white-50" style="font-size: 12px;">
-                            {{ $renta->autorizacion_aprobada ? 'Confirma la recepción de equipos y procesa el cobro final' : 'Registra abonos directos al saldo pendiente de la cuenta' }}
+                            @if($renta->autorizacion_aprobada)
+                                Confirma la recepción de equipos y procesa el cobro final
+                            @elseif($saldoPendienteReal <= 0)
+                                Registra la recepción de los equipos. No hay deuda pendiente.
+                            @else
+                                Registra abonos directos al saldo pendiente de la cuenta
+                            @endif
                         </small>
                     </div>
                 </div>
@@ -800,6 +818,7 @@
                             </div>
 
                             <!-- 2. Monto y Método de Pago (Anidados en una fila) -->
+                            @if($saldoPendienteReal > 0)
                             <div class="row g-3">
                                 @include('rentas.partials.pago_mixto', ['id' => 'pago'])
                                 <div class="col-12 col-md-6">
@@ -830,6 +849,13 @@
                                     </div>
                                 </div>
                             </div>
+                            @else
+                            <div class="alert alert-success py-2 px-3 small mb-0 mt-3">
+                                <i class="bi bi-check-circle-fill me-1"></i> La cuenta está liquidada. Puedes registrar la devolución de equipo pendiente sin procesar cobros adicionales.
+                            </div>
+                            <input type="hidden" name="monto" id="inputMontoRegistrarPago" value="0">
+                            <input type="hidden" name="metodo_pago" id="metodoPagoRegistro" value="efectivo">
+                            @endif
                         </div>
                         
                         <!-- ================= COLUMNA DERECHA ================= -->
@@ -886,7 +912,13 @@
                     <button type="button" class="btn btn-secondary rounded-3 px-4" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn {{ $renta->autorizacion_aprobada ? 'btn-success' : 'btn-info text-white' }} fw-bold rounded-3 px-4 shadow-sm">
                         <i class="bi bi-check-circle me-1"></i>
-                        {{ $renta->autorizacion_aprobada ? 'Liquidar' : 'Confirmar Pago' }}
+                        @if($renta->autorizacion_aprobada)
+                            Liquidar
+                        @elseif($saldoPendienteReal <= 0)
+                            Confirmar Retorno
+                        @else
+                            Confirmar Pago
+                        @endif
                     </button>
                 </div>
             </form>

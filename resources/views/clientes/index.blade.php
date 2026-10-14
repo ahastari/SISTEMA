@@ -260,22 +260,32 @@
 <!-- Modal para Bloquear Cliente -->
 <div class="modal fade" id="modalBloquearCliente" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-danger">
+        <!-- Se agregó el background dinámico y la sombra -->
+        <div class="modal-content border-danger shadow-lg" style="background: var(--bs-body-bg); border-color: var(--bs-border-color) !important;">
             <form id="formBloquearCliente" method="POST">
                 @csrf
                 @method('PATCH')
-                <div class="modal-header bg-danger text-white">
+                
+                <!-- El header se mantiene rojo por ser una acción destructiva, pero quitamos el borde inferior para que no desentone -->
+                <div class="modal-header bg-danger text-white border-bottom-0">
                     <h6 class="modal-title fw-bold"><i class="bi bi-slash-circle me-2"></i>Bloquear Cliente Globalmente</h6>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
+                
+                <!-- Cuerpo del modal -->
                 <div class="modal-body">
-                    <p class="small text-body-secondary mb-3">Este cliente quedará bloqueado en <strong>todas las sucursales</strong>. No se le podrá vender ni rentar.</p>
+                    <p class="small text-body-secondary mb-3">
+                        Este cliente quedará bloqueado en <strong class="text-body">todas las sucursales</strong>. No se le podrá vender ni rentar.
+                    </p>
                     <div class="mb-3">
                         <label class="form-label fw-bold text-body small">Motivo del bloqueo <span class="text-danger">*</span></label>
-                        <textarea name="motivo_bloqueo" class="form-control" rows="3" required placeholder="Ej: Falsificó documentos, dejó deuda de $5000, robo de equipo, etc."></textarea>
+                        <!-- Se agregaron clases dinámicas al textarea para que el fondo y borde se adapten -->
+                        <textarea name="motivo_bloqueo" class="form-control bg-body text-body border-secondary-subtle" rows="3" required placeholder="Ej: Falsificó documentos, dejó deuda de $5000, robo de equipo, etc."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
+                
+                <!-- Footer adaptado (se cambió bg-light por bg-body-tertiary) -->
+                <div class="modal-footer bg-body-tertiary py-2 border-top" style="border-color: var(--bs-border-color) !important;">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-danger btn-sm fw-bold">Aplicar Bloqueo</button>
                 </div>

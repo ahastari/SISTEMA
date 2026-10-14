@@ -146,17 +146,19 @@
                         </div>
 
                         <div class="col-6 col-md-4">
-                            <label class="form-label-sm">Fecha inicio <span class="text-danger">*</span></label>
-                            <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control form-control-sm bg-body @error('fecha_inicio') is-invalid @enderror"
-                                   value="{{ old('fecha_inicio', date('Y-m-d')) }}" required>
-                            @error('fecha_inicio')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="col-6 col-md-4">
-                            <label class="form-label-sm">Fecha fin <span class="text-danger">*</span></label>
-                            <input type="date" name="fecha_fin" id="fecha_fin" class="form-control form-control-sm bg-body @error('fecha_fin') is-invalid @enderror"
-                                   value="{{ old('fecha_fin', date('Y-m-d', strtotime('+1 day'))) }}" required>
-                            @error('fecha_fin')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
+                        <label class="form-label-sm">Fecha inicio <span class="text-danger">*</span></label>
+                        <!-- Agregado: min="{{ date('Y-m-d') }}" -->
+                        <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control form-control-sm bg-body @error('fecha_inicio') is-invalid @enderror"
+                            value="{{ old('fecha_inicio', date('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required>
+                        @error('fecha_inicio')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label class="form-label-sm">Fecha fin <span class="text-danger">*</span></label>
+                        <!-- Agregado: min="{{ date('Y-m-d') }}" -->
+                        <input type="date" name="fecha_fin" id="fecha_fin" class="form-control form-control-sm bg-body @error('fecha_fin') is-invalid @enderror"
+                            value="{{ old('fecha_fin', date('Y-m-d', strtotime('+1 day'))) }}" min="{{ date('Y-m-d') }}" required>
+                        @error('fecha_fin')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label-sm">Duración</label>
                             <div class="form-control form-control-sm bg-body-tertiary fw-bold text-primary" id="dias_totales">—</div>

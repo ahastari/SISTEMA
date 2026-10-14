@@ -60,15 +60,19 @@
         <a href="{{ route('inventario.exportar') }}" class="btn btn-outline-success btn-sm rounded-3 shadow-sm">
             <i class="bi bi-file-earmark-excel"></i> <span class="d-none d-md-inline ms-1">Exportar</span>
         </a>
+        @if(auth()->user()->role !== 'cajero')
         <button type="button" class="btn btn-outline-primary btn-sm rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalImportarExcel">
             <i class="bi bi-upload"></i> <span class="d-none d-md-inline ms-1">Importar</span>
         </button>
+        @endif
         <a href="{{ route('inventario.index', ['view' => 'table']) }}" class="btn btn-outline-secondary btn-sm rounded-3 shadow-sm">
             <i class="bi bi-table"></i> <span class="d-none d-md-inline ms-1">Vista Tabla</span>
         </a>
+        @if(auth()->user()->role !== 'cajero')
         <a href="{{ route('inventario.create') }}" class="btn btn-success btn-sm rounded-3 shadow-sm fw-semibold">
             <i class="bi bi-plus-lg"></i> <span class="d-none d-md-inline ms-1">Nuevo Producto</span>
         </a>
+        @endif
     </div>
 </div>
 
@@ -205,7 +209,7 @@
                             <i class="bi bi-eye fs-6"></i> Ver Detalles
                         </a>
                         
-                        @if($tabActivo === 'local' || $isGlobalAdmin)
+                        @if(($tabActivo === 'local' || $isGlobalAdmin) && auth()->user()->role !== 'cajero')
                             <a href="{{ route('inventario.edit', $equipo) }}" class="btn btn-sm btn-outline-warning border-0 btn-action" title="Editar Producto">
                                 <i class="bi bi-pencil fs-6"></i>
                             </a>

@@ -46,12 +46,41 @@
             <div><span class="bold">Recibió:</span> {{ $abono->usuario->name ?? '—' }}</div>
         </div>
 
-        <table>
-            <tr><td>Total del crédito:</td><td class="text-right">${{ number_format($venta->total, 2) }}</td></tr>
-            <tr><td>Plazo:</td><td class="text-right">{{ $venta->dias_credito }} días</td></tr>
-            <tr><td>Vencimiento:</td><td class="text-right">{{ $vence->format('d/m/Y') }}</td></tr>
-            <tr><td>Abonado a la fecha:</td><td class="text-right">${{ number_format($abonadoHastaAqui, 2) }}</td></tr>
+        <table style="width: 100%; font-size: 9pt; margin-bottom: 10px;">
+            <thead>
+                <tr>
+                    <th class="text-left" style="width: 15%;">Cant</th>
+                    <th class="text-left" style="width: 55%;">Descripción</th>
+                    <th class="text-right" style="width: 30%;">Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($venta->detalles as $detalle)
+                <tr>
+                    <td class="text-left" style="vertical-align: top;">{{ $detalle->cantidad }}</td>
+                    <td class="text-left" style="vertical-align: top;">
+                        {{ $detalle->equipo->nombre ?? $detalle->descripcion ?? 'Equipo' }}
+                        @if(isset($detalle->descuento) && $detalle->descuento > 0)
+                            <br><small style="font-size: 8pt;">(Desc: -${{ number_format($detalle->descuento, 2) }})</small>
+                        @endif
+                    </td>
+                    <td class="text-right" style="vertical-align: top;">
+                        ${{ number_format($detalle->importe ?? $detalle->subtotal ?? $detalle->total, 2) }}
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
         </table>
+
+        <!-- RESUMEN DEL CRÉDITO -->
+        <div class="border-top mt-2">
+            <table>
+                <tr><td>Total del crédito:</td><td class="text-right">${{ number_format($venta->total, 2) }}</td></tr>
+                <tr><td>Plazo:</td><td class="text-right">{{ $venta->dias_credito }} días</td></tr>
+                <tr><td>Vencimiento:</td><td class="text-right">{{ $vence->format('d/m/Y') }}</td></tr>
+                <tr><td>Abonado a la fecha:</td><td class="text-right">${{ number_format($abonadoHastaAqui, 2) }}</td></tr>
+            </table>
+        </div>
 
         <div class="border-top mt-2">
             <table style="margin: 0;">

@@ -265,6 +265,11 @@ class EquipoController extends Controller
      */
     public function create()
     {
+        if (auth()->check() && auth()->user()->role == 'cajero') {
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('error', 'Acceso denegado. Tu perfil de cajero solo permite consultar el inventario, no modificarlo.');
+        }
+
         $categorias = Categoria::where('activa', true)->orderBy('nombre')->get();
         $unidades = UnidadMedida::where('activa', true)->orderBy('nombre')->get();
         $sucursales = \App\Models\Sucursal::where('activa', true)->get();
@@ -278,6 +283,11 @@ class EquipoController extends Controller
      */
     public function store(Request $request)
     {
+        if (auth()->check() && auth()->user()->role == 'cajero') {
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('error', 'Acceso denegado. Tu perfil de cajero solo permite consultar el inventario, no modificarlo.');
+        }
+
         $validated = $request->validate([
             'codigo_barras' => 'nullable|string|max:255|unique:equipos,codigo_barras',
             'nombre' => 'required|string|max:255',
@@ -373,6 +383,11 @@ class EquipoController extends Controller
      */
     public function edit(Equipo $equipo)
     {
+        if (auth()->check() && auth()->user()->role == 'cajero') {
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('error', 'Acceso denegado. Tu perfil de cajero solo permite consultar el inventario, no modificarlo.');
+        }
+
         $equipo->load('sucursales');
         $categorias = Categoria::where('activa', true)->orderBy('nombre')->get();
         $unidades = UnidadMedida::where('activa', true)->orderBy('nombre')->get();
@@ -400,6 +415,11 @@ class EquipoController extends Controller
      */
     public function update(Request $request, Equipo $equipo)
     {
+        if (auth()->check() && auth()->user()->role == 'cajero') {
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('error', 'Acceso denegado. Tu perfil de cajero solo permite consultar el inventario, no modificarlo.');
+        }
+
         $sucursalId = session('activo_sucursal_id', 'global');
         $equipo->load('sucursales');
 
@@ -516,6 +536,11 @@ class EquipoController extends Controller
      */
     public function destroy(Equipo $equipo)
     {
+        if (auth()->check() && auth()->user()->role == 'cajero') {
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('error', 'Acceso denegado. Tu perfil de cajero solo permite consultar el inventario, no modificarlo.');
+        }
+
         try {
             // Guardamos la ruta de la imagen temporalmente
             $rutaImagen = $equipo->imagen;
@@ -562,6 +587,11 @@ class EquipoController extends Controller
      */
     public function importExcel(Request $request)
     {
+        if (auth()->check() && auth()->user()->role == 'cajero') {
+            $ruta = session('inventory_view') == 'kanban' ? 'inventario.kanban' : 'inventario.index';
+            return redirect()->route($ruta)->with('error', 'Acceso denegado. Tu perfil de cajero solo permite consultar el inventario, no modificarlo.');
+        }
+
         $request->validate([
             'documento_excel' => 'required|mimes:xlsx,xls,csv|max:10240'
         ]);

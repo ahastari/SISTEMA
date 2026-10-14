@@ -1071,6 +1071,27 @@ class RentaController extends Controller
 
             DB::transaction(function () use ($request, $renta, &$nuevoPagoId) {
 
+                $saldoPendienteActual = $renta->saldo_pendiente;
+                if ($renta->estado == 'activa') {
+                    $hoy = now()->startOfDay();
+                    $fechaFin = $renta->fecha_fin->startOfDay();
+                    if ($hoy > $fechaFin) {
+                        $diasRetraso = $fechaFin->diffInDays($hoy);
+                        $costoDiario = 0;
+                        foreach ($renta->detalles as $detalle) {
+                            $pendiente = $detalle->cantidad - $detalle->cantidad_devuelta;
+                            if ($pendiente > 0) {
+                                $costoDiario += $detalle->costoDiarioPendiente();
+                            }
+                        }
+                        $saldoPendienteActual += ($diasRetraso * $costoDiario);
+                    }
+                }
+
+                if ($request->monto > 0 && $saldoPendienteActual <= 0.01) {
+                    throw new \Exception('La cuenta ya está liquidada. No es posible procesar abonos adicionales.');
+                }
+
                 // 1. PROCESAR DEVOLUCIÓN DE EQUIPOS (SIEMPRE DISPONIBLE)
                 $renta->load('detalles.equipo');
                 $articulosDevueltos = [];

@@ -112,25 +112,38 @@
             @endif
         </div>
 
-        <!-- DETALLE DE LA OPERACIÓN -->
-        <table>
+        <!-- DETALLE DE EQUIPOS RENTADOS -->
+        <table style="width: 100%; font-size: 9pt;">
             <thead>
                 <tr>
-                    <th class="text-left">Cant</th>
-                    <th class="text-left">Descripción</th>
-                    <th class="text-right">Importe</th>
+                    <th class="text-left" style="width: 20%;">Cant</th>
+                    <th class="text-left" style="width: 80%;">Equipo Rentado</th>
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td class="text-left" style="vertical-align: top;">1</td>
-                    <td class="text-left">
-                        Operación: {{ strtoupper($pago->tipo) }}
-                    </td>
-                    <td class="text-right" style="vertical-align: top;">${{ number_format($pago->monto, 2) }}</td>
-                </tr>
+                {{-- Itera sobre la relación de detalles de la renta --}}
+                @if(isset($pago->renta->detalles) && $pago->renta->detalles->count() > 0)
+                    @foreach($pago->renta->detalles as $detalle)
+                    <tr>
+                        <td class="text-left" style="vertical-align: top;">{{ $detalle->cantidad ?? 1 }}</td>
+                        <td class="text-left" style="vertical-align: top;">
+                            {{ $detalle->equipo->nombre ?? $detalle->descripcion ?? 'Equipo' }}
+                        </td>
+                    </tr>
+                    @endforeach
+                @endif
             </tbody>
         </table>
+
+        <!-- DETALLE DEL ABONO/PAGO ACTUAL -->
+        <div class="border-top mt-2">
+            <table style="width: 100%; font-size: 9pt;">
+                <tr>
+                    <td class="text-left bold" style="width: 60%;">Operación: {{ strtoupper($pago->tipo) }}</td>
+                    <td class="text-right bold" style="width: 40%;">${{ number_format($pago->monto, 2) }}</td>
+                </tr>
+            </table>
+        </div>
 
         <!-- TOTALES -->
         <div class="border-top mt-2">
