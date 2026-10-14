@@ -146,19 +146,19 @@
                         </div>
 
                         <div class="col-6 col-md-4">
-                        <label class="form-label-sm">Fecha inicio <span class="text-danger">*</span></label>
-                        <!-- Agregado: min="{{ date('Y-m-d') }}" -->
-                        <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control form-control-sm bg-body @error('fecha_inicio') is-invalid @enderror"
-                            value="{{ old('fecha_inicio', date('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required>
-                        @error('fecha_inicio')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <label class="form-label-sm">Fecha fin <span class="text-danger">*</span></label>
-                        <!-- Agregado: min="{{ date('Y-m-d') }}" -->
-                        <input type="date" name="fecha_fin" id="fecha_fin" class="form-control form-control-sm bg-body @error('fecha_fin') is-invalid @enderror"
-                            value="{{ old('fecha_fin', date('Y-m-d', strtotime('+1 day'))) }}" min="{{ date('Y-m-d') }}" required>
-                        @error('fecha_fin')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
+                            <label class="form-label-sm">Fecha inicio <span class="text-danger">*</span></label>
+                            <!-- Agregado: min="{{ date('Y-m-d') }}" -->
+                            <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control form-control-sm bg-body @error('fecha_inicio') is-invalid @enderror"
+                                value="{{ old('fecha_inicio', date('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required>
+                            @error('fecha_inicio')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-6 col-md-4">
+                            <label class="form-label-sm">Fecha fin <span class="text-danger">*</span></label>
+                            <!-- Agregado: min="{{ date('Y-m-d') }}" -->
+                            <input type="date" name="fecha_fin" id="fecha_fin" class="form-control form-control-sm bg-body @error('fecha_fin') is-invalid @enderror"
+                                value="{{ old('fecha_fin', date('Y-m-d', strtotime('+1 day'))) }}" min="{{ date('Y-m-d') }}" required>
+                            @error('fecha_fin')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label-sm">Duración</label>
                             <div class="form-control form-control-sm bg-body-tertiary fw-bold text-primary" id="dias_totales">—</div>
@@ -624,7 +624,18 @@ function renderizarEquipos() {
 $('clienteSelect').addEventListener('change', actualizarResumen);
 
 ['flete', 'mano_obra', 'descuento'].forEach(id => $(id).addEventListener('input', actualizarResumen));
-$('fecha_inicio').addEventListener('change', actualizarResumen);
+$('fecha_inicio').addEventListener('change', function() {
+    // La fecha de fin mínima será la nueva fecha de inicio
+    $('fecha_fin').min = this.value;
+    
+    // Si la fecha fin actual es menor a la de inicio, la igualamos o le sumamos 1 día
+    if ($('fecha_fin').value < this.value) {
+        $('fecha_fin').value = this.value; 
+    }
+    
+    actualizarResumen();
+});
+
 $('fecha_fin').addEventListener('change', actualizarResumen);
 
 // ======================= DESCUENTO CON AUTORIZACIÓN ======================= //

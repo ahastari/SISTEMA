@@ -198,7 +198,7 @@
 @include($vista . '._modal_abono')
 
 {{-- MODAL: historial de abonos --}}
-<div class="modal fade" id="modalHistorialAbonos" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalHistorialAbonos" tabindex="-1" aria-hidden="true" style="z-index: 1052;">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg" style="background: var(--bs-body-bg);">
             <div class="modal-header bg-dark text-white py-2">

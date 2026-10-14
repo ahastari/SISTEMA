@@ -416,6 +416,11 @@
                         <option value="mixto">Pago Mixto</option>
                     </select>
                 </div>
+
+                <div class="mb-2" id="seccionReferencia" style="display: none;">
+                    <label class="form-label text-body fw-bold mb-1" style="font-size: 11px;">Folio / Referencia de Pago <span class="text-secondary fw-normal">(Opcional)</span></label>
+                    <input type="text" id="referenciaPago" class="form-control form-control-sm bg-body text-body" maxlength="100" placeholder="Folio, voucher o autorización">
+                </div>
                 
                 <!-- Campo Días de Crédito (Oculto dinámicamente) -->
                 <div class="mb-2" id="seccionCredito" style="display: none;">
@@ -1097,6 +1102,33 @@ function autocompletarRFC() {
 
 document.getElementById('clienteVenta')?.addEventListener('change', autocompletarRFC);
 
+function evaluarMostrarReferencia() {
+    const metodo = document.getElementById('metodoPago')?.value;
+    const refBox = document.getElementById('seccionReferencia');
+    const mixtoBox = document.getElementById('seccionPagoMixto');
+    const contenedorPrincipal = document.getElementById('metodoPago')?.parentElement;
+    
+    if (!refBox) return;
+
+    let mostrar = false;
+    
+    if (metodo === 'transferencia' || metodo === 'tarjeta') {
+        mostrar = true;
+        if (contenedorPrincipal) contenedorPrincipal.after(refBox);
+        
+    } else if (metodo === 'mixto') {
+        const m1 = document.getElementById('mixtoMetodo1')?.value;
+        const m2 = document.getElementById('mixtoMetodo2')?.value;
+        
+        if (['transferencia', 'tarjeta'].includes(m1) || ['transferencia', 'tarjeta'].includes(m2)) {
+            mostrar = true;
+            if (mixtoBox) mixtoBox.appendChild(refBox);
+        }
+    }
+    
+    refBox.style.display = mostrar ? 'block' : 'none';
+}
+
 const selectMetodoPago = document.getElementById('metodoPago');
 if (selectMetodoPago) {
     selectMetodoPago.addEventListener('change', function() {
@@ -1118,8 +1150,15 @@ if (selectMetodoPago) {
         } else if (this.value === 'credito') {
             if (seccionCredito) seccionCredito.style.display = 'block';
         }
+        
+        // Evaluar si se muestra la referencia
+        evaluarMostrarReferencia();
     });
 }
+
+// Escuchar cambios dentro de los selects del pago mixto
+document.getElementById('mixtoMetodo1')?.addEventListener('change', evaluarMostrarReferencia);
+document.getElementById('mixtoMetodo2')?.addEventListener('change', evaluarMostrarReferencia);
 
 // ===== SOLICITUD DE AUTORIZACIÓN DE DESCUENTOS (mismo esquema que la cancelación) =====
 function descuentoAutorizado(descuento) {
@@ -1447,6 +1486,7 @@ function guardarActualEnEspera() {
         rfc: document.getElementById('rfcCliente')?.value || '',
         pago: {
             metodo: document.getElementById('metodoPago')?.value || '',
+            referencia_pago: document.getElementById('referenciaPago')?.value || '',
             dias: document.getElementById('diasCredito')?.value || '15',
             abono: document.getElementById('abonoInicial')?.value || '0.00',
             recibido: document.getElementById('montoRecibido')?.value || '',
@@ -1513,6 +1553,7 @@ function cargarCarrito(snap) {
         selMetodo.value = pg.metodo || '';
         selMetodo.dispatchEvent(new Event('change'));
     }
+    setVal('referenciaPago', pg.referencia_pago);
     setVal('diasCredito', pg.dias);
     setVal('abonoInicial', pg.abono);
     setVal('abonoMetodo', pg.abMetodo); setVal('abonoReferencia', pg.abRef);
@@ -1798,6 +1839,9 @@ function realizarVenta() {
         return;
     }
 
+    const referenciaPago = document.getElementById('referenciaPago')?.value.trim();
+
+
     // VALIDACIÓN DE DESCUENTO: no puede exceder el subtotal y requiere autorización
     const subtotalBrutoVenta = carrito.reduce((sum, i) => sum + parseFloat(i.precio) * parseInt(i.cantidad), 0);
     if (descuento > subtotalBrutoVenta) {
@@ -1907,6 +1951,7 @@ function realizarVenta() {
             esEspecial: i.esEspecial 
         })),
         metodo_pago: metodoPago,
+        referencia_pago: referenciaPago,
         descuento: descuento,
         solicitud_descuento_id: (descuento > 0 && solicitudDescuento) ? solicitudDescuento.id : null,
         solicitud_credito_id: (metodoPago === 'credito' && solicitudCredito) ? solicitudCredito.id : null,
@@ -2125,6 +2170,12 @@ function limpiarYEnfocarPOS() {
     if (seccionCambio) seccionCambio.style.display = 'none';
     if (seccionMixto) seccionMixto.style.display = 'none';
     if (seccionCredito) seccionCredito.style.display = 'none';
+
+    const seccionReferencia = document.getElementById('seccionReferencia');
+    const inputReferencia = document.getElementById('referenciaPago');
+    
+    if (seccionReferencia) seccionReferencia.style.display = 'none';
+    if (inputReferencia) inputReferencia.value = '';
 
     if (document.getElementById('mixtoMonto1')) document.getElementById('mixtoMonto1').value = '';
     if (document.getElementById('mixtoMonto2')) document.getElementById('mixtoMonto2').value = '';
