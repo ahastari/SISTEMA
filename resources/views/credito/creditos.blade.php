@@ -72,7 +72,7 @@
 </div>
 
 {{-- Filtros --}}
-<form method="GET" action="{{ route('puntoventa.creditos') }}" class="card border-0 shadow-sm rounded-3 mb-3">
+<form method="GET" id="formFiltros" action="{{ route('puntoventa.creditos') }}" class="card border-0 shadow-sm rounded-3 mb-3">
     <div class="card-body py-3">
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-3">
@@ -225,28 +225,41 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const money = n => '$' + (parseFloat(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    document.addEventListener('DOMContentLoaded', function () {
+        // Filtros automáticos: selects y fechas al cambiar; búsqueda al dejar de escribir (500 ms)
+        const formFiltros = document.getElementById('formFiltros');
+        formFiltros.querySelectorAll('select, input[type="date"]').forEach(el =>
+            el.addEventListener('change', () => formFiltros.submit()));
+        const inputBuscar = formFiltros.querySelector('input[name="buscar"]');
+        let timerBuscar;
+        inputBuscar.addEventListener('input', () => {
+            clearTimeout(timerBuscar);
+            timerBuscar = setTimeout(() => formFiltros.submit(), 500);
+        });
+        // Mantiene el cursor al final del texto tras recargar si se estaba buscando
+        if (inputBuscar.value) { inputBuscar.focus(); inputBuscar.setSelectionRange(inputBuscar.value.length, inputBuscar.value.length); }
 
-    document.querySelectorAll('.btn-historial').forEach(btn => btn.addEventListener('click', () => {
-        const abonos = JSON.parse(btn.dataset.abonos || '[]');
-        document.getElementById('histFolio').textContent = btn.dataset.folio;
-        document.getElementById('histCliente').textContent = btn.dataset.cliente;
-        document.getElementById('histTotal').textContent = money(btn.dataset.total);
-        document.getElementById('histSaldo').textContent = money(btn.dataset.saldo);
-        document.getElementById('histCuerpo').innerHTML = abonos.length ? abonos.map(a => `
-            <tr>
-                <td>${esc(a.fecha)}</td>
-                <td class="text-capitalize">${esc(a.metodo)}</td>
-                <td class="text-secondary">${esc(a.ref || '—')}${a.obs ? '<div style="font-size:11px">' + esc(a.obs) + '</div>' : ''}</td>
-                <td>${esc(a.usuario)}</td>
-                <td class="text-end fw-bold text-success">${money(a.monto)}</td>
-                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-secondary border py-0 px-2" onclick="verTicketAbono('${esc(a.ticket)}')" title="Reimprimir comprobante"><i class="bi bi-printer"></i></button></td>
-            </tr>`).join('')
-            : '<tr><td colspan="6" class="text-center text-secondary py-4">Aún no hay abonos registrados.</td></tr>';
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialAbonos')).show();
-    }));
-});
+        const money = n => '$' + (parseFloat(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        document.querySelectorAll('.btn-historial').forEach(btn => btn.addEventListener('click', () => {
+            const abonos = JSON.parse(btn.dataset.abonos || '[]');
+            document.getElementById('histFolio').textContent = btn.dataset.folio;
+            document.getElementById('histCliente').textContent = btn.dataset.cliente;
+            document.getElementById('histTotal').textContent = money(btn.dataset.total);
+            document.getElementById('histSaldo').textContent = money(btn.dataset.saldo);
+            document.getElementById('histCuerpo').innerHTML = abonos.length ? abonos.map(a => `
+                <tr>
+                    <td>${esc(a.fecha)}</td>
+                    <td class="text-capitalize">${esc(a.metodo)}</td>
+                    <td class="text-secondary">${esc(a.ref || '—')}${a.obs ? '<div style="font-size:11px">' + esc(a.obs) + '</div>' : ''}</td>
+                    <td>${esc(a.usuario)}</td>
+                    <td class="text-end fw-bold text-success">${money(a.monto)}</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-secondary border py-0 px-2" onclick="verTicketAbono('${esc(a.ticket)}')" title="Reimprimir comprobante"><i class="bi bi-printer"></i></button></td>
+                </tr>`).join('')
+                : '<tr><td colspan="6" class="text-center text-secondary py-4">Aún no hay abonos registrados.</td></tr>';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialAbonos')).show();
+        }));
+    });
 </script>
 @endsection

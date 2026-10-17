@@ -151,19 +151,24 @@ class CreditoController extends Controller
 
         $filas = $ventas->map(fn ($v) => $this->armarCredito($v, $abonosPorVenta->get($v->id, collect()), $hoy));
 
+        // Filtro de estado (se aplica ANTES de calcular las tarjetas)
+        $estadoFiltro = $request->get('estado', 'todos');
+        if ($estadoFiltro === 'con_saldo')  $filas = $filas->where('saldo', '>', 0);
+        elseif ($estadoFiltro !== 'todos')  $filas = $filas->where('estado', $estadoFiltro);
+        $filas = $filas->values();
+
+        // Tarjetas según los filtros.
+        // Solo se descuentan los LIQUIDADOS (los abonos parciales no restan al total).
+        // Si el filtro es "Liquidados", se muestra el monto de esos créditos en lugar de 0.
+        $base = $estadoFiltro === 'liquidado' ? $filas : $filas->where('estado', '!=', 'liquidado');
         $kpi = [
-            'creditos'   => $filas->count(),
-            'total'      => $filas->sum('total'),
+            'creditos'   => $base->count(),
+            'total'      => $base->sum('total'),
             'abonado'    => $filas->sum('abonado'),
             'por_cobrar' => $filas->sum('saldo'),
             'vencido'    => $filas->where('estado', 'vencido')->sum('saldo'),
             'n_vencidos' => $filas->where('estado', 'vencido')->count(),
         ];
-
-        $estadoFiltro = $request->get('estado', 'con_saldo');
-        if ($estadoFiltro === 'con_saldo')  $filas = $filas->where('saldo', '>', 0);
-        elseif ($estadoFiltro !== 'todos')  $filas = $filas->where('estado', $estadoFiltro);
-        $filas = $filas->values();
 
         $page    = LengthAwarePaginator::resolveCurrentPage();
         $perPage = 15;
